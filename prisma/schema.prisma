@@ -1,0 +1,201 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model Admin {
+  id        Int      @id @default(autoincrement())
+  nombre    String
+  email     String   @unique
+  password  String
+  rol       String   @default("admin")
+  createdAt DateTime @default(now())
+  updatedAt DateTime
+}
+
+model Categoria {
+  id          Int        @id @default(autoincrement())
+  nombre      String     @unique
+  descripcion String?    @db.Text
+  imagen      String?
+  Producto    Producto[]
+}
+
+model Cliente {
+  id                      Int         @id @default(autoincrement())
+  nombre                  String
+  apellidos               String?
+  email                   String      @unique
+  password                String
+  telefono                String?
+  empresa                 String?
+  direccion               String?
+  direccionComplementaria String?
+  codigoPostal            String?
+  ciudad                  String?
+  provincia               String?
+  pais                    String?     @default("España")
+  nif                     String?
+  role                    String      @default("cliente")
+  createdAt               DateTime    @default(now())
+  updatedAt               DateTime
+  Pedido                  Pedido[]
+  cuponesUsados           CuponUso[]
+}
+
+model Cupon {
+  id               Int                 @id @default(autoincrement())
+  codigo           String              @unique(map: "cupones_codigo_key")
+  tipoDescuento    Cupon_tipoDescuento @default(PORCENTAJE)
+  valorDescuento   Float
+  cantidadTotal    Int                 @default(100)
+  cantidadUsada    Int                 @default(0)
+  limitePorUsuario Int                 @default(1)
+  fechaInicio      DateTime
+  fechaFin         DateTime
+  activo           Boolean             @default(true)
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime
+  usos             CuponUso[]
+
+  @@map("Cupon")
+}
+
+model Marca {
+  id          Int        @id @default(autoincrement())
+  nombre      String     @unique
+  descripcion String?    @db.Text
+  logo_url    String?
+  imagen      String?
+  Producto    Producto[]
+}
+
+model Pedido {
+  id             Int               @id @default(autoincrement())
+  numeroPedido   String            @unique
+  clienteId      Int
+  nombre         String
+  email          String
+  telefono       String?
+  direccion      String?
+  ciudad         String?
+  cp             String?
+  envioMetodo    String
+  envioCoste     Float             @default(0)
+  pagoMetodo     String
+  pagoRecargo    Float             @default(0)
+  estadoPago     Pedido_estadoPago @default(PENDIENTE)
+  subtotal       Float
+  descuento      Float             @default(0)
+  totalFinal     Float
+  estado         Pedido_estado     @default(PENDIENTE)
+  cuponCodigo    String?
+  cuponDescuento Float?
+  fechaPedido    DateTime          @default(now())
+  updatedAt      DateTime
+  Cliente        Cliente           @relation(fields: [clienteId], references: [id])
+  PedidoProducto PedidoProducto[]
+
+  @@index([clienteId], map: "Pedido_clienteId_fkey")
+}
+
+model PedidoProducto {
+  id             Int    @id @default(autoincrement())
+  pedidoId       Int
+  productoIdRef  Int?
+  nombre         String
+  cantidad       Int
+  precioUnitario Float
+  subtotal       Float
+  Pedido         Pedido @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+
+  @@index([pedidoId], map: "PedidoProducto_pedidoId_fkey")
+}
+
+model Producto {
+  id               Int        @id @default(autoincrement())
+  nombre           String
+  descripcion      String?    @db.Text
+  descripcion_html String?    @db.Text
+  precio           Float
+  stock            Int        @default(0)
+  destacado        Boolean    @default(false)
+  imagenes         Json?
+  marcaId          Int?
+  categoriaId      Int?
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime
+  Categoria        Categoria? @relation(fields: [categoriaId], references: [id])
+  Marca            Marca?     @relation(fields: [marcaId], references: [id])
+  Variante         Variante[]
+
+  @@index([categoriaId], map: "Producto_categoriaId_fkey")
+  @@index([marcaId], map: "Producto_marcaId_fkey")
+}
+
+model Usuario {
+  id        Int         @id @default(autoincrement())
+  nombre    String?
+  email     String      @unique
+  password  String
+  rol       Usuario_rol @default(CLIENTE)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime
+}
+
+model Variante {
+  id           Int      @id @default(autoincrement())
+  color        String?
+  imagen       String?
+  tamano       String?
+  tirador      String?
+  precio_extra Float?   @default(0)
+  productoId   Int
+  Producto     Producto @relation(fields: [productoId], references: [id], onDelete: Cascade)
+
+  @@index([productoId], map: "Variante_productoId_fkey")
+}
+
+model CuponUso {
+  id        Int      @id @default(autoincrement())
+  cuponId   Int
+  clienteId Int
+  veces     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime
+  Cliente   Cliente  @relation(fields: [clienteId], references: [id], map: "cupones_usos_clienteId_fkey")
+  Cupon     Cupon    @relation(fields: [cuponId], references: [id], map: "cupones_usos_cuponId_fkey")
+
+  @@unique([cuponId, clienteId], map: "cupones_usos_cuponId_clienteId_key")
+  @@index([clienteId], map: "cupones_usos_clienteId_fkey")
+
+  @@map("cupon_uso")
+}
+
+enum Cupon_tipoDescuento {
+  PORCENTAJE
+  FIJO
+}
+
+enum Usuario_rol {
+  CLIENTE
+  ADMIN
+}
+
+enum Pedido_estadoPago {
+  PENDIENTE
+  PAGADO
+  FALLIDO
+}
+
+enum Pedido_estado {
+  PENDIENTE
+  PROCESANDO
+  ENVIADO
+  ENTREGADO
+  CANCELADO
+}

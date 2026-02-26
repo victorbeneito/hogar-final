@@ -1,0 +1,31 @@
+version: '3.8'
+
+services:
+  # 1. Tu Base de Datos (MariaDB)
+  db:
+    image: mariadb:latest
+    container_name: tienda_mariadb
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: Estudiant#Daw@2026
+      MYSQL_USER: admin
+      MYSQL_PASSWORD: password123
+    ports:
+      - "3306:3306"
+    volumes:
+      - ./mysql_data:/var/lib/mysql  # <--- EL CAMBIO CLAVE (ruta relativa)
+      # - ./backup.sql:/docker-entrypoint-initdb.d/backup.sql 
+
+  # 2. El Gestor Visual (PhpMyAdmin)
+  phpmyadmin:
+    image: phpmyadmin
+    container_name: tienda_phpmyadmin
+    restart: always
+    ports:
+      - "8080:80"
+    environment:
+      PMA_HOST: db
+      UPLOAD_LIMIT: 64M
+    depends_on:
+      - db
