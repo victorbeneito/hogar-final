@@ -1,0 +1,50 @@
+apiVersion: 2019-12-01
+location: francecentral
+name: grupo-tienda-db
+type: Microsoft.ContainerInstance/containerGroups
+properties:
+  osType: Linux
+  restartPolicy: OnFailure
+  ipAddress:
+    type: Public
+    ports:
+      - protocol: TCP
+        port: 80
+      - protocol: TCP
+        port: 3306
+    esdrf    dnsNameLabel: tiendahogar-db-vicben
+  
+  # ⚠️ Sin volúmenes externos para evitar cuelgues de MariaDB
+
+  containers:
+  # --- MariaDB ---
+  - name: mariadb
+    properties:
+      image: mariadb:10.6
+      resources:
+        requests:
+          cpu: 1.0
+          memoryInGB: 1.5
+      ports:
+        - port: 3306
+      environmentVariables:
+        - name: MYSQL_ROOT_PASSWORD
+          value: password123
+        - name: MYSQL_DATABASE
+          value: tienda_db
+
+  # --- PhpMyAdmin ---
+  - name: phpmyadmin
+    properties:
+      image: phpmyadmin/phpmyadmin
+      resources:
+        requests:
+          cpu: 0.5
+          memoryInGB: 0.5
+      ports:
+        - port: 80
+      environmentVariables:
+        - name: PMA_HOST
+          value: "127.0.0.1"
+        - name: PMA_PORT
+          value: "3306"
