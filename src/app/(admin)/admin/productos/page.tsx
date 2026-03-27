@@ -1,598 +1,554 @@
 "use client";
-export const dynamic = "force-dynamic";
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, useCallback } from "react";
+import Link from "next/link";
+import Image from "next/image";
+import {
+  Plus, Wrench, Search, ChevronUp, ChevronDown,
+  ChevronsUpDown, Eye, Pencil, Trash2, Copy,
+  ChevronLeft, ChevronRight, Download, Upload,
+  Database, CheckCircle2, XCircle, X,
+} from "lucide-react";
+import { useDebounce } from "use-debounce";
 
-interface VarianteForm {
-  tipo: "TAMAÑO" | "TIRADOR" | "COLOR" | "";
-  valor: string;
-  precio_extra: string;
-}
-
-interface FormData {
+// ─── Tipos ───────────────────────────────────────────────────────────────────
+type Producto = {
+  id: number;
   nombre: string;
-  descripcion: string;
-  descripcion_html_cruda: string;
-  precio: string;
-  stock: string;
+  referencia: string | null;
+  precio: number;
+  precioOferta: number | null;
+  stock: number;
+  activo: boolean;
   destacado: boolean;
-  marca: string;
+  slug: true,
+  imagenes: string[] | null;
+  Categoria: { id: number; nombre: string } | null;
+  Marca:     { id: number; nombre: string } | null;
+};
+
+type SortField = "id" | "nombre" | "referencia" | "precio" | "stock" | "activo";
+type SortDir   = "asc" | "desc";
+
+type Filtros = {
+  idMin: string; idMax: string;
+  nombre: string;
+  referencia: string;
   categoria: string;
-  imagenes: string[];
-  variantes: VarianteForm[];
-}
+  precioMin: string; precioMax: string;
+  stockMin: string;  stockMax: string;
+  activo: string;
+};
 
-export default function AdminProductos() {
-  const [productos, setProductos] = useState<any[]>([]);
-  const [marcas, setMarcas] = useState<any[]>([]);
-  const [categorias, setCategorias] = useState<any[]>([]);
-  
-  const [formData, setFormData] = useState<FormData>({
-    nombre: "",
-    descripcion: "",
-    descripcion_html_cruda: "",
-    precio: "",
-    stock: "",
-    destacado: false,
-    marca: "",
-    categoria: "",
-    imagenes: [""],
-    variantes: [],
-  });
+const filtrosVacios: Filtros = {
+  idMin: "", idMax: "", nombre: "", referencia: "",
+  categoria: "", precioMin: "", precioMax: "",
+  stockMin: "", stockMax: "", activo: "",
+};
 
-  const [editando, setEditando] = useState(false);
-  const [editId, setEditId] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-  const router = useRouter();
+// ─── Componente principal ─────────────────────────────────────────────────────
+export default function ProductosPage() {
+  const [productos,      setProductos]      = useState<Producto[]>([]);
+  const [total,          setTotal]          = useState(0);
+  const [loading,        setLoading]        = useState(true);
+  const [pagina,         setPagina]         = useState(1);
+  const [porPagina,      setPorPagina]      = useState(20);
+  const [sortField,      setSortField]      = useState<SortField>("id");
+  const [sortDir,        setSortDir]        = useState<SortDir>("asc");
+  const [seleccionados,  setSeleccionados]  = useState<number[]>([]);
+  const [filtros,        setFiltros]        = useState<Filtros>(filtrosVacios);
+  const [showTools,      setShowTools]      = useState(false);
+  const [showDeleteModal,setShowDeleteModal] = useState(false);
+  const [productoABorrar,setProductoABorrar] = useState<Producto | null>(null);
+  const [toast,          setToast]          = useState<{ msg: string; tipo: "ok"|"error" } | null>(null);
 
-  // Cargar datos iniciales
-  useEffect(() => {
-    fetchProductos();
-    fetchMarcas();
-    fetchCategorias();
-  }, []);
+  const [dFiltros] = useDebounce(filtros, 400);
 
-  const fetchProductos = async () => {
-    try {
-      const res = await fetch("/api/productos");
-      const data = await res.json();
-      setProductos(data.productos || []);
-    } catch (error) {
-      console.error("Error cargando productos:", error);
-    }
-  };
-
-  const fetchMarcas = async () => {
-    try {
-      const res = await fetch("/api/marcas");
-      const data = await res.json();
-      setMarcas(data.marcas || []);
-    } catch (error) {
-      console.error("Error cargando marcas:", error);
-    }
-  };
-
-  const fetchCategorias = async () => {
-    try {
-      const res = await fetch("/api/categorias");
-      const data = await res.json();
-      setCategorias(data.categorias || []);
-    } catch (error) {
-      console.error("Error cargando categorías:", error);
-    }
-  };
-
-  const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
-  ) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value,
-    });
-  };
-
-  // ---- Imágenes ----
-  const handleImagenChange = (index: number, value: string) => {
-    const nuevas = [...formData.imagenes];
-    nuevas[index] = value;
-    setFormData({ ...formData, imagenes: nuevas });
-  };
-
-  const addImagen = () => {
-    setFormData({ ...formData, imagenes: [...formData.imagenes, ""] });
-  };
-
-  const removeImagen = (index: number) => {
-    const nuevas = formData.imagenes.filter((_, i) => i !== index);
-    setFormData({ ...formData, imagenes: nuevas.length ? nuevas : [""] });
-  };
-
-  // ---- Variantes ----
-  const handleVarianteChange = (
-    index: number,
-    field: keyof VarianteForm,
-    value: string
-  ) => {
-    const nuevas = [...formData.variantes];
-    nuevas[index] = { ...nuevas[index], [field]: value };
-    setFormData({ ...formData, variantes: nuevas });
-  };
-
-  const addVariante = () => {
-    setFormData({
-      ...formData,
-      variantes: [
-        ...formData.variantes,
-        { tipo: "", valor: "", precio_extra: "" },
-      ],
-    });
-  };
-
-  const removeVariante = (index: number) => {
-    const nuevas = formData.variantes.filter((_, i) => i !== index);
-    setFormData({ ...formData, variantes: nuevas });
-  };
-
-  // ---- ENVÍO FORMULARIO ----
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
+  // ── Carga de datos ──────────────────────────────────────────────────────────
+  const cargarProductos = useCallback(async () => {
     setLoading(true);
-
-    const url = editando ? `/api/productos/${editId}` : "/api/productos";
-    const method = editando ? "PUT" : "POST";
-
-    const imagenesLimpias = formData.imagenes
-      .map((u) => u.trim())
-      .filter((u) => u.length > 0);
-
-    // Preparar variantes para la API
-    const variantesLimpias = formData.variantes
-      .filter((v) => v.tipo && v.valor)
-      .map((v) => ({
-        tipo: v.tipo,
-        valor: v.valor,
-        precio_extra: v.precio_extra.trim() === "" ? 0 : Number(v.precio_extra),
-      }));
-
-    const payload = {
-      ...formData,
-      precio: Number(formData.precio),
-      stock: Number(formData.stock),
-      imagenes: imagenesLimpias,
-      variantes: variantesLimpias,
-    };
-
     try {
-      const res = await fetch(url, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+      const params = new URLSearchParams({
+        page:     String(pagina),
+        limit:    String(porPagina),
+        sortBy:   sortField,
+        sortDir,
+        ...(dFiltros.idMin      && { idMin:      dFiltros.idMin }),
+        ...(dFiltros.idMax      && { idMax:      dFiltros.idMax }),
+        ...(dFiltros.nombre     && { nombre:     dFiltros.nombre }),
+        ...(dFiltros.referencia && { referencia: dFiltros.referencia }),
+        ...(dFiltros.categoria  && { categoria:  dFiltros.categoria }),
+        ...(dFiltros.precioMin  && { precioMin:  dFiltros.precioMin }),
+        ...(dFiltros.precioMax  && { precioMax:  dFiltros.precioMax }),
+        ...(dFiltros.stockMin   && { stockMin:   dFiltros.stockMin }),
+        ...(dFiltros.stockMax   && { stockMax:   dFiltros.stockMax }),
+        ...(dFiltros.activo     && { activo:     dFiltros.activo }),
       });
-
+      const res = await fetch(`/api/admin/productos?${params}`);
       const data = await res.json();
-
-      if (data.ok) {
-        await fetchProductos();
-        // Resetear formulario completo
-        setFormData({
-          nombre: "",
-          descripcion: "",
-          descripcion_html_cruda: "",
-          precio: "",
-          stock: "",
-          destacado: false,
-          marca: "",
-          categoria: "",
-          imagenes: [""],
-          variantes: [],
-        });
-        setEditando(false);
-        setEditId(null);
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-      } else {
-        alert("Error: " + data.error);
-      }
-    } catch (error) {
-      console.error("Error:", error);
-      alert("Error de conexión");
+      setProductos(data.productos ?? []);
+      setTotal(data.total ?? 0);
+    } catch {
+      mostrarToast("Error al cargar productos", "error");
     } finally {
       setLoading(false);
     }
+  }, [pagina, porPagina, sortField, sortDir, dFiltros]);
+
+  useEffect(() => { cargarProductos(); }, [cargarProductos]);
+
+  // ── Helpers ─────────────────────────────────────────────────────────────────
+  const totalPaginas = Math.max(1, Math.ceil(total / porPagina));
+
+  const mostrarToast = (msg: string, tipo: "ok"|"error") => {
+    setToast({ msg, tipo });
+    setTimeout(() => setToast(null), 3000);
   };
 
-  // ---- CARGAR DATOS EN EDICIÓN (LA PARTE QUE FALLABA) ----
-  const handleEdit = (producto: any) => {
-    console.log("Editando producto:", producto);
-
-    // 1. INTELIGENCIA PARA VARIANTES:
-    // Buscamos 'variantes' (minúscula) O 'Variante' (mayúscula de Prisma)
-    const variantesRaw = Array.isArray(producto.variantes) 
-      ? producto.variantes 
-      : Array.isArray(producto.Variante) 
-        ? producto.Variante 
-        : [];
-
-    // 2. NORMALIZACIÓN FORZOSA:
-    // Si viene de la BD "en crudo" (tamano, tirador...), lo convertimos a Tipo/Valor.
-    // Si ya viene formateado (tipo, valor), lo usamos tal cual.
-    const variantesProcesadas = variantesRaw.map((v: any) => {
-      let tipo: VarianteForm["tipo"] = v.tipo || "";
-      let valor = v.valor || "";
-
-      // Si no tiene tipo, intentamos deducirlo de las columnas antiguas
-      if (!tipo) {
-        if (v.tamano) { tipo = "TAMAÑO"; valor = v.tamano; }
-        else if (v.tirador) { tipo = "TIRADOR"; valor = v.tirador; }
-        else if (v.color) { tipo = "COLOR"; valor = v.color; }
-      }
-
-      return {
-        tipo,
-        valor,
-        precio_extra: String(v.precio_extra ?? v.precioExtra ?? 0),
-      };
-    });
-
-    setFormData({
-      nombre: producto.nombre,
-      descripcion: producto.descripcion || "",
-      descripcion_html_cruda: producto.descripcionHtml || producto.descripcion_html || "",
-      precio: String(producto.precio ?? ""),
-      stock: String(producto.stock ?? ""),
-      destacado: producto.destacado || false,
-      marca: producto.marca?.nombre || producto.Marca?.nombre || "",
-      categoria: producto.categoria?.nombre || producto.Categoria?.nombre || "",
-      
-      imagenes: Array.isArray(producto.imagenes) && producto.imagenes.length > 0
-          ? producto.imagenes
-          : [""],
-      
-      variantes: variantesProcesadas
-    });
-    
-    setEditando(true);
-    setEditId(producto.id);
-    window.scrollTo({ top: 0, behavior: "smooth" });
+  const toggleSort = (field: SortField) => {
+    if (sortField === field) setSortDir(d => d === "asc" ? "desc" : "asc");
+    else { setSortField(field); setSortDir("asc"); }
+    setPagina(1);
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm("¿Eliminar este producto?")) return;
+  const toggleSeleccion = (id: number) =>
+    setSeleccionados(prev =>
+      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    );
+
+  const toggleTodos = () =>
+    setSeleccionados(
+      seleccionados.length === productos.length ? [] : productos.map(p => p.id)
+    );
+
+  const setFiltro = (key: keyof Filtros, val: string) => {
+    setFiltros(prev => ({ ...prev, [key]: val }));
+    setPagina(1);
+  };
+
+  const limpiarFiltros = () => { setFiltros(filtrosVacios); setPagina(1); };
+
+  // ── Acciones ────────────────────────────────────────────────────────────────
+  const confirmarBorrar = (p: Producto) => { setProductoABorrar(p); setShowDeleteModal(true); };
+
+  const borrarProducto = async () => {
+    if (!productoABorrar) return;
     try {
-      const res = await fetch(`/api/productos/${id}`, { method: "DELETE" });
-      const data = await res.json();
-      if (data.ok) fetchProductos();
-    } catch (error) {
-      console.error("Error:", error);
+      const res = await fetch(`/api/admin/productos/${productoABorrar.id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error();
+      mostrarToast("Producto eliminado", "ok");
+      setShowDeleteModal(false);
+      cargarProductos();
+    } catch {
+      mostrarToast("Error al eliminar el producto", "error");
     }
   };
 
+  const duplicarProducto = async (id: number) => {
+    try {
+      const res = await fetch(`/api/admin/productos/${id}/duplicar`, { method: "POST" });
+      if (!res.ok) throw new Error();
+      mostrarToast("Producto duplicado", "ok");
+      cargarProductos();
+    } catch {
+      mostrarToast("Error al duplicar el producto", "error");
+    }
+  };
+
+  const toggleActivo = async (p: Producto) => {
+  try {
+    await fetch(`/api/admin/productos/${p.id}`, {
+      method: "PUT", // ← antes tenías PATCH
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...p, activo: !p.activo }),
+    });
+    cargarProductos();
+  } catch {
+    mostrarToast("Error al cambiar estado", "error");
+  }
+};
+
+  // ── Render: cabecera de columna ordenable ───────────────────────────────────
+  const ColHeader = ({ field, label, className = "" }: { field: SortField; label: string; className?: string }) => (
+    <th
+      className={`px-3 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider cursor-pointer select-none hover:bg-gray-100 dark:hover:bg-gray-700 whitespace-nowrap \${className}`}
+      onClick={() => toggleSort(field)}
+    >
+      <div className="flex items-center gap-1">
+        {label}
+        {sortField === field
+          ? sortDir === "asc"
+            ? <ChevronUp className="w-3 h-3 text-blue-500" />
+            : <ChevronDown className="w-3 h-3 text-blue-500" />
+          : <ChevronsUpDown className="w-3 h-3 text-gray-400" />}
+      </div>
+    </th>
+  );
+
+  const hayFiltros = Object.values(filtros).some(v => v !== "");
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#6BAEC9]/10 to-[#DDC9A3]/10 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-7xl mx-auto">
-        <div className="text-center mb-16">
-          <h1 className="text-5xl font-bold bg-gradient-to-r from-[#6BAEC9] to-[#DDC9A3] bg-clip-text text-transparent mb-6">
-            Productos
-          </h1>
-          <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-            Gestiona tu catálogo completo de productos
+    <div className="space-y-4">
+
+      {/* ── Toast ── */}
+      {toast && (
+        <div className={`fixed top-4 right-4 z-50 flex items-center gap-2 px-4 py-3 rounded-lg shadow-lg text-white text-sm font-medium transition-all
+          \${toast.tipo === "ok" ? "bg-green-600" : "bg-red-600"}`}>
+          {toast.tipo === "ok"
+            ? <CheckCircle2 className="w-4 h-4" />
+            : <XCircle      className="w-4 h-4" />}
+          {toast.msg}
+        </div>
+      )}
+
+      {/* ── Cabecera página ── */}
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-800 dark:text-white">Productos</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+            {total} producto{total !== 1 ? "s" : ""} en total
           </p>
         </div>
-
-        <div className="mb-12">
-          <button
-            onClick={() => router.push("/admin")}
-            className="inline-flex items-center gap-2 px-6 py-3 rounded-xl font-semibold text-white bg-gradient-to-r from-[#6BAEC9] to-[#A8D7E6] hover:from-[#5FA0B3] hover:to-[#91C8D9] shadow-md transition-all duration-300"
-          >
-            ← Volver al Panel de Administración
-          </button>
-        </div>
-
-        <div className="bg-white/80 backdrop-blur-xl rounded-3xl shadow-2xl p-10 mb-16 border border-white/50">
-          <h2 className="text-3xl font-bold text-gray-800 mb-8">
-            {editando ? "✏️ Editar Producto" : "➕ Nuevo Producto"}
-          </h2>
-
-          <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {/* Nombre */}
-            <div className="flex flex-col gap-2">
-              <label htmlFor="nombre" className="text-sm font-semibold text-gray-700">Nombre del producto</label>
-              <input
-                id="nombre"
-                name="nombre"
-                value={formData.nombre}
-                onChange={handleChange}
-                className="p-6 border border-[#DDC9A3]/50 rounded-2xl focus:ring-4 focus:ring-[#6BAEC9]/30 focus:border-[#6BAEC9] transition-all duration-300 text-lg"
-                required
-              />
-            </div>
-
-            {/* Descripción HTML */}
-            <div className="flex flex-col gap-2 md:col-span-2">
-              <label htmlFor="descripcion_html_cruda" className="text-sm font-semibold text-gray-700">
-                Descripción HTML (pega aquí el código con &lt;p&gt; e &lt;img&gt;)
-              </label>
-              <textarea
-                id="descripcion_html_cruda"
-                name="descripcion_html_cruda"
-                value={formData.descripcion_html_cruda}
-                onChange={(e) => setFormData((prev) => ({ ...prev, descripcion_html_cruda: e.target.value }))}
-                className="p-6 border border-[#DDC9A3]/50 rounded-2xl focus:ring-4 focus:ring-[#6BAEC9]/30 focus:border-[#6BAEC9] transition-all duration-300 text-lg min-h-[160px] font-mono text-xs"
-                placeholder="<p>...</p> con <img src='https://...' />"
-              />
-            </div>
-
-            {/* Precio */}
-            <div className="flex flex-col gap-2">
-              <label htmlFor="precio" className="text-sm font-semibold text-gray-700">Precio (€)</label>
-              <input
-                id="precio"
-                name="precio"
-                type="number"
-                step="0.01"
-                value={formData.precio}
-                onChange={handleChange}
-                className="p-6 border border-[#DDC9A3]/50 rounded-2xl focus:ring-4 focus:ring-[#6BAEC9]/30 focus:border-[#6BAEC9] transition-all duration-300 text-lg"
-                required
-              />
-            </div>
-
-            {/* Stock */}
-            <div className="flex flex-col gap-2">
-              <label htmlFor="stock" className="text-sm font-semibold text-gray-700">Stock</label>
-              <input
-                id="stock"
-                name="stock"
-                type="number"
-                value={formData.stock}
-                onChange={handleChange}
-                className="p-6 border border-[#DDC9A3]/50 rounded-2xl focus:ring-4 focus:ring-[#6BAEC9]/30 focus:border-[#6BAEC9] transition-all duration-300 text-lg"
-                required
-              />
-            </div>
-
-            {/* Checkbox Destacado */}
-            <div className="flex flex-col gap-2">
-              <label className="text-sm font-semibold text-gray-700">Visibilidad</label>
-              <label className="flex items-center gap-3 p-4 border border-[#DDC9A3]/50 rounded-2xl cursor-pointer hover:bg-[#6BAEC9]/5 transition-all h-full">
-                <input
-                  type="checkbox"
-                  checked={formData.destacado}
-                  onChange={(e) => setFormData({ ...formData, destacado: e.target.checked })}
-                  className="w-6 h-6 text-[#6BAEC9] rounded focus:ring-[#6BAEC9] border-gray-300"
-                />
-                <span className="font-medium text-gray-700">🌟 Destacado</span>
-              </label>
-            </div>
-
-            {/* Marca */}
-            <div className="flex flex-col gap-2">
-              <label htmlFor="marca" className="text-sm font-semibold text-gray-700">Marca</label>
-              <select
-                id="marca"
-                name="marca"
-                value={formData.marca}
-                onChange={handleChange}
-                className="p-6 border border-[#DDC9A3]/50 rounded-2xl focus:ring-4 focus:ring-[#6BAEC9]/30 focus:border-[#6BAEC9] transition-all duration-300 text-lg"
-                required
-              >
-                <option value="">Selecciona marca</option>
-                {marcas.map((marca: any) => (
-                  <option key={marca.id} value={marca.nombre}>{marca.nombre}</option>
-                ))}
-              </select>
-            </div>
-
-            {/* Categoría */}
-            <div className="flex flex-col gap-2 md:col-span-2">
-              <label htmlFor="categoria" className="text-sm font-semibold text-gray-700">Categoría</label>
-              <select
-                id="categoria"
-                name="categoria"
-                value={formData.categoria}
-                onChange={handleChange}
-                className="p-6 border border-[#DDC9A3]/50 rounded-2xl focus:ring-4 focus:ring-[#6BAEC9]/30 focus:border-[#6BAEC9] transition-all duration-300 text-lg"
-                required
-              >
-                <option value="">Selecciona categoría</option>
-                {categorias.map((cat: any) => (
-                  <option key={cat.id} value={cat.nombre}>{cat.nombre}</option>
-                ))}
-              </select>
-            </div>
-
-            {/* Imágenes */}
-            <div className="md:col-span-3 border border-dashed border-[#DDC9A3]/70 rounded-2xl p-4">
-              <div className="flex items-center justify-between mb-2">
-                <label className="font-semibold text-lg">Imágenes (URLs)</label>
-                <button
-                  type="button"
-                  onClick={addImagen}
-                  className="px-4 py-1 bg-[#6BAEC9]/80 text-white rounded-xl text-sm hover:bg-[#6BAEC9] transition-all duration-300"
-                >
-                  ➕ Añadir imagen
-                </button>
-              </div>
-              <div className="space-y-3">
-                {formData.imagenes.map((url, idx) => (
-                  <div key={idx} className="flex gap-2">
-                    <input
-                      value={url}
-                      onChange={(e) => handleImagenChange(idx, e.target.value)}
-                      placeholder="https://..."
-                      className="flex-1 p-3 border border-[#DDC9A3]/50 rounded-2xl focus:ring-2 focus:ring-[#6BAEC9]/30 focus:border-[#6BAEC9] text-sm"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => removeImagen(idx)}
-                      className="px-3 py-2 bg-red-500 text-white rounded-xl text-sm hover:bg-red-600 transition-all duration-300"
-                    >
-                      🗑️
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Variantes */}
-            <div className="md:col-span-3 border border-dashed border-[#6BAEC9]/70 rounded-2xl p-4">
-              <div className="flex items-center justify-between mb-2">
-                <label className="font-semibold text-lg">Variantes (tamaño, tirador, color)</label>
-                <button
-                  type="button"
-                  onClick={addVariante}
-                  className="px-4 py-1 bg-[#6BAEC9]/80 text-white rounded-xl text-sm hover:bg-[#6BAEC9] transition-all duration-300"
-                >
-                  ➕ Añadir variante
-                </button>
-              </div>
-
-              {formData.variantes.length === 0 && (
-                <p className="text-sm text-gray-500">No hay variantes. Puedes añadir tamaños, tiradores o colores.</p>
-              )}
-
-              <div className="space-y-3">
-                {formData.variantes.map((v, idx) => (
-                  <div key={idx} className="grid grid-cols-1 md:grid-cols-4 gap-2 items-center">
-                    <select
-                      value={v.tipo}
-                      onChange={(e) => handleVarianteChange(idx, "tipo", e.target.value as VarianteForm["tipo"])}
-                      className="p-3 border border-[#DDC9A3]/50 rounded-2xl text-sm"
-                    >
-                      <option value="">Tipo</option>
-                      <option value="TAMAÑO">Tamaño</option>
-                      <option value="TIRADOR">Tirador</option>
-                      <option value="COLOR">Color</option>
-                    </select>
-                    <input
-                      value={v.valor}
-                      onChange={(e) => handleVarianteChange(idx, "valor", e.target.value)}
-                      placeholder="Ej: 80x180, Derecha, Gris..."
-                      className="p-3 border border-[#DDC9A3]/50 rounded-2xl text-sm"
-                    />
-                    <input
-                      value={v.precio_extra}
-                      onChange={(e) => handleVarianteChange(idx, "precio_extra", e.target.value)}
-                      placeholder="Precio extra (€)"
-                      type="number"
-                      step="0.01"
-                      className="p-3 border border-[#DDC9A3]/50 rounded-2xl text-sm"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => removeVariante(idx)}
-                      className="px-3 py-2 bg-red-500 text-white rounded-xl text-sm hover:bg-red-600 transition-all duration-300"
-                    >
-                      🗑️ Quitar
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-
+        <div className="flex items-center gap-2">
+          {/* Herramientas */}
+          <div className="relative">
             <button
-              type="submit"
-              disabled={loading}
-              className="md:col-span-3 bg-gradient-to-r from-[#6BAEC9] to-[#DDC9A3] text-white py-6 rounded-2xl font-bold text-xl shadow-xl hover:from-[#5A9FBA] hover:to-[#CBB498] transform hover:scale-[1.02] transition-all duration-300 disabled:opacity-50"
+              onClick={() => setShowTools(!showTools)}
+              className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
             >
-              {loading ? "⏳ Guardando..." : editando ? "✏️ Actualizar Producto" : "➕ Crear Producto"}
+              <Wrench className="w-4 h-4" />
+              Herramientas
+              <ChevronDown className="w-3 h-3" />
             </button>
-
-            {editando && (
-              <button
-                type="button"
-                onClick={() => {
-                  setFormData({
-                    nombre: "",
-                    descripcion: "",
-                    descripcion_html_cruda: "",
-                    precio: "",
-                    stock: "",
-                    destacado: false,
-                    marca: "",
-                    categoria: "",
-                    imagenes: [""],
-                    variantes: [],
-                  });
-                  setEditando(false);
-                  setEditId(null);
-                }}
-                className="md:col-span-3 bg-gray-500/80 hover:bg-gray-600 text-white py-6 rounded-2xl font-bold text-xl transition-all duración-300"
-              >
-                ❌ Cancelar Edición
-              </button>
+            {showTools && (
+              <div className="absolute right-0 top-10 w-52 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl z-20">
+                <button className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                  <Download className="w-4 h-4 text-green-600" /> Exportar CSV
+                </button>
+                <button className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                  <Upload   className="w-4 h-4 text-blue-600"  /> Importar CSV
+                </button>
+                <div className="border-t border-gray-100 dark:border-gray-800" />
+                <button className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                  <Database className="w-4 h-4 text-purple-600" /> Mostrar SQL
+                </button>
+              </div>
             )}
-          </form>
-        </div>
-
-        {/* Tabla Productos */}
-        <div className="bg-white/80 backdrop-blur-xl rounded-3xl shadow-2xl p-10 border border-white/50">
-          <div className="flex justify-between items-center mb-8">
-            <h2 className="text-3xl font-bold text-gray-800">📦 Productos ({productos.length})</h2>
-            <button
-              onClick={fetchProductos}
-              className="px-8 py-3 bg-[#6BAEC9]/80 hover:bg-[#6BAEC9] text-white rounded-xl font-semibold transition-all duración-300"
-            >
-              🔄 Actualizar
-            </button>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
-              <thead>
-                <tr className="border-b-2 border-[#DDC9A3]/30">
-                  <th className="py-6 px-4 text-xl font-bold text-gray-700">Nombre</th>
-                  <th className="py-6 px-4 text-xl font-bold text-gray-700">Precio</th>
-                  <th className="py-6 px-4 text-xl font-bold text-gray-700">Stock</th>
-                  <th className="py-6 px-4 text-xl font-bold text-gray-700">Marca</th>
-                  <th className="py-6 px-4 text-xl font-bold text-gray-700">Categoría</th>
-                  <th className="py-6 px-4 text-xl font-bold text-gray-700">Acciones</th>
-                </tr>
-              </thead>
-              <tbody>
-                {productos.map((producto: any) => (
-                  <tr key={producto.id} className="border-b border-gray-200 hover:bg-[#6BAEC9]/5 transition-all duración-200">
-                    <td className="py-6 px-4 font-semibold text-lg">
-                      {producto.destacado && <span title="Producto Destacado">🌟 </span>}
-                      {producto.nombre}
-                    </td>
-                    <td className="py-6 px-4 font-bold text-xl text-[#6BAEC9]">€{parseFloat(producto.precio).toFixed(2)}</td>
-                    <td className="py-6 px-4">
-                      <span className={`px-4 py-2 rounded-full text-sm font-bold ${producto.stock > 0 ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}>
-                        {producto.stock}
-                      </span>
-                    </td>
-                    <td className="py-6 px-4 font-medium text-[#6BAEC9]">{producto.marca?.nombre || "Sin marca"}</td>
-                    <td className="py-6 px-4 font-medium text-[#DDC9A3]">{producto.categoria?.nombre || "Sin categoría"}</td>
-                    <td className="py-6 px-4">
-                      <div className="flex gap-3">
-                        <button
-                          onClick={() => handleEdit(producto)}
-                          className="px-6 py-2 bg-[#6BAEC9] text-white rounded-xl font-semibold hover:bg-[#5A9FBA] transition-all duración-300"
-                        >
-                          ✏️ Editar
-                        </button>
-                        <button
-                          onClick={() => handleDelete(producto.id)}
-                          className="px-6 py-2 bg-red-500 text-white rounded-xl font-semibold hover:bg-red-600 transition-all duración-300"
-                        >
-                          🗑️ Eliminar
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          {productos.length === 0 && (
-            <div className="text-center py-20">
-              <p className="text-2xl text-gray-500 mb-4">📦 No hay productos</p>
-              <p className="text-lg text-gray-400">¡Crea tu primer producto arriba!</p>
-            </div>
-          )}
+          {/* Nuevo producto */}
+          <Link
+            href="/admin/productos/nuevo"
+            className="flex items-center gap-2 px-4 py-2 text-sm font-semibold bg-[#3498db] hover:bg-[#2980b9] text-white rounded-lg transition-colors shadow-sm"
+          >
+            <Plus className="w-4 h-4" />
+            Nuevo
+          </Link>
         </div>
       </div>
+
+      {/* ── Acciones seleccionados ── */}
+      {seleccionados.length > 0 && (
+        <div className="flex items-center gap-3 px-4 py-2.5 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg text-sm">
+          <span className="text-blue-700 dark:text-blue-300 font-medium">
+            {seleccionados.length} seleccionado{seleccionados.length > 1 ? "s" : ""}
+          </span>
+          <button className="text-red-600 hover:underline font-medium">Eliminar seleccionados</button>
+          <button className="text-gray-500 hover:underline ml-auto" onClick={() => setSeleccionados([])}>
+            Deseleccionar
+          </button>
+        </div>
+      )}
+
+      {/* ── Tabla ── */}
+      <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
+
+        {/* Controles superiores */}
+        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-800 gap-3 flex-wrap">
+          <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
+            <span>Mostrar</span>
+            <select
+              value={porPagina}
+              onChange={e => { setPorPagina(Number(e.target.value)); setPagina(1); }}
+              className="border border-gray-300 dark:border-gray-600 rounded-md px-2 py-1 text-sm bg-white dark:bg-gray-800 dark:text-white"
+            >
+              {[10, 20, 50, 100].map(n => <option key={n} value={n}>{n}</option>)}
+            </select>
+            <span>por página</span>
+          </div>
+
+          {hayFiltros && (
+            <button
+              onClick={limpiarFiltros}
+              className="flex items-center gap-1 text-xs text-red-500 hover:text-red-700 border border-red-200 rounded-md px-2 py-1 hover:bg-red-50 transition-colors"
+            >
+              <X className="w-3 h-3" /> Limpiar filtros
+            </button>
+          )}
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+              <tr>
+                {/* Checkbox */}
+                <th className="px-3 py-3 w-10">
+                  <input
+                    type="checkbox"
+                    checked={seleccionados.length === productos.length && productos.length > 0}
+                    onChange={toggleTodos}
+                    className="rounded border-gray-300 text-blue-500"
+                  />
+                </th>
+                <ColHeader field="id"    label="ID"    className="w-16" />
+                <th className="px-3 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider w-16">Imagen</th>
+                <ColHeader field="nombre"     label="Nombre"     />
+                <ColHeader field="referencia" label="Referencia" className="w-32" />
+                <th className="px-3 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider w-36">Categoría</th>
+                <ColHeader field="precio" label="Precio"   className="w-32" />
+                <ColHeader field="stock"  label="Cantidad" className="w-24" />
+                <ColHeader field="activo" label="Estado"   className="w-24" />
+                <th className="px-3 py-3 text-center text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider w-32">Acciones</th>
+              </tr>
+
+              {/* ── Fila de filtros ── */}
+              <tr className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
+                <td />
+                {/* ID min/max */}
+                <td className="px-1 py-1.5">
+                  <div className="flex gap-1">
+                    <input placeholder="Mín." value={filtros.idMin} onChange={e => setFiltro("idMin", e.target.value)}
+                      className="w-12 px-1 py-1 text-xs border border-gray-200 dark:border-gray-600 rounded bg-gray-50 dark:bg-gray-800 dark:text-white" />
+                    <input placeholder="Máx." value={filtros.idMax} onChange={e => setFiltro("idMax", e.target.value)}
+                      className="w-12 px-1 py-1 text-xs border border-gray-200 dark:border-gray-600 rounded bg-gray-50 dark:bg-gray-800 dark:text-white" />
+                  </div>
+                </td>
+                <td />
+                {/* Nombre */}
+                <td className="px-1 py-1.5">
+                  <div className="relative">
+                    <Search className="w-3 h-3 absolute left-1.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                    <input placeholder="Buscar nombre…" value={filtros.nombre} onChange={e => setFiltro("nombre", e.target.value)}
+                      className="w-full pl-5 pr-2 py-1 text-xs border border-gray-200 dark:border-gray-600 rounded bg-gray-50 dark:bg-gray-800 dark:text-white" />
+                  </div>
+                </td>
+                {/* Referencia */}
+                <td className="px-1 py-1.5">
+                  <input placeholder="Buscar ref." value={filtros.referencia} onChange={e => setFiltro("referencia", e.target.value)}
+                    className="w-full px-2 py-1 text-xs border border-gray-200 dark:border-gray-600 rounded bg-gray-50 dark:bg-gray-800 dark:text-white" />
+                </td>
+                {/* Categoría */}
+                <td className="px-1 py-1.5">
+                  <input placeholder="Categoría" value={filtros.categoria} onChange={e => setFiltro("categoria", e.target.value)}
+                    className="w-full px-2 py-1 text-xs border border-gray-200 dark:border-gray-600 rounded bg-gray-50 dark:bg-gray-800 dark:text-white" />
+                </td>
+                {/* Precio min/max */}
+                <td className="px-1 py-1.5">
+                  <div className="flex gap-1">
+                    <input placeholder="Mín." value={filtros.precioMin} onChange={e => setFiltro("precioMin", e.target.value)}
+                      className="w-14 px-1 py-1 text-xs border border-gray-200 dark:border-gray-600 rounded bg-gray-50 dark:bg-gray-800 dark:text-white" />
+                    <input placeholder="Máx." value={filtros.precioMax} onChange={e => setFiltro("precioMax", e.target.value)}
+                      className="w-14 px-1 py-1 text-xs border border-gray-200 dark:border-gray-600 rounded bg-gray-50 dark:bg-gray-800 dark:text-white" />
+                  </div>
+                </td>
+                {/* Stock min/max */}
+                <td className="px-1 py-1.5">
+                  <div className="flex gap-1">
+                    <input placeholder="Mín." value={filtros.stockMin} onChange={e => setFiltro("stockMin", e.target.value)}
+                      className="w-12 px-1 py-1 text-xs border border-gray-200 dark:border-gray-600 rounded bg-gray-50 dark:bg-gray-800 dark:text-white" />
+                    <input placeholder="Máx." value={filtros.stockMax} onChange={e => setFiltro("stockMax", e.target.value)}
+                      className="w-12 px-1 py-1 text-xs border border-gray-200 dark:border-gray-600 rounded bg-gray-50 dark:bg-gray-800 dark:text-white" />
+                  </div>
+                </td>
+                {/* Estado */}
+                <td className="px-1 py-1.5">
+                  <select value={filtros.activo} onChange={e => setFiltro("activo", e.target.value)}
+                    className="w-full px-1 py-1 text-xs border border-gray-200 dark:border-gray-600 rounded bg-gray-50 dark:bg-gray-800 dark:text-white">
+                    <option value="">Todos</option>
+                    <option value="true">Activo</option>
+                    <option value="false">Inactivo</option>
+                  </select>
+                </td>
+                <td />
+              </tr>
+            </thead>
+
+            <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+              {loading ? (
+                Array.from({ length: 5 }).map((_, i) => (
+                  <tr key={i} className="animate-pulse">
+                    {Array.from({ length: 10 }).map((_, j) => (
+                      <td key={j} className="px-3 py-3">
+                        <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded" />
+                      </td>
+                    ))}
+                  </tr>
+                ))
+              ) : productos.length === 0 ? (
+                <tr>
+                  <td colSpan={10} className="text-center py-12 text-gray-400 dark:text-gray-500">
+                    No se encontraron productos
+                  </td>
+                </tr>
+              ) : (
+                productos.map(p => {
+                  const imagenUrl = Array.isArray(p.imagenes) && p.imagenes.length > 0 ? p.imagenes[0] : null;
+                  return (
+                    <tr key={p.id} className={`hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors \${seleccionados.includes(p.id) ? "bg-blue-50 dark:bg-blue-900/10" : ""}`}>
+                      <td className="px-3 py-2.5">
+                        <input type="checkbox" checked={seleccionados.includes(p.id)} onChange={() => toggleSeleccion(p.id)}
+                          className="rounded border-gray-300 text-blue-500" />
+                      </td>
+                      {/* ID */}
+                      <td className="px-3 py-2.5 font-mono text-xs text-gray-500 dark:text-gray-400">{p.id}</td>
+                      {/* Imagen */}
+                      <td className="px-3 py-2.5">
+                        <div className="w-10 h-10 rounded-md overflow-hidden bg-gray-100 dark:bg-gray-700 flex items-center justify-center border border-gray-200 dark:border-gray-600">
+                          {imagenUrl ? (
+                            <Image src={imagenUrl} alt={p.nombre} width={40} height={40} className="object-cover w-full h-full" />
+                          ) : (
+                            <span className="text-gray-300 text-lg">📦</span>
+                          )}
+                        </div>
+                      </td>
+                      {/* Nombre */}
+                      <td className="px-3 py-2.5">
+                        <Link href={`/admin/productos/${p.id}`} className="font-medium text-gray-800 dark:text-white hover:text-[#3498db] transition-colors line-clamp-2">
+                          {p.nombre}
+                        </Link>
+                        {p.destacado && (
+                          <span className="inline-block mt-0.5 text-[10px] font-semibold px-1.5 py-0.5 bg-yellow-100 text-yellow-700 rounded-full">★ Destacado</span>
+                        )}
+                      </td>
+                      {/* Referencia */}
+                      <td className="px-3 py-2.5 font-mono text-xs text-gray-500 dark:text-gray-400">{p.referencia ?? "—"}</td>
+                      {/* Categoría */}
+                      <td className="px-3 py-2.5 text-xs text-gray-600 dark:text-gray-300">{p.Categoria?.nombre ?? "—"}</td>
+                      {/* Precio */}
+                      <td className="px-3 py-2.5 text-right">
+                        {p.precioOferta ? (
+                          <div>
+                            <span className="text-red-500 font-semibold">{p.precioOferta.toFixed(2)} €</span>
+                            <span className="block text-xs text-gray-400 line-through">{p.precio.toFixed(2)} €</span>
+                          </div>
+                        ) : (
+                          <span className="font-semibold text-gray-800 dark:text-white">{p.precio.toFixed(2)} €</span>
+                        )}
+                      </td>
+                      {/* Stock */}
+                      <td className="px-3 py-2.5 text-center">
+                        <span className={`font-semibold text-sm \${p.stock === 0 ? "text-red-500" : p.stock < 5 ? "text-orange-500" : "text-gray-700 dark:text-gray-200"}`}>
+                          {p.stock}
+                        </span>
+                      </td>
+                      {/* Estado */}
+                      <td className="px-3 py-2.5 text-center">
+                        <button onClick={() => toggleActivo(p)} title={p.activo ? "Desactivar" : "Activar"}>
+                          {p.activo
+                            ? <CheckCircle2 className="w-5 h-5 text-green-500 hover:text-green-700 transition-colors" />
+                            : <XCircle      className="w-5 h-5 text-red-400   hover:text-red-600   transition-colors" />}
+                        </button>
+                      </td>
+                      {/* Acciones */}
+                      <td className="px-3 py-2.5">
+                        <div className="flex items-center justify-center gap-1">
+                          <Link href={`/productos/${p.slug || p.id}`}  target="_blank" title="Ver"
+                            className="p-1.5 rounded-md text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors">
+                            <Eye className="w-4 h-4" />
+                          </Link>
+                          <Link href={`/admin/productos/${p.id}`} title="Editar"
+                            className="p-1.5 rounded-md text-gray-400 hover:text-green-500 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors">
+                            <Pencil className="w-4 h-4" />
+                          </Link>
+                          <button onClick={() => duplicarProducto(p.id)} title="Duplicar"
+                            className="p-1.5 rounded-md text-gray-400 hover:text-purple-500 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors">
+                            <Copy className="w-4 h-4" />
+                          </button>
+                          <button onClick={() => confirmarBorrar(p)} title="Eliminar"
+                            className="p-1.5 rounded-md text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* ── Paginación ── */}
+        <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100 dark:border-gray-800 flex-wrap gap-3">
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            Mostrando {Math.min((pagina - 1) * porPagina + 1, total)}–{Math.min(pagina * porPagina, total)} de {total} resultados
+          </p>
+          <div className="flex items-center gap-1">
+            <button onClick={() => setPagina(1)} disabled={pagina === 1}
+              className="px-2 py-1.5 text-xs rounded-md border border-gray-200 dark:border-gray-600 disabled:opacity-40 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+              «
+            </button>
+            <button onClick={() => setPagina(p => Math.max(1, p - 1))} disabled={pagina === 1}
+              className="px-2 py-1.5 rounded-md border border-gray-200 dark:border-gray-600 disabled:opacity-40 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            {/* Números de página */}
+            {Array.from({ length: Math.min(5, totalPaginas) }, (_, i) => {
+              const start = Math.max(1, Math.min(pagina - 2, totalPaginas - 4));
+              const num   = start + i;
+              if (num > totalPaginas) return null;
+              return (
+                <button key={num} onClick={() => setPagina(num)}
+                  className={`w-8 h-8 text-xs rounded-md border transition-colors
+                    \${pagina === num
+                      ? "bg-[#3498db] border-[#3498db] text-white font-semibold"
+                      : "border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200"
+                    }`}>
+                  {num}
+                </button>
+              );
+            })}
+            <button onClick={() => setPagina(p => Math.min(totalPaginas, p + 1))} disabled={pagina === totalPaginas}
+              className="px-2 py-1.5 rounded-md border border-gray-200 dark:border-gray-600 disabled:opacity-40 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+              <ChevronRight className="w-4 h-4" />
+            </button>
+            <button onClick={() => setPagina(totalPaginas)} disabled={pagina === totalPaginas}
+              className="px-2 py-1.5 text-xs rounded-md border border-gray-200 dark:border-gray-600 disabled:opacity-40 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+              »
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Modal confirmar borrado ── */}
+      {showDeleteModal && productoABorrar && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-md p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
+                <Trash2 className="w-5 h-5 text-red-600" />
+              </div>
+              <div>
+                <h3 className="font-bold text-gray-900 dark:text-white">Eliminar producto</h3>
+                <p className="text-sm text-gray-500">Esta acción no se puede deshacer</p>
+              </div>
+            </div>
+            <p className="text-sm text-gray-700 dark:text-gray-300 mb-6">
+              ¿Seguro que quieres eliminar <strong>{productoABorrar.nombre}</strong>?
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button onClick={() => setShowDeleteModal(false)}
+                className="px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                Cancelar
+              </button>
+              <button onClick={borrarProducto}
+                className="px-4 py-2 text-sm bg-red-600 hover:bg-red-700 text-white font-semibold rounded-lg transition-colors">
+                Eliminar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

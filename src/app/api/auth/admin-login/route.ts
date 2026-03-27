@@ -11,7 +11,7 @@ export async function POST(req: NextRequest) {
     console.log(`🔐 Admin Login intento: ${email}`);
 
     // 1. Buscar usuario
-    const admin = await prisma.usuario.findUnique({
+    const admin = await prisma.admin.findUnique({
       where: {
         email: email.toLowerCase(),
       },

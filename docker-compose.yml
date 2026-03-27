@@ -1,31 +1,26 @@
-version: '3.8'
-
 services:
-  # 1. Tu Base de Datos (MariaDB)
-  db:
-    image: mariadb:latest
-    container_name: tienda_mariadb
+  mi_tienda:
+    image: mariadb:10.11
+    container_name: mi_tienda
     restart: always
-    environment:
-      MYSQL_ROOT_PASSWORD: root
-      MYSQL_DATABASE: Estudiant#Daw@2026
-      MYSQL_USER: admin
-      MYSQL_PASSWORD: password123
     ports:
       - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: mi_tienda
+      MYSQL_USER: admin
+      MYSQL_PASSWORD: password123
     volumes:
-      - ./mysql_data:/var/lib/mysql  # <--- EL CAMBIO CLAVE (ruta relativa)
-      # - ./backup.sql:/docker-entrypoint-initdb.d/backup.sql 
+      - mysql_data:/var/lib/mysql  # ← Volumen nombrado, NO ruta absoluta
 
-  # 2. El Gestor Visual (PhpMyAdmin)
   phpmyadmin:
-    image: phpmyadmin
-    container_name: tienda_phpmyadmin
-    restart: always
+    image: phpmyadmin/phpmyadmin
     ports:
       - "8080:80"
     environment:
-      PMA_HOST: db
-      UPLOAD_LIMIT: 64M
+      PMA_HOST: mi_tienda
     depends_on:
-      - db
+      - mi_tienda
+
+volumes:
+  mysql_data:  # ← Declarar el volumen aquí

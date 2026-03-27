@@ -47,15 +47,26 @@ export default function ProductDetail({ producto }: { producto: Producto }) {
   const [colorSeleccionado, setColorSeleccionado] = useState<string | null>(null);
 
   // 🔍 FILTROS: Usamos 'tamano' (sin ñ)
-  const tamaños = variantes.filter((v) => v.tamano); 
-  const tiradores = variantes.filter((v) => v.tirador);
-  const colores = variantes.filter((v) => v.color);
+  const tamañosUnicos = [...new Set(variantes
+  .filter((v): v is Variante & { tamano: string } => Boolean(v.tamano))
+  .map(v => v.tamano)
+)].sort();
+
+const tiradoresUnicos = [...new Set(variantes
+  .filter((v): v is Variante & { tirador: string } => Boolean(v.tirador))
+  .map(v => v.tirador)
+)].sort();
+
+const coloresUnicos = [...new Set(variantes
+  .filter((v): v is Variante & { color: string } => Boolean(v.color))
+  .map(v => v.color)
+)].sort();
 
   const precioBase = producto.precio_descuento ?? producto.precio;
   
   // Calcular precio extra (buscando por 'tamano')
-  const extraTamanoVariante = tamaños.find((t) => t.tamano === tamanoSeleccionado);
-  const extraTamano = extraTamanoVariante?.precio_extra ?? 0;
+  const extraTamanoVariante = variantes.find(v => v.tamano === tamanoSeleccionado);
+const extraTamano = extraTamanoVariante?.precio_extra ?? 0;
   
   const precioFinal = precioBase + extraTamano;
 
@@ -143,70 +154,76 @@ export default function ProductDetail({ producto }: { producto: Producto }) {
           {/* Variantes */}
           <div className="space-y-4">
             
-            {/* TAMAÑOS */}
-            {tamaños.length > 0 && (
-              <div>
-                <h3 className="text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Tamaño</h3>
-                <select
-                  className="w-full border rounded px-3 py-2 text-sm bg-white dark:bg-darkBg dark:border-gray-600 dark:text-white"
-                  value={tamanoSeleccionado ?? ""}
-                  onChange={(e) => setTamanoSeleccionado(e.target.value || null)}
-                >
-                  <option value="">Selecciona tamaño</option>
-                  {tamaños.map((t) => (
-                    <option key={t.id} value={t.tamano}>
-                      {t.tamano} {t.precio_extra ? `(+${t.precio_extra}€)` : ""}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
+         {/* TAMAÑOS */}
+{tamañosUnicos.length > 0 && (
+  <div>
+    <h3 className="text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Tamaño</h3>
+    <select
+      className="w-full border rounded px-3 py-2 text-sm bg-white dark:bg-darkBg dark:border-gray-600 dark:text-white"
+      value={tamanoSeleccionado ?? ""}
+      onChange={(e) => setTamanoSeleccionado(e.target.value || null)}
+    >
+      <option value="">Selecciona tamaño</option>
+      {tamañosUnicos.map((tamano, idx) => {
+        const varianteTamano = variantes.find(v => v.tamano === tamano);
+        return (
+          <option key={`${tamano}-${idx}`} value={tamano}>
+            {tamano} {varianteTamano?.precio_extra ? `(+${varianteTamano.precio_extra}€)` : ""}
+          </option>
+        );
+      })}
+    </select>
+  </div>
+)}
 
-            {/* TIRADORES */}
-            {tiradores.length > 0 && (
-              <div>
-                <h3 className="text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Tirador</h3>
-                <div className="grid grid-cols-2 gap-2">
-                  {tiradores.map((t) => (
-                    <button
-                      key={t.id}
-                      type="button"
-                      onClick={() => setTiradorSeleccionado(t.tirador || null)}
-                      className={`border rounded px-3 py-2 text-sm transition-colors ${
-                        tiradorSeleccionado === t.tirador
-                          ? "border-primary bg-primary/10 text-primary dark:text-primaryHover"
-                          : "border-gray-200 dark:border-gray-600 dark:text-gray-300 hover:border-primary"
-                      }`}
-                    >
-                      {t.tirador}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
+{/* TIRADORES */}
+{tiradoresUnicos.length > 0 && (
+  <div>
+    <h3 className="text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Tirador</h3>
+    <div className="grid grid-cols-2 gap-2">
+      {tiradoresUnicos.map((tirador, idx) => (
+        <button
+          key={`${tirador}-${idx}`}
+          type="button"
+          onClick={() => setTiradorSeleccionado(tirador)}
+          className={`border rounded px-3 py-2 text-sm transition-colors ${
+            tiradorSeleccionado === tirador
+              ? "border-primary bg-primary/10 text-primary dark:text-primaryHover"
+              : "border-gray-200 dark:border-gray-600 dark:text-gray-300 hover:border-primary"
+          }`}
+        >
+          {tirador}
+        </button>
+      ))}
+    </div>
+  </div>
+)}
 
-            {/* COLORES */}
-            {colores.length > 0 && (
-              <div>
-                <h3 className="text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Color</h3>
-                <div className="flex flex-wrap gap-2">
-                  {colores.map((c) => (
-                    <button
-                      key={c.id}
-                      type="button"
-                      onClick={() => setColorSeleccionado(c.color || null)}
-                      className={`border rounded-full h-8 px-3 text-xs flex items-center justify-center transition-colors ${
-                        colorSeleccionado === c.color
-                          ? "border-primary bg-primary/10 text-primary dark:text-primaryHover"
-                          : "border-gray-200 dark:border-gray-600 dark:text-gray-300 hover:border-primary"
-                      }`}
-                    >
-                      {c.color}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
+{/* COLORES */}
+{coloresUnicos.length > 0 && (
+  <div>
+    <h3 className="text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Color</h3>
+    <div className="flex flex-wrap gap-2">
+      {coloresUnicos.map((color, idx) => (
+        <button
+          key={`${color}-${idx}`}
+          type="button"
+          onClick={() => setColorSeleccionado(color)}
+          className={`border rounded-full h-8 px-3 text-xs flex items-center justify-center transition-colors ${
+            colorSeleccionado === color
+              ? "border-primary bg-primary/10 text-primary dark:text-primaryHover"
+              : "border-gray-200 dark:border-gray-600 dark:text-gray-300 hover:border-primary"
+          }`}
+        >
+          {color}
+        </button>
+      ))}
+    </div>
+  </div>
+)}
+   
+
+           
           </div>
 
           {/* Cantidad + Botón */}

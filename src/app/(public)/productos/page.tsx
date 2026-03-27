@@ -23,11 +23,14 @@ function ProductosContent() {
         setCargando(true);
         setError("");
 
+        const pagina = searchParams.get("page") ? Number(searchParams.get("page")) : 1;
         const url = q
-          ? `/api/productos?q=${encodeURIComponent(q)}`
-          : "/api/productos";
+        ? `/api/productos?q=${encodeURIComponent(q)}&page=${pagina}&limit=12`
+        : `/api/productos?page=${pagina}&limit=12`;
 
         const res = await fetch(url, { cache: "no-store" });
+
+        
         
         if (!res.ok) throw new Error("Error en la respuesta del servidor");
         

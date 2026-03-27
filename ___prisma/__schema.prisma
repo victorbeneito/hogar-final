@@ -1,11 +1,25 @@
 generator client {
-  provider = "prisma-client"
-  output   = "C:/Users/liber/.gemini/tmp/ac0a26ec8609e19e2b8f8c0d0066d110f320a21677e64bf235d4d5778f658a7e/generated/prisma"
+  provider = "prisma-client-js"
 }
 
 datasource db {
   provider = "mysql"
   url      = env("DATABASE_URL")
+}
+
+model CuponUso {
+  id        Int      @id @default(autoincrement())
+  cuponId   Int
+  clienteId Int
+  veces     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  Cliente   cliente  @relation(fields: [clienteId], references: [id])
+  Cupon     cupon    @relation(fields: [cuponId], references: [id])
+
+  @@unique([cuponId, clienteId])
+  @@index([clienteId])
+  @@map("cupon_uso")
 }
 
 model admin {
@@ -113,10 +127,11 @@ model cliente {
   role                    String             @default("cliente")
   createdAt               DateTime           @default(now())
   updatedAt               DateTime
-  cupon_uso               cupon_uso[]
+  cuponesUsados           CuponUso[]
+  direccionPrincipal      String?
   pedido                  pedido[]
-  Direcciones direccion[]
   precioespecifico        precioespecifico[]
+  direccions              direccion[]
 }
 
 model configuracion {
@@ -142,21 +157,7 @@ model cupon {
   activo           Boolean             @default(true)
   createdAt        DateTime            @default(now())
   updatedAt        DateTime
-  cupon_uso        cupon_uso[]
-}
-
-model cupon_uso {
-  id        Int      @id @default(autoincrement())
-  cuponId   Int
-  clienteId Int
-  veces     Int      @default(0)
-  createdAt DateTime @default(now())
-  updatedAt DateTime
-  cliente   cliente  @relation(fields: [clienteId], references: [id])
-  cupon     cupon    @relation(fields: [cuponId], references: [id])
-
-  @@unique([cuponId, clienteId])
-  @@index([clienteId])
+  usos             CuponUso[]
 }
 
 model direccion {

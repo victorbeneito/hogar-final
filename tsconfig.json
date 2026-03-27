@@ -1,13 +1,5 @@
 {
   "compilerOptions": {
-    "skipLibCheck": true,
-    "baseUrl": ".",
-    "paths": {
-      "@/*": ["./src/*"],
-      "typeRoots": ["./types", "./node_modules/@types"],
-    
-
-    },
     "target": "ES2017",
     "lib": ["dom", "dom.iterable", "esnext"],
     "allowJs": true,
@@ -21,6 +13,11 @@
     "isolatedModules": true,
     "jsx": "react-jsx",
     "incremental": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"]
+    },
+    "typeRoots": ["./types", "./node_modules/@types"],
     "plugins": [
       { "name": "next" }
     ]
@@ -31,7 +28,7 @@
     "**/*.tsx",
     "build/types/**/*.ts",
     "build/dev/types/**/*.ts",
-     "types/**/*.d.ts"
+    "types/**/*.d.ts"
   ],
   "exclude": [
     "node_modules",
@@ -48,6 +45,6 @@
     "playwright-report",
     "tmp",
     "temp"
-    
   ]
 }
+

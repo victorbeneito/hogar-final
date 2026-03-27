@@ -1,119 +1,76 @@
 "use client";
-export const dynamic = "force-dynamic";
-
-import Link from "next/link";
 import { useEffect, useState } from "react";
+import Link from "next/link";
 
-// 1. Añadimos 'cupones' al tipo de estadísticas
-type Stats = {
-  productos?: number;
-  categorias?: number;
-  marcas?: number;
-  pedidos?: number;
-  clientes?: number;
-  cupones?: number; // <--- NUEVO
-};
-
-export default function AdminDashboard() {
-  const [stats, setStats] = useState<Stats>({});
+export default function ProductosPage() {
+  const [productos, setProductos] = useState<any[]>([]);
+  const [total, setTotal]         = useState(0);
+  const [loading, setLoading]     = useState(true);
 
   useEffect(() => {
-    async function fetchStats() {
-      try {
-        const res = await fetch("/api/admin/stats");
-        if (!res.ok) return;
-        const data = await res.json();
-        setStats(data);
-      } catch (err) {
-        console.error("Error al cargar estadísticas:", err);
-      }
-    }
-
-    fetchStats();
+    fetch("/api/admin/productos?limit=20&page=1")
+      .then(r => r.json())
+      .then(data => {
+        setProductos(data.productos ?? []);
+        setTotal(data.total ?? 0);
+      })
+      .finally(() => setLoading(false));
   }, []);
 
-  // 2. Añadimos la sección de Cupones al array
-  const sections = [
-    {
-      title: "Productos",
-      href: "/admin/productos",
-      count: stats.productos,
-      color: "bg-primary hover:bg-hover",
-    },
-    {
-      title: "Categorías",
-      href: "/admin/categorias",
-      count: stats.categorias,
-      color: "bg-primaryHover hover:bg-hover",
-    },
-    {
-      title: "Marcas",
-      href: "/admin/marcas",
-      count: stats.marcas,
-      color: "bg-accent hover:bg-hover",
-    },
-    {
-      title: "Pedidos",
-      href: "/admin/pedidos",
-      count: stats.pedidos,
-      color: "bg-[#91B390] hover:bg-hover",
-    },
-    {
-      title: "Clientes",
-      href: "/admin/clientes",
-      count: stats.clientes,
-      color: "bg-secondary hover:bg-hover",
-    },
-    // --- NUEVA SECCIÓN ---
-    {
-      title: "Cupones",
-      href: "/admin/cupones",
-      count: stats.cupones,
-      color: "bg-purple-400 hover:bg-purple-700", // Color morado para diferenciar
-    },
-  ];
-
   return (
-    <main className="min-h-screen bg-gray-100 p-8">
-      <div className="max-w-7xl mx-auto">
-        <header className="mb-10">
-          <h1 className="text-4xl font-bold text-secondary mb-2">
-            Panel de Administración
-          </h1>
-          <p className="text-gray-600">
-            Gestiona todas las secciones de tu tienda online
-          </p>
-        </header>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {sections.map((section) => (
-            <Link
-              key={section.title}
-              href={section.href}
-              className={`rounded-xl shadow-md p-6 text-white transition-transform transform hover:scale-105 ${section.color}`}
-            >
-              <div className="flex flex-col justify-between h-full">
-                <div>
-                  <h2 className="text-2xl font-semibold mb-1">
-                    {section.title}
-                  </h2>
-                  <p className="text-sm opacity-90">
-                    Administrar {section.title.toLowerCase()}
-                  </p>
-                </div>
-                {typeof section.count === "number" && (
-                  <div className="mt-6 text-right">
-                    <span className="text-4xl font-bold">{section.count}</span>
-                    <span className="block text-sm opacity-90">
-                      {section.title.toLowerCase()}
-                    </span>
-                  </div>
-                )}
-              </div>
-            </Link>
-          ))}
-        </div>
+    <div className="p-6 max-w-6xl mx-auto">
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-2xl font-bold text-gray-800">
+          Productos <span className="text-sm font-normal text-gray-400">({total})</span>
+        </h1>
+        <Link
+          href="/admin/productos/nuevo"
+          className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700"
+        >
+          + Nuevo producto
+        </Link>
       </div>
-    </main>
+
+      {loading ? (
+        <p className="text-gray-400 text-sm">Cargando...</p>
+      ) : productos.length === 0 ? (
+        <p className="text-gray-400 text-sm">No hay productos todavía.</p>
+      ) : (
+        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50 text-gray-500 text-xs uppercase">
+              <tr>
+                <th className="px-4 py-3 text-left">ID</th>
+                <th className="px-4 py-3 text-left">Nombre</th>
+                <th className="px-4 py-3 text-left">Referencia</th>
+                <th className="px-4 py-3 text-right">Precio</th>
+                <th className="px-4 py-3 text-right">Stock</th>
+                <th className="px-4 py-3 text-center">Activo</th>
+                <th className="px-4 py-3 text-center">Acciones</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {productos.map((p: any) => (
+                <tr key={p.id} className="hover:bg-gray-50">
+                  <td className="px-4 py-3 text-gray-400">#{p.id}</td>
+                  <td className="px-4 py-3 font-medium text-gray-800">{p.nombre}</td>
+                  <td className="px-4 py-3 text-gray-500">{p.referencia ?? "—"}</td>
+                  <td className="px-4 py-3 text-right">{p.precio.toFixed(2)} €</td>
+                  <td className="px-4 py-3 text-right">{p.stock}</td>
+                  <td className="px-4 py-3 text-center">
+                    <span className={`inline-block w-2 h-2 rounded-full ${p.activo ? "bg-green-500" : "bg-red-400"}`} />
+                  </td>
+                  <td className="px-4 py-3 text-center">
+                    <Link href={`/admin/productos/${p.id}`} className="text-blue-600 hover:underline text-xs">
+                      Editar
+                    </Link>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
   );
 }

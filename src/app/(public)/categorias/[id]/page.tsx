@@ -2,39 +2,57 @@ import { notFound } from "next/navigation";
 import ProductGrid from "@/components/ProductGrid";
 import { PrismaClient } from "@prisma/client";
 
-// Instancia de Prisma (para hablar con la BD directamente)
 const prisma = new PrismaClient();
 
-// Definimos props para Next.js 15
 type PageProps = {
   params: Promise<{ id: string }>;
 };
 
 export default async function CategoryPage({ params }: PageProps) {
-  // 1. Desempaquetamos el ID de la URL
   const { id } = await params;
+  const idNumero = Number(id);
 
-  // 2. IMPORTANTE: Convertimos el ID de Texto a Número (SQL lo necesita así)
-  const idNumero = parseInt(id);
-
-  // Si el ID no es un número válido, mostramos error o 404
-  if (isNaN(idNumero)) {
+  if (!Number.isInteger(idNumero) || idNumero <= 0) {
     return notFound();
   }
 
-  // 3. Pedimos los datos directamente a la BD (en paralelo para ir rápido)
   const [categoria, productos] = await Promise.all([
-    // Buscar la categoría por su ID
+    // Categoría principal + subcategorías
     prisma.categoria.findUnique({
       where: { id: idNumero },
+      include: {
+        other_categoria: true,  // subcategorías
+      },
     }),
-    // Buscar los productos que tengan ese categoriaId
+    
+    // ✅ Relación correcta many-to-many
     prisma.producto.findMany({
-      where: { categoriaId: idNumero },
+      where: {
+        productocategoria: {
+          some: {
+            categoriaId: idNumero,  // ← tabla intermedia
+          },
+        },
+      },
+      select: {
+        id: true,
+        nombre: true,
+        precio: true,
+        precioOferta: true,
+        stock: true,
+        activo: true,
+        slug: true,
+        productoimagen: {
+          select: { url: true },
+          orderBy: { orden: "asc" },
+          take: 1,
+        },
+      },
+      orderBy: { id: "desc" },
+      take: 20,
     }),
   ]);
 
-  // Si no existe la categoría, devolvemos 404
   if (!categoria) {
     return notFound();
   }
