@@ -16,9 +16,10 @@ export default function ProductCard({ producto }: ProductCardProps) {
   if (!producto) return null;
 
   const urlImagen =
-    producto.imagenes && producto.imagenes.length > 0
-      ? producto.imagenes[0]
-      : "/img/no-image.jpg";
+    producto.imagenPortada ||
+    producto.imagenes?.[0] ||
+    producto.productoimagen?.[0]?.url ||
+    "/img/no-image.jpg";
 
   // Función para añadir al carrito sin entrar al producto
   const handleQuickAdd = (e: React.MouseEvent) => {

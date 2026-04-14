@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import {
   Plus, Wrench, Search, ChevronUp, ChevronDown,
   ChevronsUpDown, Eye, Pencil, Trash2, Copy,
@@ -48,6 +49,7 @@ const filtrosVacios: Filtros = {
 
 // ─── Componente principal ─────────────────────────────────────────────────────
 export default function ProductosPage() {
+  const router = useRouter();
   const [productos,      setProductos]      = useState<Producto[]>([]);
   const [total,          setTotal]          = useState(0);
   const [loading,        setLoading]        = useState(true);
@@ -225,8 +227,12 @@ export default function ProductosPage() {
                 <button className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
                   <Download className="w-4 h-4 text-green-600" /> Exportar CSV
                 </button>
-                <button className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
-                  <Upload   className="w-4 h-4 text-blue-600"  /> Importar CSV
+                <button
+                  type="button"
+                  onClick={() => router.push("/admin/importar")}
+                  className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                >
+                  <Upload className="w-4 h-4 text-blue-600" /> Importar CSV
                 </button>
                 <div className="border-t border-gray-100 dark:border-gray-800" />
                 <button className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">

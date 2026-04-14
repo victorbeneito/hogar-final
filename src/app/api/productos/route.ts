@@ -82,6 +82,9 @@ export async function GET(req: NextRequest) {
   const activo = searchParams.get("activo");
   if (activo !== null && activo !== "") where.activo = activo === "true";
 
+  const destacado = searchParams.get("destacado");
+  if (destacado !== null && destacado !== "") where.destacado = destacado === "true";
+
   const [productos, total] = await Promise.all([
     prisma.producto.findMany({
       where, orderBy, skip, take: limit,
@@ -103,11 +106,11 @@ export async function GET(req: NextRequest) {
         },
         productocategoria: {                        // ← Categorias en plural
           select: {
-            Categoria: { select: { id: true, nombre: true } },
+            categoria: { select: { id: true, nombre: true } },
           },
           take: 1,
         },
-        Marca: { select: { id: true, nombre: true } },
+        marca: { select: { id: true, nombre: true } },
       },
     }),
     prisma.producto.count({ where }),
@@ -117,10 +120,10 @@ export async function GET(req: NextRequest) {
   const productosNormalizados = productos.map((p) => ({
     ...p,
     imagenPortada: p.productoimagen?.[0]?.url ?? null,
-    categoria:     p.productocategoria?.[0]?.Categoria ?? null,
+    categoria:     p.productocategoria?.[0]?.categoria ?? null,
   }));
 
-  return NextResponse.json({ productos: productosNormalizados, total, page, limit });
+  return NextResponse.json({ ok: true, productos: productosNormalizados, total, page, limit });
 }
 
 
@@ -165,12 +168,12 @@ export async function POST(req: NextRequest) {
           enOferta: body.enOferta || false,
           visibilidad: body.visibilidad || "tienda",
           tieneVariantes: body.tieneVariantes || false,
-          Marca: marcaConnect,
-          ReglaImpuesto: body.reglaImpuestoId ? { connect: { id: parseInt(body.reglaImpuestoId) } } : undefined
+          marca: marcaConnect,
+          reglaimpuesto: body.reglaImpuestoId ? { connect: { id: parseInt(body.reglaImpuestoId) } } : undefined
         },
         include: {
-          Marca: true,
-          ReglaImpuesto: true
+          marca: true,
+          reglaimpuesto: true
         }
       });
 
@@ -240,11 +243,11 @@ export async function POST(req: NextRequest) {
       return tx.producto.findUnique({
         where: { id: producto.id },
         include: {
-          Marca: true,
-          productocategoria: { include: { Categoria: true } },
+          marca: true,
+          productocategoria: { include: { categoria: true } },
           productoimagen: true,
-          Caracteristicas: true,
-          Variantes: {
+          caracteristica: true,
+          variante: {
             include: {
               Atributos: {
   include: {
@@ -257,7 +260,7 @@ export async function POST(req: NextRequest) {
 }
             }
           },
-          ReglaImpuesto: true
+          reglaimpuesto: true
         }
       });
     });
@@ -265,12 +268,12 @@ export async function POST(req: NextRequest) {
     // Formatear respuesta con tu helper
     const respuesta = {
       ...nuevoProducto,
-      marca: (nuevoProducto as any).Marca,
-      categoria: (nuevoProducto as any).productocategoria?.[0]?.Categoria,
-      categorias: (nuevoProducto as any).productocategoria?.map((pc: any) => pc.Categoria),
+      marca: (nuevoProducto as any).marca,
+      categoria: (nuevoProducto as any).productocategoria?.[0]?.categoria,
+      categorias: (nuevoProducto as any).productocategoria?.map((pc: any) => pc.categoria),
       imagenPortada: (nuevoProducto as any).productoimagen?.find((img: any) => img.esPortada)?.url,
       imagenes: (nuevoProducto as any).productoimagen?.map((img: any) => img.url),
-      variantes: formatearVariantesParaFrontend((nuevoProducto as any).Variantes),
+      variantes: formatearVariantesParaFrontend((nuevoProducto as any).variante),
       precioSinDescuento: (nuevoProducto as any).precioOferta ? (nuevoProducto as any).precio : null
     };
 

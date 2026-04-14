@@ -14,7 +14,16 @@ export default function ResumenPage() {
   // Estados
   const [cart, setCart] = useState<CartItem[]>([]);
   const [subtotal, setSubtotal] = useState(0);
-  const [shippingData, setShippingData] = useState<{ metodo: string, coste: number } | null>(null);
+    const [shippingData, setShippingData] = useState<{
+        id?: string;
+        metodo: string;
+        label?: string;
+        descripcion?: string;
+        coste: number;
+        gratisAplicado?: boolean;
+        zonaId?: string | null;
+        zonaNombre?: string | null;
+    } | null>(null);
   
   // Cupón
   const [codigo, setCodigo] = useState("");
@@ -46,7 +55,17 @@ export default function ResumenPage() {
       // Cargar Envío
       const envioGuardado = localStorage.getItem("checkout_envio");
       if (envioGuardado) {
-        setShippingData(JSON.parse(envioGuardado));
+                const parsed = JSON.parse(envioGuardado);
+                setShippingData({
+                    id: parsed.id,
+                    metodo: parsed.metodo ?? parsed.id ?? "pickup",
+                    label: parsed.label,
+                    descripcion: parsed.descripcion,
+                    coste: Number(parsed.coste ?? 0),
+                    gratisAplicado: Boolean(parsed.gratisAplicado),
+                    zonaId: parsed.zonaId ?? null,
+                    zonaNombre: parsed.zonaNombre ?? null,
+                });
       } else {
         // Si no hay envío seleccionado, volver atrás
         router.push("/checkout/envio");
@@ -94,6 +113,9 @@ export default function ResumenPage() {
   // Cálculos Finales
   const costeEnvio = shippingData?.coste || 0;
   const totalFinal = Math.max(0, subtotal + costeEnvio - descuento);
+    const shippingLabel =
+        shippingData?.label ||
+        (shippingData?.metodo === "pickup" ? "Recogida en Tienda" : "Envío a domicilio");
 
   // --- BLOQUEOS DE SEGURIDAD ---
 
@@ -185,8 +207,13 @@ export default function ResumenPage() {
                         <div>
                             <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-1">Método de Envío</h3>
                             <p className="font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                                {shippingData?.metodo === 'tienda' ? '🏬 Recogida en Tienda' : '🚚 Envío Express (Ontime)'}
+                                                                {shippingData?.metodo === 'pickup' || shippingData?.metodo === 'tienda'
+                                                                    ? '🏬 ' + shippingLabel
+                                                                    : '🚚 ' + shippingLabel}
                             </p>
+                                                        {shippingData?.descripcion && (
+                                                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{shippingData.descripcion}</p>
+                                                        )}
                         </div>
                         <Link href="/checkout/envio" className="text-sm font-bold text-primary hover:text-primaryHover underline">
                             Cambiar

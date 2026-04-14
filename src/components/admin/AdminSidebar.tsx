@@ -25,6 +25,7 @@ import {
   Zap,
   Wrench,
   Database,
+  Upload,
   ChevronDown,
   ChevronRight,
   Home,
@@ -85,6 +86,7 @@ const navigation = [
   {
     label: "PARÁMETROS AVANZADOS",
     items: [
+      { name: "Importar CSV",   href: "/admin/importar",      icon: Upload },
       { name: "Información",    href: "/admin/sistema/info",           icon: Info },
       { name: "Rendimiento",    href: "/admin/sistema/rendimiento",    icon: Zap },
       { name: "Administración", href: "/admin/sistema/administracion", icon: Wrench },

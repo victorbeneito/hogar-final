@@ -13,7 +13,14 @@ import { useTheme } from "next-themes";
 type Categoria = {
   id: number;
   nombre: string;
+  parentId?: number | null;
+  slug?: string;
+  other_categoria?: Categoria[];
 };
+
+function getCategoryHref(cat: Categoria) {
+  return `/categorias/${cat.id}`;
+}
 
 export default function Navbar() {
   const router = useRouter();
@@ -71,6 +78,8 @@ export default function Navbar() {
     setCartCount(totalCantidad);
   };
 
+  const categoriasPadre = categories.filter((cat) => cat.parentId === null);
+
   useEffect(() => {
     actualizarContador();
     const handleStorageChange = () => actualizarContador();
@@ -114,16 +123,49 @@ export default function Navbar() {
             </Link>
 
             {/* Categorías (Solo Desktop) */}
-            <div className="hidden lg:flex space-x-6 items-center ml-4">
-                {categories.map((cat) => (
-                <Link
-                    key={cat.id}
-                    href={`/categorias/${cat.id}`}
-                    className="hover:text-primary text-sm font-medium uppercase tracking-wide transition-colors"
-                >
-                    {cat.nombre}
-                </Link>
-                ))}
+            <div className="hidden lg:flex space-x-4 items-center ml-4">
+                {categoriasPadre.map((cat) => {
+                  const hijos = cat.other_categoria ?? [];
+
+                  if (!hijos.length) {
+                    return (
+                      <Link
+                        key={cat.id}
+                        href={getCategoryHref(cat)}
+                        className="hover:text-primary text-sm font-medium uppercase tracking-wide transition-colors whitespace-nowrap"
+                      >
+                        {cat.nombre}
+                      </Link>
+                    );
+                  }
+
+                  return (
+                    <div key={cat.id} className="relative group">
+                      <Link
+                        href={getCategoryHref(cat)}
+                        className="hover:text-primary text-sm font-medium uppercase tracking-wide transition-colors whitespace-nowrap"
+                      >
+                        {cat.nombre}
+                      </Link>
+
+                      <div className="absolute left-0 top-full pt-3 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-[80]">
+                        <div className="min-w-56 rounded-xl border border-gray-100 bg-white shadow-xl overflow-hidden">
+                          <div className="py-2">
+                            {hijos.map((hijo) => (
+                              <Link
+                                key={hijo.id}
+                                href={getCategoryHref(hijo)}
+                                className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-primary transition-colors whitespace-nowrap"
+                              >
+                                {hijo.nombre}
+                              </Link>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
             </div>
         </div>
 
@@ -246,16 +288,34 @@ export default function Navbar() {
             <div>
                <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Categorías</h4>
                <ul className="space-y-2">
-                  {categories.map((cat) => (
-                    <li key={cat.id}>
-                       <Link 
-                         href={`/categorias/${cat.id}`}
-                         className="block py-2 px-3 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200"
-                       >
-                         {cat.nombre}
-                       </Link>
-                    </li>
-                  ))}
+                {categoriasPadre.map((cat) => {
+                    const hijos = cat.other_categoria ?? [];
+
+                    return (
+                      <li key={cat.id}>
+                        <Link 
+                          href={getCategoryHref(cat)}
+                          className="block py-2 px-3 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 font-medium"
+                        >
+                          {cat.nombre}
+                        </Link>
+
+                        {hijos.length > 0 && (
+                          <div className="mt-1 ml-3 border-l border-gray-200 dark:border-gray-700 pl-3 space-y-1">
+                            {hijos.map((hijo) => (
+                              <Link
+                                key={hijo.id}
+                                href={getCategoryHref(hijo)}
+                                className="block py-1.5 px-2 rounded text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-primary"
+                              >
+                                {hijo.nombre}
+                              </Link>
+                            ))}
+                          </div>
+                        )}
+                      </li>
+                    );
+                  })}
                </ul>
             </div>
 

@@ -60,7 +60,7 @@ export default function HomePage() {
     const buscarProductos = async () => {
       try {
         if (!searchQuery.trim()) {
-          const { data } = await clienteAxios.get<ProductosResponse>("/productos");
+          const { data } = await clienteAxios.get<ProductosResponse>("/productos?destacado=true&limit=12&sortBy=id&sortDir=desc");
           if (data.ok) {
             setProductosDestacados(data.productos);
             setProductosFiltrados([]);

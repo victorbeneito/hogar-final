@@ -16,7 +16,17 @@ export default function PagoPage() {
   const [carrito, setCarrito] = useState<CartItem[]>([]);
   const [metodoPago, setMetodoPago] = useState<string | null>(null);
   const [total, setTotal] = useState(0);
-  const [costeEnvio, setCosteEnvio] = useState(0); // Estado para guardar el envío
+    const [costeEnvio, setCosteEnvio] = useState(0);
+    const [shippingData, setShippingData] = useState<{
+        id?: string;
+        metodo: string;
+        label?: string;
+        descripcion?: string;
+        coste: number;
+        gratisAplicado?: boolean;
+        zonaId?: string | null;
+        zonaNombre?: string | null;
+    } | null>(null);
   const [descuento, setDescuento] = useState(0);
   
   // Popups
@@ -45,8 +55,18 @@ export default function PagoPage() {
         const envioData = localStorage.getItem("checkout_envio");
         if (envioData) {
             const parsed = JSON.parse(envioData);
-            envio = parsed.coste || 0;
+                        envio = Number(parsed.coste || 0);
             setCosteEnvio(envio);
+                        setShippingData({
+                            id: parsed.id,
+                            metodo: parsed.metodo ?? parsed.id ?? "pickup",
+                            label: parsed.label,
+                            descripcion: parsed.descripcion,
+                            coste: Number(parsed.coste ?? 0),
+                            gratisAplicado: Boolean(parsed.gratisAplicado),
+                            zonaId: parsed.zonaId ?? null,
+                            zonaNombre: parsed.zonaNombre ?? null,
+                        });
         }
 
         // 2. Recuperar descuento del cupón <--- NUEVO
@@ -101,7 +121,16 @@ export default function PagoPage() {
         },
         
         metodoPago: { metodo: metodoPago },
-        metodoEnvio: { metodo: "estándar", coste: costeEnvio }
+                metodoEnvio: {
+                    metodo: shippingData?.metodo ?? "pickup",
+                    id: shippingData?.id,
+                    label: shippingData?.label ?? (shippingData?.metodo === "pickup" ? "Recogida en tienda" : "Envío a domicilio"),
+                    descripcion: shippingData?.descripcion ?? "",
+                    coste: costeEnvio,
+                    zonaId: shippingData?.zonaId ?? null,
+                    zonaNombre: shippingData?.zonaNombre ?? null,
+                    gratisAplicado: Boolean(shippingData?.gratisAplicado),
+                }
     };
 
     try {

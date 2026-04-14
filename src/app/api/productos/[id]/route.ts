@@ -44,17 +44,17 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     const producto = await prisma.producto.findUnique({
       where: { id },
       include: {
-        Marca: true,
-        Categorias: {
+        marca: true,
+        productocategoria: {
           include: {
-            Categoria: {
-              include: { hijos: true }
+            categoria: {
+              include: { other_categoria: true }
             }
           }
         },
-        Imagenes: true,
-        Caracteristicas: true,
-        Variantes: {
+        productoimagen: true,
+        caracteristica: true,
+        variante: {
           include: {
             Atributos: {
   include: {
@@ -67,8 +67,8 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 }
           }
         },
-        ReglaImpuesto: true,
-        PreciosEspecificos: true
+        reglaimpuesto: true,
+        precioespecifico: true
       },
     });
 
@@ -79,13 +79,13 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     // TU MAPEADO ORIGINAL MEJORADO
     const productoNormalizado = {
       ...producto,
-      marca: producto.Marca,
-      categoria: producto.Categorias?.[0]?.Categoria, // principal
-      categorias: producto.Categorias?.map((pc: any) => pc.Categoria),
-      imagenPortada: producto.Imagenes?.find((img: any) => img.esPortada)?.url,
-      imagenes: producto.Imagenes?.map((img: any) => img.url),
-      caracteristicas: producto.Caracteristicas,
-      variantes: formatearVariantesParaFrontend(producto.Variantes),
+      marca: producto.marca,
+      categoria: producto.productocategoria?.[0]?.categoria, // principal
+      categorias: producto.productocategoria?.map((pc: any) => pc.categoria),
+      imagenPortada: producto.productoimagen?.find((img: any) => img.esPortada)?.url,
+      imagenes: producto.productoimagen?.map((img: any) => img.url),
+      caracteristicas: producto.caracteristica,
+      variantes: formatearVariantesParaFrontend(producto.variante),
       precioSinDescuento: producto.precioOferta ? producto.precio : null
     };
 
@@ -149,12 +149,12 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
           enOferta: body.enOferta || false,
           visibilidad: body.visibilidad || "tienda",
           tieneVariantes: body.tieneVariantes || false,
-          Marca: marcaConnect ? marcaConnect : { disconnect: true },
-          ReglaImpuesto: body.reglaImpuestoId ? { connect: { id: parseInt(body.reglaImpuestoId) } } : { disconnect: true }
+          marca: marcaConnect ? marcaConnect : { disconnect: true },
+          reglaimpuesto: body.reglaImpuestoId ? { connect: { id: parseInt(body.reglaImpuestoId) } } : { disconnect: true }
         },
         include: {
-          Marca: true,
-          ReglaImpuesto: true
+          marca: true,
+          reglaimpuesto: true
         }
       });
 

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { jwtDecode } from "jwt-decode";
+import { AdminSidebar } from "@/components/admin/AdminSidebar";
 
 interface TokenPayload {
   id: string;
@@ -71,28 +72,32 @@ export default function AdminLayout({
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white shadow p-4 flex justify-between items-center sticky top-0 z-50">
-        <h1 className="text-xl font-semibold text-gray-800">
-          Panel de Administración
-        </h1>
-        {adminEmail && (
-          <div className="flex items-center gap-4">
-            <span className="text-gray-600 text-sm hidden sm:block">{adminEmail}</span>
-            <button
-              onClick={() => {
-                localStorage.removeItem("adminToken");
-                router.replace("/admin-login"); // ✅ CORREGIDO
-              }}
-              className="text-red-600 hover:text-red-800 font-bold text-sm border border-red-200 px-3 py-1 rounded hover:bg-red-50 transition"
-            >
-              Cerrar sesión
-            </button>
-          </div>
-        )}
-      </header>
+    <div className="min-h-screen bg-gray-50 flex">
+      <AdminSidebar />
 
-      <main className="p-4 md:p-8">{children}</main>
+      <div className="flex-1 min-w-0 flex flex-col">
+        <header className="bg-white shadow p-4 flex justify-between items-center sticky top-0 z-50">
+          <h1 className="text-xl font-semibold text-gray-800">
+            Panel de Administración
+          </h1>
+          {adminEmail && (
+            <div className="flex items-center gap-4">
+              <span className="text-gray-600 text-sm hidden sm:block">{adminEmail}</span>
+              <button
+                onClick={() => {
+                  localStorage.removeItem("adminToken");
+                  router.replace("/admin-login"); // ✅ CORREGIDO
+                }}
+                className="text-red-600 hover:text-red-800 font-bold text-sm border border-red-200 px-3 py-1 rounded hover:bg-red-50 transition"
+              >
+                Cerrar sesión
+              </button>
+            </div>
+          )}
+        </header>
+
+        <main className="flex-1 p-4 md:p-8">{children}</main>
+      </div>
     </div>
   );
 }
