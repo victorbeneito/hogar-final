@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
-type RouteParams = { params: { id: string } };
+type RouteParams = { params: Promise<{ id: string }> };
 
 function toSlug(texto: string): string {
   return texto
@@ -13,7 +13,8 @@ function toSlug(texto: string): string {
 }
 
 export async function GET(_req: NextRequest, { params }: RouteParams) {
-  const id = parseInt(params.id);
+  const { id: idString } = await params;
+  const id = parseInt(idString);
   if (isNaN(id)) return NextResponse.json({ ok: false, error: "ID inválido" }, { status: 400 });
 
   const categoria = await prisma.categoria.findUnique({
@@ -27,12 +28,15 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
 }
 
 export async function PUT(req: NextRequest, { params }: RouteParams) {
-  const id = parseInt(params.id);
+  const { id: idString } = await params;
+  const id = parseInt(idString);
   if (isNaN(id)) return NextResponse.json({ ok: false, error: "ID inválido" }, { status: 400 });
 
   try {
     const body = await req.json();
     const { nombre, descripcion, imagen, activa, orden, parentId } = body;
+    const ordenNumero = orden !== undefined ? Number(orden) : undefined;
+    const parentIdNumero = parentId !== undefined && parentId !== null && parentId !== "" ? Number(parentId) : null;
 
     // Si cambia el nombre, regenera el slug (evitando conflicto con la propia categoría)
     let slug: string | undefined;
@@ -51,8 +55,8 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
         ...(descripcion  !== undefined && { descripcion }),
         ...(imagen       !== undefined && { imagen }),
         ...(activa       !== undefined && { activa }),
-        ...(orden        !== undefined && { orden }),
-        ...(parentId     !== undefined && { parentId: parentId ?? null }),
+        ...(orden        !== undefined && { orden: Number.isFinite(ordenNumero) ? ordenNumero : 0 }),
+        ...(parentId     !== undefined && { parentId: parentIdNumero }),
       },
     });
 
@@ -64,7 +68,8 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
 }
 
 export async function DELETE(_req: NextRequest, { params }: RouteParams) {
-  const id = parseInt(params.id);
+  const { id: idString } = await params;
+  const id = parseInt(idString);
   if (isNaN(id)) return NextResponse.json({ ok: false, error: "ID inválido" }, { status: 400 });
 
   try {

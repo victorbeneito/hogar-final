@@ -1,7 +1,26 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import bcrypt from "bcryptjs";
 
 export const dynamic = "force-dynamic";
+
+function buildBillingSnapshot(datosCliente: any = {}) {
+  return {
+    facturacionNombre: datosCliente.facturacion?.nombre ?? datosCliente.nombre ?? null,
+    facturacionApellidos: datosCliente.facturacion?.apellidos ?? datosCliente.apellidos ?? null,
+    facturacionEmpresa: datosCliente.facturacion?.empresa ?? datosCliente.empresa ?? null,
+    facturacionNif: datosCliente.facturacion?.nif ?? datosCliente.nif ?? null,
+    facturacionTelefono: datosCliente.facturacion?.telefono ?? datosCliente.telefono ?? null,
+    facturacionDireccion: datosCliente.facturacion?.direccion ?? datosCliente.direccion ?? null,
+    facturacionDireccionComplementaria:
+      datosCliente.facturacion?.direccionComplementaria ?? datosCliente.direccionComplementaria ?? null,
+    facturacionCodigoPostal:
+      datosCliente.facturacion?.codigoPostal ?? datosCliente.cp ?? datosCliente.codigoPostal ?? null,
+    facturacionCiudad: datosCliente.facturacion?.ciudad ?? datosCliente.ciudad ?? null,
+    facturacionProvincia: datosCliente.facturacion?.provincia ?? datosCliente.provincia ?? null,
+    facturacionPais: datosCliente.facturacion?.pais ?? datosCliente.pais ?? "España",
+  };
+}
 
 // ======================================================================
 // GET: LISTAR PEDIDOS
@@ -10,45 +29,158 @@ export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
     const clienteId = searchParams.get("clienteId");
+    const id = searchParams.get("id");
+    const referencia = searchParams.get("referencia")?.trim();
+    const cliente = searchParams.get("cliente")?.trim();
+    const estado = searchParams.get("estado")?.trim();
+    const estadoPago = searchParams.get("estadoPago")?.trim();
+    const fechaDesde = searchParams.get("fechaDesde");
+    const fechaHasta = searchParams.get("fechaHasta");
+    const sortBy = searchParams.get("sortBy") || "fechaPedido";
+    const sortDir = searchParams.get("sortDir") === "asc" ? "asc" : "desc";
 
     console.log(`🔍 [GET Pedidos] Buscando para ClienteID: ${clienteId || "TODOS"}`);
 
-    const whereClause = clienteId ? { clienteId: parseInt(clienteId) } : {};
+    const whereClause: any = {};
+    if (clienteId && !Number.isNaN(parseInt(clienteId, 10))) {
+      whereClause.clienteId = parseInt(clienteId, 10);
+    }
+    if (id && !Number.isNaN(parseInt(id, 10))) {
+      whereClause.id = parseInt(id, 10);
+    }
+    if (estado) whereClause.estado = estado;
+    if (estadoPago) whereClause.estadoPago = estadoPago;
+    if (cliente) {
+      whereClause.OR = [
+        { nombre: { contains: cliente } },
+        { apellidos: { contains: cliente } },
+        { email: { contains: cliente } },
+        { numeroPedido: { contains: cliente } },
+        { transportistaNombre: { contains: cliente } },
+      ];
+    }
+    if (referencia) {
+      whereClause.AND = [
+        ...(whereClause.AND || []),
+        {
+          OR: [
+            { numeroPedido: { contains: referencia } },
+            { nombre: { contains: referencia } },
+            { email: { contains: referencia } },
+            { transportistaNombre: { contains: referencia } },
+          ],
+        },
+      ];
+    }
+    if (fechaDesde || fechaHasta) {
+      whereClause.fechaPedido = {};
+      if (fechaDesde) whereClause.fechaPedido.gte = new Date(fechaDesde);
+      if (fechaHasta) whereClause.fechaPedido.lte = new Date(fechaHasta);
+    }
+
+    const orderMap: Record<string, any> = {
+      id: { id: sortDir },
+      numeroPedido: { numeroPedido: sortDir },
+      totalFinal: { totalFinal: sortDir },
+      estado: { estado: sortDir },
+      estadoPago: { estadoPago: sortDir },
+      fechaPedido: { fechaPedido: sortDir },
+    };
 
     const pedidosRaw = await prisma.pedido.findMany({
       where: whereClause,
       include: { 
         PedidoProducto: true, 
-        Cliente: true         
+        Cliente: {
+          select: {
+            id: true,
+            nombre: true,
+            apellidos: true,
+            email: true,
+            telefono: true,
+            direccion: true,
+            ciudad: true,
+            provincia: true,
+            codigoPostal: true,
+            pais: true,
+          },
+        },
+        mensajes: {
+          select: {
+            id: true,
+            autor: true,
+            autorNombre: true,
+            mensaje: true,
+            privado: true,
+            createdAt: true,
+            updatedAt: true,
+          },
+          orderBy: { createdAt: "asc" },
+        },
       }, 
-     orderBy: { fechaPedido: 'desc' }, // 🔥 IMPORTANTE: Ordenar por fecha creación
+      orderBy: orderMap[sortBy] || { fechaPedido: "desc" },
     });
 
     const pedidosFormateados = pedidosRaw.map((p: any) => ({
       id: p.id,
+      referencia: p.referencia || p.numeroPedido,
       numeroPedido: p.numeroPedido,
       pagoMetodo: p.pagoMetodo,
+      estadoPago: p.estadoPago,
       envioMetodo: p.envioMetodo,
       envioCoste: Number(p.envioCoste),
+      transportistaNombre: p.transportistaNombre,
+      numeroSeguimiento: p.numeroSeguimiento,
+      trackingUrl: p.trackingUrl,
       totalFinal: parseFloat(p.totalFinal),
       estado: p.estado,
       fecha: p.fechaPedido ? p.fechaPedido.toISOString() : p.createdAt.toISOString(),
       fechaPedido: p.fechaPedido ? p.fechaPedido.toISOString() : null,
       
       // Datos cliente
-      nombre: p.nombre,
+      nombre: `${p.nombre || p.Cliente?.nombre || ""} ${p.apellidos || p.Cliente?.apellidos || ""}`.trim(),
       cliente: {
-        nombre: p.nombre || p.Cliente?.nombre || "Cliente Visitante",
+        id: p.Cliente?.id,
+        nombre: `${p.nombre || p.Cliente?.nombre || ""} ${p.apellidos || p.Cliente?.apellidos || ""}`.trim() || "Cliente Visitante",
         email: p.email || p.Cliente?.email || "Sin email"
+      },
+      direccionEntrega: {
+        nombre: p.nombre || p.Cliente?.nombre || "",
+        apellidos: p.apellidos || p.Cliente?.apellidos || "",
+        empresa: p.Cliente?.empresa || "",
+        nif: p.nif || "",
+        telefono: p.telefono || "",
+        direccion: p.direccion || "",
+        direccionComplementaria: p.direccionComplementaria || "",
+        codigoPostal: p.cp || "",
+        ciudad: p.ciudad || "",
+        provincia: p.provincia || "",
+        pais: p.pais || "España",
+      },
+      direccionFacturacion: {
+        nombre: p.facturacionNombre || p.nombre || "",
+        apellidos: p.facturacionApellidos || p.apellidos || "",
+        empresa: p.facturacionEmpresa || "",
+        nif: p.facturacionNif || p.nif || "",
+        telefono: p.facturacionTelefono || p.telefono || "",
+        direccion: p.facturacionDireccion || p.direccion || "",
+        direccionComplementaria: p.facturacionDireccionComplementaria || p.direccionComplementaria || "",
+        codigoPostal: p.facturacionCodigoPostal || p.cp || "",
+        ciudad: p.facturacionCiudad || p.ciudad || "",
+        provincia: p.facturacionProvincia || p.provincia || "",
+        pais: p.facturacionPais || p.pais || "España",
       },
       
       // Productos
       productos: p.PedidoProducto.map((prod: any) => ({
+        id: prod.id,
         nombre: prod.nombreProducto || prod.nombre,
         cantidad: prod.cantidad,
         precioUnitario: Number(prod.precioUnitario),
         subtotal: Number(prod.subtotal),
+        varianteInfo: prod.varianteInfo || null,
       })),
+      mensajes: p.mensajes || [],
     }));
 
     return NextResponse.json({ pedidos: pedidosFormateados });
@@ -68,13 +200,17 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
     console.log("📦 Body recibido:", JSON.stringify(body, null, 2));
+    const carritoSessionId = typeof body.carritoSessionId === "string" ? body.carritoSessionId.trim() : "";
 
     let clienteId: number | null = null;
     const datosCliente = body.cliente || {};
 
     // 1. Intentar vincular cliente
     if (datosCliente.email) {
-      const c = await prisma.cliente.findUnique({ where: { email: datosCliente.email } });
+      const c = await prisma.cliente.findUnique({
+        where: { email: datosCliente.email },
+        select: { id: true, email: true },
+      });
       if (c) {
           clienteId = c.id;
           console.log("✅ Cliente encontrado por email:", c.email, "ID:", c.id);
@@ -85,11 +221,46 @@ export async function POST(req: Request) {
         clienteId = parseInt(body.clienteId);
         console.log("✅ Cliente encontrado por ID directo:", clienteId);
     }
-    
+
+    if (!clienteId && body.origen === "admin-manual" && datosCliente.email) {
+        const tempPassword = `Tmp${Math.random().toString(36).slice(2, 10)}!`;
+        const nuevoCliente = await prisma.cliente.create({
+          data: {
+            nombre: datosCliente.nombre || "Cliente",
+            apellidos: datosCliente.apellidos || "",
+            email: datosCliente.email,
+            password: await bcrypt.hash(tempPassword, 10),
+            telefono: datosCliente.telefono || "",
+            empresa: datosCliente.empresa || null,
+            nif: datosCliente.nif || "",
+            direccion: datosCliente.direccion || "",
+            direccionComplementaria: datosCliente.direccionComplementaria || null,
+            codigoPostal: datosCliente.codigoPostal || datosCliente.cp || "",
+            ciudad: datosCliente.ciudad || "",
+            provincia: datosCliente.provincia || "",
+            pais: datosCliente.pais || "España",
+            role: "cliente",
+            updatedAt: new Date(),
+          },
+          select: { id: true, email: true },
+        });
+        clienteId = nuevoCliente.id;
+        console.log("✅ Cliente creado automáticamente para pedido manual:", nuevoCliente.email, "ID:", nuevoCliente.id);
+    }
+
+    const carritoExistente = carritoSessionId
+      ? await prisma.carritocompra.findFirst({
+          where: { sessionId: carritoSessionId },
+          select: { id: true },
+        })
+      : null;
+
     // Fallback de seguridad (SOLO PARA PRUEBAS, QUITAR EN PRODUCCIÓN)
     if (!clienteId) {
         console.warn("⚠️ NO SE ENCONTRÓ CLIENTE. Asignando al primer cliente de la BD (Fallback).");
-        const firstClient = await prisma.cliente.findFirst();
+        const firstClient = await prisma.cliente.findFirst({
+          select: { id: true },
+        });
         if (firstClient) clienteId = firstClient.id;
         else {
              console.error("❌ ERROR CRÍTICO: No hay ningún cliente en la base de datos.");
@@ -109,8 +280,9 @@ export async function POST(req: Request) {
       cantidad: p.cantidad,
       precioUnitario: parseFloat(p.precioFinal ?? p.precio),
       subtotal: (parseFloat(p.precioFinal ?? p.precio)) * p.cantidad,
-      // Si tu esquema requiere productoId, añádelo aquí:
-      productoIdRef: p.id // Asegúrate de que esto coincide con tu schema
+      productoIdRef: p.id,
+      varianteIdRef: p.varianteId ?? null,
+      varianteInfo: p.varianteInfo ?? p.atributo ?? null,
     }));
 
     // 3. Ejecutar Transacción
@@ -140,20 +312,37 @@ export async function POST(req: Request) {
           numeroPedido: numeroGenerado,
           clienteId: clienteId!,
           nombre: datosCliente.nombre || "Cliente Sin Nombre",
+          apellidos: datosCliente.apellidos || null,
           email: datosCliente.email,
           telefono: datosCliente.telefono,
+          nif: datosCliente.nif || null,
           direccion: datosCliente.direccion,
+          direccionComplementaria: datosCliente.direccionComplementaria || null,
           ciudad: datosCliente.ciudad,
-          cp: datosCliente.cp,
+          provincia: datosCliente.provincia || null,
+          cp: datosCliente.cp || datosCliente.codigoPostal || null,
+          pais: datosCliente.pais || "España",
+          ...buildBillingSnapshot(datosCliente),
+          carritoId: carritoExistente?.id ?? undefined,
           
           envioMetodo: String(body.metodoEnvio?.metodo || body.envioMetodo?.metodo || "estándar"),
           envioCoste: parseFloat(String(body.metodoEnvio?.coste || body.envioMetodo?.coste || 0)),
+          transportistaNombre: body.metodoEnvio?.carrierName || body.metodoEnvio?.label || null,
+          numeroSeguimiento: body.numeroSeguimiento || null,
+          trackingUrl: body.trackingUrl || null,
+          fechaEnvio: body.fechaEnvio ? new Date(body.fechaEnvio) : null,
+          fechaEntrega: body.fechaEntrega ? new Date(body.fechaEntrega) : null,
           pagoMetodo: String(body.metodoPago?.metodo || body.pagoMetodo?.metodo || "tarjeta"),
+          pagoRecargo: parseFloat(String(body.pagoRecargo || 0)),
+          estadoPago: body.estadoPago || "PENDIENTE",
           
           subtotal: parseFloat(body.subtotal || 0),
-          descuento: parseFloat(body.descuento || 0),
+          descuento: parseFloat(body.descuento || body.descuentoAplicado || body.cuponDescuento || 0),
           totalFinal: parseFloat(body.totalFinal || 0),
           estado: "PENDIENTE",
+          cuponCodigo: body.cuponCodigo || body.cupon?.codigo || null,
+          cuponDescuento: body.cuponDescuento || body.descuentoAplicado || body.cupon?.descuento || null,
+          notas: body.notas || null,
           
           fechaPedido: new Date(), 
           updatedAt: new Date(), // 🔥 Importante para que no salga null
@@ -162,7 +351,7 @@ export async function POST(req: Request) {
             create: productosParaInsertar
           }
         },
-        include: { PedidoProducto: true }
+        include: { PedidoProducto: true, mensajes: true }
       });
 
       return pedido;

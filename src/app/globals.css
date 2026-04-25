@@ -34,3 +34,61 @@ a {
   text-decoration: none;
 }
 
+.product-description p:has(> img:only-child),
+.product-description p:has(> a:only-child) {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 1rem;
+  width: 100%;
+  max-width: 1100px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.product-description p:has(> img + img),
+.product-description p:has(> a + a) {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 1rem;
+  flex-wrap: wrap;
+  width: 100%;
+  max-width: 1100px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.product-description p:has(> img),
+.product-description p:has(> a > img) {
+  margin-top: 1.25rem;
+  margin-bottom: 1.25rem;
+}
+
+.product-description p > img,
+.product-description p > a,
+.product-description p > a > img {
+  max-width: 100%;
+}
+
+.product-description p > img,
+.product-description p > a > img {
+  display: block;
+  height: auto;
+}
+
+.product-description p:has(> img:only-child) > img,
+.product-description p:has(> a:only-child) > a > img {
+  max-width: 100%;
+}
+
+.product-description p:has(> img + img) > img,
+.product-description p:has(> a + a) > a > img {
+  max-width: 100%;
+}
+
+.product-description p:has(> a:only-child) > a {
+  display: block;
+  width: fit-content;
+}
+

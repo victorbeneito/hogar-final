@@ -9,6 +9,8 @@ export type ShippingZoneConfig = {
   active: boolean;
   note: string;
   order: number;
+  countries: string[];
+  provinces: string[];
 };
 
 export type ShippingCarrierConfig = {
@@ -63,7 +65,7 @@ export type ShippingResult = {
   error?: string;
 };
 
-const SPANISH_PROVINCES = [
+const SPANISH_PENINSULA_PROVINCES = [
   "a coruna",
   "araba",
   "alava",
@@ -114,14 +116,10 @@ const SPANISH_PROVINCES = [
   "vizcaya",
   "zamora",
   "zaragoza",
-  "islas baleares",
-  "illes balears",
-  "baleares",
-  "las palmas",
-  "santa cruz de tenerife",
-  "ceuta",
-  "melilla",
 ];
+
+const BALEARIC_PROVINCES = ["islas baleares", "illes balears", "baleares"];
+const CANARY_PROVINCES = ["las palmas", "santa cruz de tenerife", "canarias", "islas canarias"];
 
 function normalizeText(value: string | null | undefined) {
   return String(value ?? "")
@@ -142,13 +140,68 @@ function slugify(value: string) {
     .replace(/^-+|-+$/g, "") || "carrier";
 }
 
+function normalizeList(values: string[] | null | undefined) {
+  return Array.from(
+    new Set(
+      (values || [])
+        .map((value) => String(value ?? "").trim())
+        .filter(Boolean)
+    )
+  );
+}
+
 export function createDefaultShippingZones(): ShippingZoneConfig[] {
   return [
-    { id: "peninsula", name: "Península", price: 5.74, active: true, note: "España peninsular", order: 1 },
-    { id: "baleares", name: "Baleares", price: 12.36, active: true, note: "Islas Baleares", order: 2 },
-    { id: "portugal", name: "Portugal", price: 12.36, active: true, note: "Solo Portugal", order: 3 },
-    { id: "italia", name: "Italia", price: 16.95, active: true, note: "Solo Italia", order: 4 },
-    { id: "canarias", name: "Canarias", price: 0, active: false, note: "No realizamos envíos a Canarias", order: 5 },
+    {
+      id: "peninsula",
+      name: "Península",
+      price: 5.74,
+      active: true,
+      note: "España peninsular",
+      order: 1,
+      countries: ["España"],
+      provinces: SPANISH_PENINSULA_PROVINCES,
+    },
+    {
+      id: "baleares",
+      name: "Baleares",
+      price: 12.36,
+      active: true,
+      note: "Islas Baleares",
+      order: 2,
+      countries: ["España"],
+      provinces: BALEARIC_PROVINCES,
+    },
+    {
+      id: "canarias",
+      name: "Canarias",
+      price: 0,
+      active: false,
+      note: "No realizamos envíos a Canarias",
+      order: 3,
+      countries: ["España"],
+      provinces: CANARY_PROVINCES,
+    },
+    {
+      id: "portugal",
+      name: "Portugal",
+      price: 12.36,
+      active: true,
+      note: "Solo Portugal",
+      order: 4,
+      countries: ["Portugal"],
+      provinces: [],
+    },
+    {
+      id: "italia",
+      name: "Italia",
+      price: 16.95,
+      active: true,
+      note: "Solo Italia",
+      order: 5,
+      countries: ["Italia"],
+      provinces: [],
+    },
   ];
 }
 
@@ -201,6 +254,8 @@ export function normalizeShippingZones(rawZones: any[]): ShippingZoneConfig[] {
       active: zone.active !== undefined ? Boolean(zone.active) : (defaultZones[index]?.active ?? true),
       note: zone.note ?? defaultZones[index]?.note ?? "",
       order: Number(zone.order ?? index + 1),
+      countries: normalizeList(zone.countries ?? defaultZones[index]?.countries ?? []),
+      provinces: normalizeList(zone.provinces ?? defaultZones[index]?.provinces ?? []),
     }))
     .sort((left, right) => left.order - right.order);
 }
@@ -264,32 +319,6 @@ export function normalizeShippingConfig(raw: any): ShippingConfig {
   };
 }
 
-export function detectShippingZone(address: ShippingAddress): ShippingZoneId | null {
-  const pais = normalizeText(address.pais || "España");
-  const provincia = normalizeText(address.provincia);
-
-  if (isOneOf(pais, ["portugal"])) return "portugal";
-  if (isOneOf(pais, ["italia", "italy"])) return "italia";
-
-  if (!pais || isOneOf(pais, ["espana", "españa"])) {
-    if (isOneOf(provincia, ["baleares", "islas baleares", "illes balears"])) return "baleares";
-    if (isOneOf(provincia, ["canarias", "las palmas", "santa cruz de tenerife", "ceuta", "melilla"])) {
-      return "canarias";
-    }
-    if (provincia) return "peninsula";
-  }
-
-  if (SPANISH_PROVINCES.includes(provincia)) {
-    if (isOneOf(provincia, ["baleares", "islas baleares", "illes balears"])) return "baleares";
-    if (isOneOf(provincia, ["canarias", "las palmas", "santa cruz de tenerife", "ceuta", "melilla"])) {
-      return "canarias";
-    }
-    return "peninsula";
-  }
-
-  return null;
-}
-
 export function shouldApplyFreeShipping(mode: ShippingMode, subtotal: number, amount: number) {
   return mode === "above" ? subtotal >= amount : subtotal <= amount;
 }
@@ -322,13 +351,28 @@ function getCarrierOption(
   };
 }
 
+function zoneMatchesAddress(zone: ShippingZoneConfig, address: ShippingAddress) {
+  const country = normalizeText(address.pais || "España");
+  const province = normalizeText(address.provincia);
+
+  const countryMatches = zone.countries.length === 0
+    ? true
+    : zone.countries.some((candidate) => normalizeText(candidate) === country);
+
+  const provinceMatches = zone.provinces.length === 0
+    ? true
+    : zone.provinces.some((candidate) => normalizeText(candidate) === province);
+
+  return countryMatches && provinceMatches;
+}
+
 export function calculateShippingResult(
   config: ShippingConfig,
   subtotal: number,
   address: ShippingAddress
 ): ShippingResult {
   const normalizedConfig = normalizeShippingConfig(config);
-  const zoneId = detectShippingZone(address);
+  const zoneId = detectShippingZone(address, normalizedConfig);
   const zoneName = normalizedConfig.carriers[0]?.zones.find((item) => item.id === zoneId)?.name ?? null;
   const options: ShippingOption[] = [];
 
@@ -382,4 +426,13 @@ export function calculateShippingResult(
 
 export function shippingConfigToSerializable(config: ShippingConfig) {
   return JSON.parse(JSON.stringify(normalizeShippingConfig(config))) as ShippingConfig;
+}
+
+export function detectShippingZone(address: ShippingAddress, config?: ShippingConfig): ShippingZoneId | null {
+  const normalizedConfig = config ? normalizeShippingConfig(config) : null;
+  const zones = normalizedConfig?.carriers[0]?.zones ?? createDefaultShippingZones();
+
+  const orderedZones = [...zones].sort((left, right) => left.order - right.order);
+  const matchedZone = orderedZones.find((zone) => zone.active && zoneMatchesAddress(zone, address));
+  return matchedZone?.id ?? null;
 }

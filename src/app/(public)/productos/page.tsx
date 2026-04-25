@@ -4,6 +4,7 @@ import { Suspense, useEffect, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import ProductCard from "@/components/ProductCard";
 import Link from "next/link";
+import SortDropdown from "@/components/SortDropdown";
 
 /**
  * Componente interno que carga los productos
@@ -12,10 +13,24 @@ function ProductosContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const q = searchParams.get("q")?.trim() || "";
+  const page = Math.max(1, Number(searchParams.get("page") || "1"));
+  const sortBy = searchParams.get("sortBy") || "relevance";
+  const sortDir = searchParams.get("sortDir") === "asc" ? "asc" : "desc";
 
   const [productos, setProductos] = useState<any[]>([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
+  const [total, setTotal] = useState(0);
+  const [limit, setLimit] = useState(12);
+
+  const pageCount = Math.max(1, Math.ceil(total / limit));
+  const pageButtons = (() => {
+    if (pageCount <= 7) return Array.from({ length: pageCount }, (_, idx) => idx + 1);
+    const start = Math.max(1, page - 2);
+    const end = Math.min(pageCount, start + 4);
+    const adjustedStart = Math.max(1, end - 4);
+    return Array.from({ length: end - adjustedStart + 1 }, (_, idx) => adjustedStart + idx);
+  })();
 
   useEffect(() => {
     const cargarProductos = async () => {
@@ -23,10 +38,13 @@ function ProductosContent() {
         setCargando(true);
         setError("");
 
-        const pagina = searchParams.get("page") ? Number(searchParams.get("page")) : 1;
-        const url = q
-        ? `/api/productos?q=${encodeURIComponent(q)}&page=${pagina}&limit=12`
-        : `/api/productos?page=${pagina}&limit=12`;
+        const urlParams = new URLSearchParams();
+        if (q) urlParams.set("q", q);
+        urlParams.set("page", String(page));
+        urlParams.set("limit", String(limit));
+        urlParams.set("sortBy", sortBy);
+        urlParams.set("sortDir", sortDir);
+        const url = `/api/productos?${urlParams.toString()}`;
 
         const res = await fetch(url, { cache: "no-store" });
 
@@ -39,6 +57,8 @@ function ProductosContent() {
         // Adaptamos según si tu API devuelve un array directo o un objeto { productos: [...] }
         const lista = Array.isArray(data) ? data : data.productos;
         setProductos(lista || []);
+        setTotal(Number(data.total ?? (lista || []).length));
+        setLimit(Number(data.limit ?? 12));
 
       } catch (err: any) {
         console.error(err);
@@ -51,7 +71,7 @@ function ProductosContent() {
     };
 
     cargarProductos();
-  }, [q]);
+  }, [q, page, sortBy, sortDir, searchParams, limit]);
 
   // --- 1. SKELETON LOADING (Carga elegante) ---
   if (cargando) {
@@ -106,7 +126,7 @@ function ProductosContent() {
                     {q ? `Resultados para "${q}"` : "Nuestra Colección"}
                 </h1>
                 <p className="text-gray-500 dark:text-gray-400 text-sm">
-                    {productos.length} {productos.length === 1 ? 'producto encontrado' : 'productos encontrados'}
+                    {total} {total === 1 ? 'producto encontrado' : 'productos encontrados'}
                 </p>
             </div>
             
@@ -116,8 +136,21 @@ function ProductosContent() {
                   className="text-primary hover:text-primaryHover font-bold text-sm underline underline-offset-4"
                 >
                   Ver todos los productos
-                </Link>
+              </Link>
             )}
+        </div>
+
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between mb-6">
+          <SortDropdown
+            basePath="/productos"
+            value={`${sortBy}:${sortDir}`}
+          />
+
+          {pageCount > 1 && (
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              Página {page} de {pageCount}
+            </p>
+          )}
         </div>
 
         {/* Grid de Productos */}
@@ -142,11 +175,52 @@ function ProductosContent() {
           </div>
         ) : (
           // Lista de productos
-          <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {productos.map((p) => (
-              <ProductCard key={p.id} producto={p} />
-            ))}
-          </div>
+          <>
+            <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              {productos.map((p) => (
+                <ProductCard key={p.id} producto={p} />
+              ))}
+            </div>
+
+            {pageCount > 1 && (
+              <div className="mt-10 flex flex-wrap items-center justify-center gap-2">
+                <Link
+                href={`/productos?${new URLSearchParams({
+                  ...Object.fromEntries(searchParams.entries()),
+                  page: String(Math.max(1, page - 1)),
+                }).toString()}`}
+                  aria-disabled={page <= 1}
+                  className={`px-4 py-2 rounded border text-sm transition ${page <= 1 ? "pointer-events-none opacity-40 border-gray-200 dark:border-gray-700" : "bg-white dark:bg-darkNavBg border-gray-200 dark:border-gray-700 hover:border-primary"}`}
+                >
+                  Anterior
+                </Link>
+
+                {pageButtons.map((num) => (
+                  <Link
+                    key={num}
+                    href={`/productos?${new URLSearchParams({
+                      ...Object.fromEntries(searchParams.entries()),
+                      page: String(num),
+                    }).toString()}`}
+                    className={`min-w-10 px-4 py-2 rounded border text-sm text-center transition ${num === page ? "bg-primary text-white border-primary" : "bg-white dark:bg-darkNavBg border-gray-200 dark:border-gray-700 hover:border-primary"}`}
+                  >
+                    {num}
+                  </Link>
+                ))}
+
+                <Link
+                  href={`/productos?${new URLSearchParams({
+                    ...Object.fromEntries(searchParams.entries()),
+                    page: String(Math.min(pageCount, page + 1)),
+                  }).toString()}`}
+                  aria-disabled={page >= pageCount}
+                  className={`px-4 py-2 rounded border text-sm transition ${page >= pageCount ? "pointer-events-none opacity-40 border-gray-200 dark:border-gray-700" : "bg-white dark:bg-darkNavBg border-gray-200 dark:border-gray-700 hover:border-primary"}`}
+                >
+                  Siguiente
+                </Link>
+              </div>
+            )}
+          </>
         )}
       </div>
     </main>

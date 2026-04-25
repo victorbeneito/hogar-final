@@ -14,6 +14,7 @@ type Categoria = {
   id: number;
   nombre: string;
   parentId?: number | null;
+  orden?: number;
   slug?: string;
   other_categoria?: Categoria[];
 };
@@ -79,6 +80,12 @@ export default function Navbar() {
   };
 
   const categoriasPadre = categories.filter((cat) => cat.parentId === null);
+  const categoriasOrdenadas = [...categoriasPadre].sort((a, b) => {
+    const ordenA = Number(a.orden ?? 0);
+    const ordenB = Number(b.orden ?? 0);
+    if (ordenA !== ordenB) return ordenA - ordenB;
+    return a.nombre.localeCompare(b.nombre);
+  });
 
   useEffect(() => {
     actualizarContador();
@@ -124,8 +131,13 @@ export default function Navbar() {
 
             {/* Categorías (Solo Desktop) */}
             <div className="hidden lg:flex space-x-4 items-center ml-4">
-                {categoriasPadre.map((cat) => {
-                  const hijos = cat.other_categoria ?? [];
+                {categoriasOrdenadas.map((cat) => {
+                  const hijos = [...(cat.other_categoria ?? [])].sort((a, b) => {
+                    const ordenA = Number(a.orden ?? 0);
+                    const ordenB = Number(b.orden ?? 0);
+                    if (ordenA !== ordenB) return ordenA - ordenB;
+                    return a.nombre.localeCompare(b.nombre);
+                  });
 
                   if (!hijos.length) {
                     return (

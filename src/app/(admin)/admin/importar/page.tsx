@@ -29,32 +29,34 @@ const TYPES: Record<ImportType, TypeConfig> = {
   categorias: {
     label: "Categorías",
     description: "Importa categorías raíz o hijas.",
-    fields: ["nombre", "slug", "descripcion", "imagen", "activa", "orden", "parentId", "parentNombre"],
+    fields: ["accion", "nombre", "slug", "descripcion", "imagen", "activa", "orden", "parentId", "parentNombre"],
     requiredFields: ["nombre"],
-    hint: "Usa parentId o parentNombre para crear subcategorías.",
+    hint: "Usa accion con upsert o delete. Usa parentId o parentNombre para crear subcategorías.",
     sampleRows: [
-      { nombre: "Estores Digitales", slug: "estores-digitales", descripcion: "Colección principal", imagen: "https://example.com/categorias/estores.jpg", activa: "1", orden: "1" },
-      { nombre: "Infantiles", parentNombre: "Estores Digitales", slug: "infantiles", descripcion: "Modelos para dormitorios infantiles", imagen: "https://example.com/categorias/infantiles.jpg", activa: "1", orden: "2" },
+      { accion: "upsert", nombre: "Estores Digitales", slug: "estores-digitales", descripcion: "Colección principal", imagen: "https://example.com/categorias/estores.jpg", activa: "1", orden: "1" },
+      { accion: "delete", nombre: "Infantiles" },
     ],
   },
   marcas: {
     label: "Marcas",
     description: "Alta o actualización de marcas.",
-    fields: ["nombre", "descripcion", "imagen", "logo_url"],
+    fields: ["accion", "nombre", "descripcion", "imagen", "logo_url"],
     requiredFields: ["nombre"],
-    hint: "El nombre es único.",
+    hint: "Usa accion con upsert o delete. El nombre es único.",
     sampleRows: [
-      { nombre: "Happystor", descripcion: "Marca demo de estores", imagen: "https://example.com/marcas/happystor.png", logo_url: "https://example.com/marcas/happystor-logo.png" },
+      { accion: "upsert", nombre: "Happystor", descripcion: "Marca demo de estores", imagen: "https://example.com/marcas/happystor.png", logo_url: "https://example.com/marcas/happystor-logo.png" },
+      { accion: "delete", nombre: "Marca antigua" },
     ],
   },
   proveedores: {
     label: "Proveedores",
     description: "Importa proveedores y opcionalmente los vincula a una marca.",
-    fields: ["nombre", "descripcion", "imagen", "contacto", "email", "telefono", "direccion", "nif", "activo", "marca"],
+    fields: ["accion", "nombre", "descripcion", "imagen", "contacto", "email", "telefono", "direccion", "nif", "activo", "marca"],
     requiredFields: ["nombre"],
-    hint: "Si indicas marca, debe existir previamente.",
+    hint: "Usa accion con upsert o delete. Si indicas marca, debe existir previamente.",
     sampleRows: [
       {
+        accion: "upsert",
         nombre: "Proveedor Demo",
         descripcion: "Proveedor principal para muestras",
         contacto: "Juan Pérez",
@@ -65,41 +67,40 @@ const TYPES: Record<ImportType, TypeConfig> = {
         marca: "Happystor",
         activo: "1",
       },
+      { accion: "delete", nombre: "Proveedor Antiguo" },
     ],
   },
   atributos: {
     label: "Atributos",
     description: "Crea atributos como Tamaño, Color o Tirador.",
-    fields: ["nombre", "orden"],
+    fields: ["accion", "nombre", "orden"],
     requiredFields: ["nombre"],
-    hint: "Después importa sus valores con el tipo de atributo valores.",
+    hint: "Usa accion con upsert o delete. Después importa sus valores con el tipo de atributo valores.",
     sampleRows: [
-      { nombre: "Tamaño", orden: "1" },
-      { nombre: "Color", orden: "2" },
-      { nombre: "Tirador", orden: "3" },
+      { accion: "upsert", nombre: "Tamaño", orden: "1" },
+      { accion: "delete", nombre: "Tirador" },
     ],
   },
   atributovalores: {
     label: "Valores de atributo",
     description: "Crea valores para un atributo existente.",
-    fields: ["atributo", "atributoId", "valor", "colorHex", "imagen", "orden"],
+    fields: ["accion", "atributo", "atributoId", "valor", "colorHex", "imagen", "orden"],
     requiredFields: ["valor", "atributo"],
-    hint: "Puedes indicar atributo por nombre o atributoId.",
+    hint: "Usa accion con upsert o delete. Puedes indicar atributo por nombre o atributoId.",
     sampleRows: [
-      { atributo: "Tamaño", valor: "80x200", orden: "1" },
-      { atributo: "Tamaño", valor: "100x200", orden: "2" },
-      { atributo: "Color", valor: "Gris", colorHex: "#b3b3b3", imagen: "https://example.com/atributos/gris.jpg", orden: "1" },
-      { atributo: "Color", valor: "Blanco", colorHex: "#ffffff", imagen: "https://example.com/atributos/blanco.jpg", orden: "2" },
+      { accion: "upsert", atributo: "Tamaño", valor: "80x200", orden: "1" },
+      { accion: "delete", atributo: "Color", valor: "Blanco" },
     ],
   },
   clientes: {
     label: "Clientes",
     description: "Importa cuentas de cliente.",
-    fields: ["nombre", "apellidos", "email", "password", "telefono", "empresa", "nif", "direccion", "codigoPostal", "ciudad", "provincia", "pais", "role"],
+    fields: ["accion", "nombre", "apellidos", "email", "password", "telefono", "empresa", "nif", "direccion", "codigoPostal", "ciudad", "provincia", "pais", "role"],
     requiredFields: ["nombre", "apellidos", "email"],
-    hint: "Si no envías password, se usará 123456.",
+    hint: "Usa accion con upsert o delete. Si no envías password, se usará 123456.",
     sampleRows: [
       {
+        accion: "upsert",
         nombre: "Cliente",
         apellidos: "Demo",
         email: "cliente@demo.com",
@@ -114,17 +115,18 @@ const TYPES: Record<ImportType, TypeConfig> = {
         pais: "España",
         role: "cliente",
       },
-      { nombre: "Admin", apellidos: "Tienda", email: "admin@demo.com", password: "Admin2025", telefono: "900111222", pais: "España", role: "admin" },
+      { accion: "delete", email: "cliente-a-borrar@demo.com" },
     ],
   },
   direcciones: {
     label: "Direcciones",
     description: "Importa direcciones asociadas a clientes.",
-    fields: ["clienteId", "clienteEmail", "alias", "nombre", "apellidos", "empresa", "nif", "telefono", "direccion", "complemento", "codigoPostal", "ciudad", "provincia", "pais", "predeterminada"],
+    fields: ["accion", "clienteId", "clienteEmail", "alias", "nombre", "apellidos", "empresa", "nif", "telefono", "direccion", "complemento", "codigoPostal", "ciudad", "provincia", "pais", "predeterminada"],
     requiredFields: ["alias", "nombre", "apellidos", "direccion"],
-    hint: "Debes indicar clienteId o clienteEmail.",
+    hint: "Usa accion con upsert o delete. Debes indicar clienteId o clienteEmail.",
     sampleRows: [
       {
+        accion: "upsert",
         clienteEmail: "cliente@demo.com",
         alias: "Casa",
         nombre: "Cliente",
@@ -140,21 +142,26 @@ const TYPES: Record<ImportType, TypeConfig> = {
         pais: "España",
         predeterminada: "1",
       },
-      { clienteId: "1", alias: "Trabajo", nombre: "Cliente", apellidos: "Demo", direccion: "Avenida 2", complemento: "Piso 3", codigoPostal: "46001", ciudad: "Valencia", provincia: "Valencia", pais: "España", predeterminada: "0" },
+      { accion: "delete", clienteEmail: "cliente@demo.com", alias: "Trabajo" },
     ],
   },
   productos: {
     label: "Productos",
     description: "Importa o actualiza productos básicos con imágenes y categorías.",
-    fields: ["nombre", "referencia", "precio", "precioOferta", "precioCoste", "stock", "stockMinimo", "activo", "destacado", "enOferta", "marca", "categoria", "categorias", "imagenes", "slug"],
-    requiredFields: ["nombre"],
-    hint: "categorias e imagenes admiten listas separadas por |, ; o coma.",
+    fields: ["accion", "referencia", "nombre", "descripcion", "descripcion_html", "precio", "precioOferta", "descuento", "precioCoste", "reglaImpuesto", "reglaImpuestoId", "stock", "stockMinimo", "activo", "destacado", "enOferta", "marca", "categoria", "categorias", "imagenes", "slug"],
+    requiredFields: ["nombre", "referencia"],
+    hint: "Usa accion con upsert o delete. La referencia es obligatoria y única. Usa precioOferta o descuento. Si rellenas descuento, se calculará el precio oferta automáticamente. Si no indicas reglaImpuesto, se usará IVA GENERAL 21%. categorias e imagenes admiten listas separadas por |, ; o coma.",
     sampleRows: [
       {
-        nombre: "Estor enrollable demo",
+        accion: "upsert",
         referencia: "PROD-001",
+        nombre: "Estor enrollable demo",
+        descripcion: "Estor enrollable con tejido translúcido.",
+        descripcion_html: "<p>Estor enrollable con tejido translúcido.</p>",
         precio: "49.95",
         precioOferta: "39.95",
+        descuento: "20",
+        reglaImpuesto: "IVA GENERAL",
         precioCoste: "25.00",
         stock: "15",
         stockMinimo: "3",
@@ -167,18 +174,18 @@ const TYPES: Record<ImportType, TypeConfig> = {
         imagenes: "https://example.com/img.jpg|https://example.com/img-2.jpg",
         slug: "estor-enrollable-demo",
       },
-      { nombre: "Producto simple", referencia: "PROD-002", precio: "19.95", precioCoste: "9.50", stock: "8", activo: "1", destacado: "0", enOferta: "0", marca: "Happystor", categoria: "Estores Digitales", slug: "producto-simple" },
+      { accion: "delete", referencia: "PROD-002" },
     ],
   },
   combinaciones: {
     label: "Combinaciones",
-    description: "Crea variantes de producto y sus relaciones con valores de atributo.",
-    fields: ["productoReferencia", "nombreProducto", "referencia", "stock", "precio_extra", "imagen", "imagenMuestra", "color", "tamano", "tirador", "atributos"],
+    description: "Crea variantes de producto.",
+    fields: ["accion", "productoReferencia", "referencia", "stock", "precio_extra", "imagen", "imagenMuestra", "imagenesVariante", "color", "tamano", "tirador"],
     requiredFields: ["productoReferencia", "referencia"],
-    hint: "atributos puede contener IDs o valores separados por |, ; o coma.",
+    hint: "Usa accion con upsert o delete. Usa productoReferencia para enlazar la variante con el producto padre. La columna imagen es la foto principal de esa combinación y imagenesVariante admite varias URLs separadas por | para su carrusel. atributos es opcional y solo sirve si quieres pasar IDs o valores de atributo ya creados.",
     sampleRows: [
-      { productoReferencia: "PROD-001", nombreProducto: "Estor enrollable demo", referencia: "PROD-001-GRIS", stock: "10", precio_extra: "5", color: "Gris", tamano: "80x200", tirador: "Plástico", atributos: "1|3" },
-      { productoReferencia: "PROD-001", nombreProducto: "Estor enrollable demo", referencia: "PROD-001-BLANCO", stock: "8", precio_extra: "0", imagen: "https://example.com/variante.jpg", imagenMuestra: "https://example.com/variante-muestra.jpg", atributos: "2|4" },
+      { accion: "upsert", productoReferencia: "PROD-001", referencia: "PROD-001-GRIS", stock: "10", precio_extra: "5", color: "Gris", tamano: "80x200", tirador: "Izquierda", imagenesVariante: "https://example.com/ambiente.jpg|https://example.com/detalle.jpg" },
+      { accion: "delete", productoReferencia: "PROD-001", referencia: "PROD-001-BLANCO" },
     ],
   },
 };
@@ -191,8 +198,8 @@ const TEMPLATE_TYPES: Array<{ type: ImportType; label: string; note: string }> =
   { type: "atributovalores", label: "Valores de atributo", note: "Valores con color e imagen." },
   { type: "clientes", label: "Clientes", note: "Clientes y admins de ejemplo." },
   { type: "direcciones", label: "Direcciones", note: "Direcciones vinculadas a clienteId/email." },
-  { type: "productos", label: "Productos", note: "Producto completo con categorías e imágenes." },
-  { type: "combinaciones", label: "Combinaciones", note: "Variantes de producto con atributos." },
+  { type: "productos", label: "Productos", note: "Referencia, precios, impuestos, descripciones y categorías." },
+  { type: "combinaciones", label: "Combinaciones", note: "Variantes de producto por color/tamaño/tirador." },
 ];
 
 const IMPORT_ORDER: ImportType[] = [
@@ -239,7 +246,7 @@ export default function AdminImportarPage() {
     });
   }, [rows, columnMap, config.fields]);
 
-  const rowValidation = useMemo(() => validateRows(mappedRows, config.requiredFields), [mappedRows, config.requiredFields]);
+  const rowValidation = useMemo(() => validateRows(mappedRows, config.requiredFields, tipo), [mappedRows, config.requiredFields, tipo]);
 
   const canImport = mappedRows.length > 0 && rowValidation.errors.length === 0;
 
@@ -263,7 +270,7 @@ export default function AdminImportarPage() {
         );
 
         if (Object.keys(filtered).length > 0) {
-          setColumnMap((prev) => ({ ...prev, ...filtered }));
+          setColumnMap(dedupeMapping(filtered as Record<string, string>, config.fields));
           setMappingOwner({ adminId: data.adminId ?? null, adminEmail: data.adminEmail ?? null });
           setMappingStatus(data.adminEmail ? `Mapeo cargado desde backend de ${data.adminEmail}` : "Mapeo cargado desde backend");
         } else {
@@ -309,23 +316,69 @@ export default function AdminImportarPage() {
     return map;
   }
 
-  function validateRows(mapped: Record<string, string>[], requiredFields: string[]) {
+  function dedupeMapping(mapping: Record<string, string>, targetFields: string[]) {
+    const normalized: Record<string, string> = {};
+    const used = new Set<string>();
+
+    for (const field of targetFields) {
+      const header = mapping[field];
+      if (!header || used.has(header)) continue;
+      normalized[field] = header;
+      used.add(header);
+    }
+
+    return normalized;
+  }
+
+  function validateRows(mapped: Record<string, string>[], requiredFields: string[], currentType: ImportType) {
     const errors: string[] = [];
 
     mapped.forEach((row, index) => {
-      const missing = requiredFields.filter((field) => !String(row[field] ?? "").trim());
+      const action = String(row.accion ?? "").trim().toLowerCase();
+      const deleteFields =
+        action === "delete"
+          ? currentType === "productos"
+            ? ["referencia"]
+            : currentType === "combinaciones"
+              ? ["productoReferencia", "referencia"]
+              : currentType === "clientes"
+                ? ["email"]
+                : currentType === "direcciones"
+                  ? ["alias"]
+                  : currentType === "atributovalores"
+                    ? ["valor"]
+                    : ["nombre"]
+          : requiredFields;
+      const missing = deleteFields.filter((field) => !String(row[field] ?? "").trim());
 
       if (tipo === "atributovalores" && !String(row.atributoId ?? "").trim() && !String(row.atributo ?? "").trim()) {
         missing.push("atributo o atributoId");
       }
 
+      if (tipo === "clientes" && action !== "delete") {
+        const nombre = String(row.nombre ?? "").trim();
+        const apellidos = String(row.apellidos ?? "").trim();
+        const email = String(row.email ?? "").trim();
+        if (!nombre) missing.push("nombre");
+        if (!apellidos) missing.push("apellidos");
+        if (!email) missing.push("email");
+      }
+
       if (tipo === "direcciones") {
         const clientKey = String(row.clienteId ?? "").trim() || String(row.clienteEmail ?? "").trim();
         if (!clientKey) missing.push("clienteId o clienteEmail");
+        if (action !== "delete") {
+          const nombre = String(row.nombre ?? "").trim();
+          const apellidos = String(row.apellidos ?? "").trim();
+          const direccion = String(row.direccion ?? "").trim();
+          if (!nombre) missing.push("nombre");
+          if (!apellidos) missing.push("apellidos");
+          if (!direccion) missing.push("direccion");
+        }
       }
 
-      if (tipo === "combinaciones" && !String(row.productoReferencia ?? "").trim() && !String(row.nombreProducto ?? "").trim()) {
-        missing.push("productoReferencia o nombreProducto");
+      if (tipo === "combinaciones" && action !== "delete" && !String(row.productoReferencia ?? "").trim()) {
+        missing.push("productoReferencia");
       }
 
       if (missing.length > 0) {
@@ -348,7 +401,7 @@ export default function AdminImportarPage() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `plantilla-${tipo}.csv`;
+    link.download = `plantilla-${currentType}.csv`;
     link.click();
     URL.revokeObjectURL(url);
   }
@@ -396,31 +449,64 @@ export default function AdminImportarPage() {
     setValidationErrors([]);
   }
 
-  function handleFile(file: File) {
+  async function handleFile(file: File) {
     setError("");
     setResult(null);
     setFileName(file.name);
 
-    Papa.parse<Record<string, string>>(file, {
-      header: true,
-      skipEmptyLines: true,
-      delimiter: "",
-      transformHeader: (header) => header.trim(),
-      complete: (parsed) => {
-        const data = parsed.data.filter((row) => Object.values(row).some((value) => String(value ?? "").trim() !== ""));
-        const sourceHeaders = parsed.meta.fields?.filter(Boolean) ?? [];
-        setRows(data as Record<string, string>[]);
-        setHeaders(sourceHeaders);
-        setColumnMap(buildAutoMap(sourceHeaders, config.fields));
-      },
-      error: (err) => {
-        setError(err.message);
-        setRows([]);
-        setHeaders([]);
-        setColumnMap({});
-        setValidationErrors([]);
-      },
-    });
+    const detectDelimiter = (text: string) => {
+      const lines = text
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .slice(0, 5);
+
+      const candidates = [";", ",", "\t", "|"];
+      let best = ";";
+      let bestScore = -1;
+
+      for (const candidate of candidates) {
+        const score = lines.reduce((sum, line) => sum + Math.max(0, line.split(candidate).length - 1), 0);
+        if (score > bestScore) {
+          bestScore = score;
+          best = candidate;
+        }
+      }
+
+      return bestScore > 0 ? best : ";";
+    };
+
+    try {
+      const text = await file.text();
+      const delimiter = detectDelimiter(text);
+
+      Papa.parse<Record<string, string>>(text, {
+        header: true,
+        skipEmptyLines: true,
+        delimiter,
+        transformHeader: (header) => header.trim(),
+        complete: (parsed) => {
+          const data = parsed.data.filter((row) => Object.values(row).some((value) => String(value ?? "").trim() !== ""));
+          const sourceHeaders = parsed.meta.fields?.filter(Boolean) ?? [];
+          setRows(data as Record<string, string>[]);
+          setHeaders(sourceHeaders);
+          setColumnMap(buildAutoMap(sourceHeaders, config.fields));
+        },
+        error: (err) => {
+          setError(err.message);
+          setRows([]);
+          setHeaders([]);
+          setColumnMap({});
+          setValidationErrors([]);
+        },
+      });
+    } catch (err: any) {
+      setError(err.message);
+      setRows([]);
+      setHeaders([]);
+      setColumnMap({});
+      setValidationErrors([]);
+    }
   }
 
   async function runImport() {
@@ -626,11 +712,27 @@ export default function AdminImportarPage() {
                       <label className="text-sm font-semibold text-gray-700">{field}</label>
                       <select
                         value={columnMap[field] || ""}
-                        onChange={(e) => setColumnMap((prev) => ({ ...prev, [field]: e.target.value }))}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          setColumnMap((prev) => {
+                            const next = { ...prev };
+                            for (const otherField of config.fields) {
+                              if (otherField !== field && next[otherField] === value) {
+                                delete next[otherField];
+                              }
+                            }
+                            if (value) next[field] = value;
+                            else delete next[field];
+                            return next;
+                          });
+                        }}
                         className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-[#6BAEC9]/40 focus:border-[#6BAEC9] transition"
                       >
                         <option value="">-- no usar --</option>
-                        {headers.map((header) => (
+                        {headers.filter((header) => {
+                          const usedElsewhere = Object.entries(columnMap).some(([otherField, otherHeader]) => otherField !== field && otherHeader === header);
+                          return !usedElsewhere || columnMap[field] === header;
+                        }).map((header) => (
                           <option key={header} value={header}>
                             {header}
                           </option>
@@ -843,8 +945,9 @@ export default function AdminImportarPage() {
               <h2 className="text-lg font-bold text-[#4A4A4A] mb-4">Notas de uso</h2>
               <ul className="space-y-3 text-sm text-gray-600 list-disc pl-5">
                 <li>El CSV puede usar coma, punto y coma o barra vertical como separador; el importador intenta detectarlo.</li>
-                <li>Para productos, usa <strong>marca</strong> y <strong>categoria/categorias</strong> por nombre.</li>
-                <li>Para combinaciones, usa <strong>productoReferencia</strong> y un campo <strong>atributos</strong> con IDs o valores separados por <strong>|</strong>, <strong>;</strong> o coma.</li>
+                <li>La columna <strong>accion</strong> acepta <strong>upsert</strong> o <strong>delete</strong> en todas las plantillas que la incluyen.</li>
+                <li>Para productos, usa <strong>referencia</strong> como clave única, y <strong>marca</strong> y <strong>categoria/categorias</strong> por nombre.</li>
+                <li>Para combinaciones, usa <strong>productoReferencia</strong> para enlazar el producto padre y <strong>referencia</strong> para identificar cada variante. El campo <strong>atributos</strong> es opcional.</li>
                 <li>Para valores de atributo, crea antes el atributo padre o referencia su nombre en la columna <strong>atributo</strong>.</li>
                 <li>Si un registro ya existe por su clave natural, se actualiza en lugar de duplicarse.</li>
               </ul>

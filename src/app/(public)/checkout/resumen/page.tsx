@@ -14,16 +14,27 @@ export default function ResumenPage() {
   // Estados
   const [cart, setCart] = useState<CartItem[]>([]);
   const [subtotal, setSubtotal] = useState(0);
-    const [shippingData, setShippingData] = useState<{
+  const [shippingData, setShippingData] = useState<{
         id?: string;
         metodo: string;
         label?: string;
         descripcion?: string;
         coste: number;
         gratisAplicado?: boolean;
-        zonaId?: string | null;
-        zonaNombre?: string | null;
+        carrierImage?: string | null;
+        carrierName?: string | null;
+    zonaId?: string | null;
+    zonaNombre?: string | null;
+    comentarios?: string;
     } | null>(null);
+  const [direccionEntrega, setDireccionEntrega] = useState<{
+    direccion?: string;
+    direccionComplementaria?: string;
+    codigoPostal?: string;
+    ciudad?: string;
+    provincia?: string;
+    pais?: string;
+  } | null>(null);
   
   // Cupón
   const [codigo, setCodigo] = useState("");
@@ -63,15 +74,69 @@ export default function ResumenPage() {
                     descripcion: parsed.descripcion,
                     coste: Number(parsed.coste ?? 0),
                     gratisAplicado: Boolean(parsed.gratisAplicado),
+                    carrierImage: parsed.carrierImage ?? null,
+                    carrierName: parsed.carrierName ?? null,
                     zonaId: parsed.zonaId ?? null,
                     zonaNombre: parsed.zonaNombre ?? null,
+                    comentarios: typeof parsed.comentarios === "string" ? parsed.comentarios : localStorage.getItem("checkout_comentarios") || "",
                 });
       } else {
         // Si no hay envío seleccionado, volver atrás
         router.push("/checkout/envio");
       }
+
     }
   }, [cliente, loading, router]);
+
+  useEffect(() => {
+    if (loading || !cliente) return;
+
+    const loadDireccion = async () => {
+      if (!token) {
+        setDireccionEntrega({
+          direccion: cliente.direccion,
+          direccionComplementaria: cliente.direccionComplementaria,
+          codigoPostal: cliente.codigoPostal,
+          ciudad: cliente.ciudad,
+          provincia: cliente.provincia,
+          pais: cliente.pais,
+        });
+        return;
+      }
+
+      try {
+        const res = await fetch("/api/clientes/direccion", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await res.json();
+
+        if (res.ok && data?.ok && data?.direccion) {
+          setDireccionEntrega({
+            direccion: data.direccion.direccion || "",
+            direccionComplementaria: data.direccion.direccionComplementaria || "",
+            codigoPostal: data.direccion.codigoPostal || "",
+            ciudad: data.direccion.ciudad || "",
+            provincia: data.direccion.provincia || "",
+            pais: data.direccion.pais || "",
+          });
+          return;
+        }
+      } catch (error) {
+        console.error("Error cargando la dirección del resumen:", error);
+      }
+
+      setDireccionEntrega({
+        direccion: cliente.direccion,
+        direccionComplementaria: cliente.direccionComplementaria,
+        codigoPostal: cliente.codigoPostal,
+        ciudad: cliente.ciudad,
+        provincia: cliente.provincia,
+        pais: cliente.pais,
+      });
+    };
+
+    void loadDireccion();
+  }, [cliente, loading, token]);
 
   // 2. Lógica de Cupón
   const aplicarCupon = async () => {
@@ -116,6 +181,10 @@ export default function ResumenPage() {
     const shippingLabel =
         shippingData?.label ||
         (shippingData?.metodo === "pickup" ? "Recogida en Tienda" : "Envío a domicilio");
+  const addressLineOne = [direccionEntrega?.direccion, direccionEntrega?.direccionComplementaria].filter(Boolean).join(", ");
+  const addressLineTwo = [direccionEntrega?.ciudad, direccionEntrega?.codigoPostal ? `(${direccionEntrega.codigoPostal})` : "", direccionEntrega?.provincia]
+    .filter(Boolean)
+    .join(" · ");
 
   // --- BLOQUEOS DE SEGURIDAD ---
 
@@ -131,7 +200,7 @@ export default function ResumenPage() {
   return (
     <div className="min-h-screen bg-fondo dark:bg-darkBg flex flex-col transition-colors duration-300">
       <main className="flex-1 flex justify-center px-4 py-8 md:py-16">
-        <div className="w-full max-w-6xl">
+        <div className="w-full max-w-7xl">
             
             {/* Cabecera */}
             <div className="text-center mb-10">
@@ -152,10 +221,10 @@ export default function ResumenPage() {
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 lg:gap-12 items-start">
+            <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,2.15fr)_minmax(320px,1fr)] gap-8 lg:gap-10 items-start">
                 
                 {/* --- COLUMNA IZQUIERDA: LISTA DE PRODUCTOS --- */}
-                <div className="lg:col-span-2 space-y-6">
+                <div className="space-y-6">
                     
                     {/* Tarjeta de Lista */}
                     <div className="bg-white dark:bg-darkNavBg rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden transition-colors">
@@ -185,9 +254,6 @@ export default function ResumenPage() {
                                         <h3 className="font-bold text-gray-900 dark:text-white text-base sm:text-lg mb-1 line-clamp-2">
                                             {item.nombre}
                                         </h3>
-                                        <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
-                                            {(item as any).atributo || 'Estándar'}
-                                        </p>
                                         <div className="flex justify-between items-center mt-2">
                                             <span className="text-sm font-medium bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-3 py-1 rounded-full">
                                                 x{item.cantidad}
@@ -203,17 +269,30 @@ export default function ResumenPage() {
                     </div>
 
                     {/* Datos de Envío Seleccionado */}
-                    <div className="bg-white dark:bg-darkNavBg rounded-xl p-6 shadow-sm border border-gray-100 dark:border-gray-700 flex justify-between items-center">
-                        <div>
+                    <div className="bg-white dark:bg-darkNavBg rounded-xl p-6 shadow-sm border border-gray-100 dark:border-gray-700 flex flex-col gap-4 sm:flex-row sm:justify-between sm:items-center">
+                        <div className="min-w-0">
                             <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-1">Método de Envío</h3>
-                            <p className="font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                                                                {shippingData?.metodo === 'pickup' || shippingData?.metodo === 'tienda'
-                                                                    ? '🏬 ' + shippingLabel
-                                                                    : '🚚 ' + shippingLabel}
-                            </p>
-                                                        {shippingData?.descripcion && (
-                                                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{shippingData.descripcion}</p>
-                                                        )}
+                            <div className="flex items-center gap-3 min-w-0">
+                              <div className="w-10 h-10 rounded-xl bg-white border border-gray-200 overflow-hidden flex items-center justify-center flex-shrink-0 shadow-sm">
+                                {shippingData?.carrierImage ? (
+                                  <img
+                                    src={shippingData.carrierImage}
+                                    alt={shippingData.carrierName || shippingLabel}
+                                    className="w-full h-full object-contain p-1"
+                                  />
+                                ) : (shippingData?.carrierName || shippingLabel).toLowerCase().includes("ontime") ? (
+                                  <span className="text-[10px] font-black italic tracking-tight text-[#2f58a8] leading-none">Ontime</span>
+                                ) : (
+                                  <span className="text-xl">{shippingData?.metodo === "pickup" || shippingData?.metodo === "tienda" ? "🏬" : "🚚"}</span>
+                                )}
+                              </div>
+                              <div className="min-w-0">
+                                <p className="font-bold text-gray-900 dark:text-white text-base sm:text-lg truncate">{shippingLabel}</p>
+                                {shippingData?.descripcion && (
+                                  <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1">{shippingData.descripcion}</p>
+                                )}
+                              </div>
+                            </div>
                         </div>
                         <Link href="/checkout/envio" className="text-sm font-bold text-primary hover:text-primaryHover underline">
                             Cambiar
@@ -221,17 +300,27 @@ export default function ResumenPage() {
                     </div>
 
                     {/* Datos de Dirección Resumidos */}
-                    <div className="bg-white dark:bg-darkNavBg rounded-xl p-6 shadow-sm border border-gray-100 dark:border-gray-700 flex justify-between items-center">
-                        <div>
+                    <div className="bg-white dark:bg-darkNavBg rounded-xl p-6 shadow-sm border border-gray-100 dark:border-gray-700 flex flex-col gap-4 sm:flex-row sm:justify-between sm:items-center">
+                        <div className="min-w-0">
                             <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-1">Dirección de Entrega</h3>
-                            <p className="text-gray-900 dark:text-white text-sm">
-                                {cliente.direccion}, {cliente.ciudad} ({cliente.codigoPostal})
+                            <p className="text-gray-900 dark:text-white text-sm font-semibold break-words">
+                                {addressLineOne || cliente.direccion || "-"}
+                            </p>
+                            <p className="text-gray-500 dark:text-gray-400 text-sm mt-1 break-words">
+                                {addressLineTwo || [cliente.ciudad, cliente.codigoPostal, cliente.provincia].filter(Boolean).join(" · ")}
                             </p>
                         </div>
                         <Link href="/checkout/direcciones" className="text-sm font-bold text-primary hover:text-primaryHover underline">
                             Editar
                         </Link>
                     </div>
+
+                    {shippingData?.comentarios && (
+                      <div className="bg-white dark:bg-darkNavBg rounded-xl p-6 shadow-sm border border-gray-100 dark:border-gray-700">
+                        <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-2">Comentarios sobre el pedido</h3>
+                        <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{shippingData.comentarios}</p>
+                      </div>
+                    )}
                 </div>
 
                 {/* --- COLUMNA DERECHA: TOTALES (Sticky) --- */}

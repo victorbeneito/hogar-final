@@ -3,8 +3,9 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useClienteAuth } from "@/context/ClienteAuthContext";
-import { getCart, CartItem, clearCart } from "@/lib/cartService"; // Añadido clearCart
+import { getCart, CartItem, clearCart, getCartSessionId, syncCartSnapshot } from "@/lib/cartService"; // Añadido clearCart
 import { toast } from "react-hot-toast";
+import { DEFAULT_PAYMENT_CONFIG, normalizePaymentConfig, type PaymentCheckoutConfig, calculateContrareembolso } from "@/lib/paymentSettings";
 
 import PasarelaRedsys from "@/components/PasarelaRedsys"; 
 import PasarelaPaypal from "@/components/PasarelaPaypal"; 
@@ -28,6 +29,7 @@ export default function PagoPage() {
         zonaNombre?: string | null;
     } | null>(null);
   const [descuento, setDescuento] = useState(0);
+  const [paymentConfig, setPaymentConfig] = useState<PaymentCheckoutConfig>(DEFAULT_PAYMENT_CONFIG);
   
   // Popups
   const [showRedsys, setShowRedsys] = useState(false);
@@ -49,6 +51,7 @@ export default function PagoPage() {
             return; 
         }
         setCarrito(cart);
+        syncCartSnapshot(cart);
 
         // 1. Recuperar envío
         let envio = 0;
@@ -74,6 +77,11 @@ export default function PagoPage() {
         const montoDescuento = descuentoData ? parseFloat(descuentoData) : 0;
         setDescuento(montoDescuento);
 
+        fetch("/api/formas-pago/configuracion", { cache: "no-store" })
+          .then((res) => res.json())
+          .then((data) => setPaymentConfig(normalizePaymentConfig(data.config)))
+          .catch(() => setPaymentConfig(DEFAULT_PAYMENT_CONFIG));
+
         // 3. Calcular total restando el descuento
         const subtotal = cart.reduce((acc, item) => acc + (item.precioFinal ?? item.precio) * item.cantidad, 0);
         
@@ -85,8 +93,7 @@ export default function PagoPage() {
   // Recargo solo visual para contrareembolso
   const calcularTotalMostrado = () => {
     if (metodoPago === "contrareembolso") {
-        // total ya tiene restado el descuento del cupón
-        return (total + 3 + (total * 0.03)).toFixed(2);
+        return calculateContrareembolso(total, paymentConfig.contrareembolso).total.toFixed(2);
     }
     return total.toFixed(2);
   };
@@ -107,6 +114,7 @@ export default function PagoPage() {
     const datosPedido = {
         clienteId: cliente.id,
         carrito: carrito,
+        carritoSessionId: getCartSessionId(),
         totalFinal: parseFloat(calcularTotalMostrado()), // Usamos el total final calculado
         subtotal: total - costeEnvio,
         descuentoAplicado: descuento,
@@ -227,7 +235,7 @@ export default function PagoPage() {
                     { id: "paypal", label: "PayPal", desc: "Paga con tu saldo PayPal o tarjeta asociada.", icon: "🅿️" },
                     { id: "bizum", label: "Bizum", desc: "Introduce tu móvil y paga al instante.", icon: "📱" },
                     { id: "transferencia", label: "Transferencia Bancaria", desc: "El pedido se enviará tras recibir el ingreso.", icon: "🏦" },
-                    { id: "contrareembolso", label: "Contrareembolso", desc: "Paga en efectivo al recibirlo (+3€ y 3% recargo).", icon: "💵" },
+                    { id: "contrareembolso", label: "Contrareembolso", desc: `Paga al recibirlo (+${paymentConfig.contrareembolso.comisionFija.toFixed(2)}€ y ${paymentConfig.contrareembolso.porcentaje}% recargo).`, icon: "💵" },
                     ].map((opt) => (
                     <label 
                         key={opt.id} 

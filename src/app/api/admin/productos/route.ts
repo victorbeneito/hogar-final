@@ -103,6 +103,17 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const body = await req.json();
   const { imagenes, variantes, categoriaId, ...campos } = body;
+  if (!campos.referencia) {
+    return NextResponse.json({ ok: false, error: "La referencia es obligatoria" }, { status: 400 });
+  }
+  const reglaImpuestoDefault = await prisma.reglaimpuesto.findFirst({
+    where: {
+      OR: [
+        { nombre: "IVA GENERAL" },
+        { porcentaje: 21 },
+      ],
+    },
+  });
 
   try {
     const producto = await prisma.$transaction(async (tx) => {
@@ -111,13 +122,14 @@ export async function POST(req: NextRequest) {
       const nuevo = await tx.producto.create({
         data: {
           nombre:               campos.nombre,
+          referencia:           campos.referencia,
           resumen:              campos.resumen              ?? null,
           descripcion:          campos.descripcion          ?? null,
           descripcion_html:     campos.descripcion_html     ?? null,
           precio:               parseFloat(campos.precio)   || 0,
           precioOferta:         campos.precioOferta         ? parseFloat(campos.precioOferta)  : null,
           precioCoste:          campos.precioCoste          ? parseFloat(campos.precioCoste)   : null,
-          reglaImpuestoId:      campos.reglaImpuestoId      ?? null,
+          reglaImpuestoId:      campos.reglaImpuestoId      ?? reglaImpuestoDefault?.id ?? null,
           stock:                parseInt(campos.stock)      || 0,
           stockMinimo:          parseInt(campos.stockMinimo) || 0,
           activo:               campos.activo               ?? true,
@@ -180,6 +192,7 @@ export async function POST(req: NextRequest) {
             color:         v.color         ?? null,
             imagenMuestra: v.imagenMuestra ?? null,
             imagen:        v.imagen        ?? null,
+            imagenesVariante: v.imagenesVariante ?? null,
             tamano:        v.tamano        ?? null,
             tirador:       v.tirador       ?? null,
             precio_extra:  v.precio_extra  ? parseFloat(v.precio_extra)  : 0,

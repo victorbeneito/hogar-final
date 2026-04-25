@@ -21,7 +21,7 @@ export default function TabPrecio({ data, onChange, reglasImpuesto }: Props) {
   // FIX 3: mostramos y editamos como INCL al usuario
   const ofertaIncl   = ofertaExcl !== null ? ofertaExcl * (1 + porcentaje / 100) : null;
   const descuentoPct = ofertaExcl !== null && precioExcl > 0
-    ? ((precioExcl - ofertaExcl) / precioExcl * 100).toFixed(1)
+    ? Math.round(((precioExcl - ofertaExcl) / precioExcl) * 100)
     : null;
 
   // Al editar "precio con IVA" → guarda sin IVA en BD
@@ -43,7 +43,7 @@ export default function TabPrecio({ data, onChange, reglasImpuesto }: Props) {
   // Al editar el % de descuento → calcula precio oferta excl.
   function handleDescuentoPct(val: string) {
     if (val === "") { onChange("precioOferta", null); return; }
-    const pct = parseFloat(val);
+    const pct = parseInt(val, 10);
     if (!isNaN(pct) && pct >= 0 && pct < 100) {
       onChange("precioOferta", Math.round(precioExcl * (1 - pct / 100) * 1000000) / 1000000);
     }
@@ -63,38 +63,36 @@ export default function TabPrecio({ data, onChange, reglasImpuesto }: Props) {
           </p>
         )}
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-
-          {/* FIX 1: value usa data.precio directamente → permite borrar el 0 */}
-          <div>
-            <label className="block text-xs text-gray-500 mb-1">Precio (imp. excl.)</label>
-            <div className="flex">
-              <input
-                type="number" step="0.000001" min="0"
-                value={data.precio === 0 ? "" : data.precio}
-                placeholder="0.000000"
-                onChange={e => onChange("precio", e.target.value === "" ? 0 : parseFloat(e.target.value) || 0)}
-                className="w-full border border-gray-300 rounded-l px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-              />
-              <span className="px-3 py-2 bg-gray-100 border border-l-0 border-gray-300 rounded-r text-sm text-gray-500">€</span>
-            </div>
-          </div>
-
-          {/* FIX 2: muestra el valor con IVA calculado, si no hay regla muestra el mismo */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
           <div>
             <label className="block text-xs text-gray-500 mb-1">
-              Precio (imp. incl.) {porcentaje > 0 ? `· ${porcentaje}% IVA` : ""}
+              Precio de venta (imp. incl.) {porcentaje > 0 ? `· ${porcentaje}% IVA` : ""}
             </label>
             <div className="flex">
               <input
-                type="number" step="0.000001" min="0"
-                value={precioIncl === 0 ? "" : precioIncl.toFixed(6)}
-                placeholder="0.000000"
+                type="number" step="0.01" min="0"
+                value={precioIncl === 0 ? "" : precioIncl.toFixed(2)}
+                placeholder="0.00"
                 onChange={e => handlePrecioIncl(e.target.value)}
                 className="w-full border border-gray-300 rounded-l px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
               />
               <span className="px-3 py-2 bg-gray-100 border border-l-0 border-gray-300 rounded-r text-sm text-gray-500">€</span>
             </div>
+            <p className="text-xs text-gray-400 mt-1">
+              Sin IVA: <strong>{precioExcl.toFixed(2)} €</strong>
+            </p>
+          </div>
+
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
+            💡 Precio de venta final:
+            <div className="mt-1 font-semibold">
+              {precioIncl.toFixed(2)} € impuestos incl.
+            </div>
+            {porcentaje > 0 && (
+              <div className="text-xs mt-1">
+                {precioExcl.toFixed(2)} € impuestos excl.
+              </div>
+            )}
           </div>
         </div>
 
@@ -127,11 +125,6 @@ export default function TabPrecio({ data, onChange, reglasImpuesto }: Props) {
         </label>
 
         {/* Resumen */}
-        <div className="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
-          💡 Precio de venta final:{" "}
-          <strong>{precioIncl.toFixed(2)} € impuestos incl.</strong>
-          {porcentaje > 0 && <> / {precioExcl.toFixed(2)} € impuestos excl.</>}
-        </div>
       </section>
 
       {/* ── Precio de coste ── */}
@@ -169,7 +162,7 @@ export default function TabPrecio({ data, onChange, reglasImpuesto }: Props) {
             <div className="flex">
               <input
                 type="number" step="0.01" min="0"
-                value={ofertaIncl ?? ""}
+                value={ofertaIncl === null || ofertaIncl === 0 ? "" : ofertaIncl.toFixed(2)}
                 onChange={e => handleOfertaIncl(e.target.value)}
                 placeholder="0.00"
                 className="w-full border border-gray-300 rounded-l px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
@@ -177,7 +170,7 @@ export default function TabPrecio({ data, onChange, reglasImpuesto }: Props) {
               <span className="px-3 py-2 bg-gray-100 border border-l-0 border-gray-300 rounded-r text-sm text-gray-500">€</span>
             </div>
             {ofertaExcl !== null && (
-              <p className="text-xs text-gray-400 mt-1">Sin IVA: {ofertaExcl.toFixed(6)} €</p>
+              <p className="text-xs text-gray-400 mt-1">Sin IVA: {ofertaExcl.toFixed(2)} €</p>
             )}
           </div>
 
@@ -186,10 +179,10 @@ export default function TabPrecio({ data, onChange, reglasImpuesto }: Props) {
             <label className="block text-xs text-gray-500 mb-1">O aplicar descuento (%)</label>
             <div className="flex">
               <input
-                type="number" step="0.1" min="0" max="99"
+                type="number" step="1" min="0" max="99"
                 value={descuentoPct ?? ""}
                 onChange={e => handleDescuentoPct(e.target.value)}
-                placeholder="0"
+                placeholder="8"
                 className="w-full border border-gray-300 rounded-l px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
               />
               <span className="px-3 py-2 bg-gray-100 border border-l-0 border-gray-300 rounded-r text-sm text-gray-500">%</span>

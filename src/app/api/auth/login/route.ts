@@ -10,6 +10,27 @@ export async function POST(req: NextRequest) {
     // 1. Buscar cliente en la tabla Cliente
     const cliente = await prisma.cliente.findUnique({
       where: { email: email.toLowerCase() },
+      select: {
+        id: true,
+        nombre: true,
+        apellidos: true,
+        email: true,
+        password: true,
+        telefono: true,
+        empresa: true,
+        nif: true,
+        direccion: true,
+        direccionComplementaria: true,
+        codigoPostal: true,
+        ciudad: true,
+        provincia: true,
+        pais: true,
+        activo: true,
+        aceptaMarketing: true,
+        role: true,
+        createdAt: true,
+        updatedAt: true,
+      },
     });
 
     if (!cliente) {

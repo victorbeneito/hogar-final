@@ -20,6 +20,15 @@ export default function CarritoPage() {
   const { cliente, loading } = useClienteAuth();
   const [isClient, setIsClient] = useState(false);
 
+  const getItemKey = (item: CartItem) =>
+    [
+      item.id,
+      item.tamanoSeleccionado ?? "",
+      item.colorSeleccionado ?? "",
+      item.tiradorSeleccionado ?? "",
+      item.atributo ?? "",
+    ].join("|");
+
   // Evitar hidratación incorrecta
   useEffect(() => {
     setIsClient(true);
@@ -35,10 +44,11 @@ export default function CarritoPage() {
     setTotal(nuevoTotal);
   }, [carrito]);
 
-  const updateQuantity = (id: number, nuevaCantidad: number) => {
+  const updateQuantity = (item: CartItem, nuevaCantidad: number) => {
     if (nuevaCantidad < 1) return;
-    const updated = carrito.map((item) =>
-      item.id === id ? { ...item, cantidad: nuevaCantidad } : item
+    const itemKey = getItemKey(item);
+    const updated = carrito.map((currentItem) =>
+      getItemKey(currentItem) === itemKey ? { ...currentItem, cantidad: nuevaCantidad } : currentItem
     );
     // Actualizamos localStorage y estado
     setCart(updated);
@@ -47,8 +57,8 @@ export default function CarritoPage() {
     window.dispatchEvent(new Event("storage"));
   };
 
-  const handleRemove = (id: number) => {
-    removeFromCart(id);
+  const handleRemove = (item: CartItem) => {
+    removeFromCart(item.id, item);
     setCarrito(getCart());
     window.dispatchEvent(new Event("storage"));
     toast.success("Producto eliminado");
@@ -125,7 +135,7 @@ export default function CarritoPage() {
             <div className="lg:col-span-2 space-y-6">
                 {carrito.map((item) => (
                     <div 
-                        key={item.id} 
+                    key={getItemKey(item)} 
                         className="bg-white dark:bg-darkNavBg rounded-xl p-4 sm:p-6 shadow-sm border border-gray-100 dark:border-gray-700 flex flex-col sm:flex-row gap-6 transition-colors"
                     >
                         {/* Imagen */}
@@ -145,7 +155,7 @@ export default function CarritoPage() {
                                         {item.nombre}
                                     </h2>
                                     <button 
-                                        onClick={() => handleRemove(item.id)}
+                                        onClick={() => handleRemove(item)}
                                         className="text-gray-400 hover:text-red-500 transition p-1"
                                         title="Eliminar producto"
                                     >
@@ -170,7 +180,7 @@ export default function CarritoPage() {
                                 {/* Selector Cantidad */}
                                 <div className="flex items-center border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden">
                                     <button
-                                        onClick={() => updateQuantity(item.id, item.cantidad - 1)}
+                                        onClick={() => updateQuantity(item, item.cantidad - 1)}
                                         disabled={item.cantidad <= 1}
                                         className="px-3 py-1 bg-gray-50 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-50 text-gray-600 dark:text-gray-300 transition"
                                     >
@@ -180,7 +190,7 @@ export default function CarritoPage() {
                                         {item.cantidad}
                                     </span>
                                     <button
-                                        onClick={() => updateQuantity(item.id, item.cantidad + 1)}
+                                        onClick={() => updateQuantity(item, item.cantidad + 1)}
                                         className="px-3 py-1 bg-gray-50 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 transition"
                                     >
                                         +

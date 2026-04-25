@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { getCart, clearCart, CartItem } from "@/lib/cartService";
+import { getCart, clearCart, CartItem, getCartSessionId, syncCartSnapshot } from "@/lib/cartService";
 import Link from "next/link";
 import { useClienteAuth } from "@/context/ClienteAuthContext";
 import { fetchWithAuth } from "@/utils/fetchWithAuth";
@@ -32,13 +32,14 @@ export default function CheckoutPage() {
         return;
       }
 
-      const cartItems = getCart();
-      if (cartItems.length === 0) {
-        router.push("/carrito");
-        return;
-      }
+        const cartItems = getCart();
+        if (cartItems.length === 0) {
+          router.push("/carrito");
+          return;
+        }
 
-      setCarrito(cartItems);
+        setCarrito(cartItems);
+        syncCartSnapshot(cartItems);
 
       const totalCalc = cartItems.reduce(
         (acc, item) => acc + (item.precioFinal ?? item.precio) * item.cantidad,
@@ -92,9 +93,11 @@ export default function CheckoutPage() {
     const datosPedido = {
         clienteId: cliente.id, 
         carrito: carrito,
+        carritoSessionId: getCartSessionId(),
         totalFinal: totalConDescuento,
         subtotal: total,
         descuento: (total * descuento) / 100,
+        notas: localStorage.getItem("checkout_comentarios") || "",
         cliente: {
             nombre: cliente.nombre,
             email: cliente.email,
@@ -130,6 +133,8 @@ export default function CheckoutPage() {
         if (data.ok) {
             toast.success("¡Pedido guardado correctamente!");
             clearCart();
+            localStorage.removeItem("checkout_comentarios");
+            localStorage.removeItem("checkout_envio");
             setPedidoEnviado(true);
             window.dispatchEvent(new Event("storage"));
         } else {

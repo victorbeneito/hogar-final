@@ -7,6 +7,7 @@ type Variante = {
   color?: string;
   imagenMuestra?: string;  // miniatura del tejido para el selector
   imagen?: string;         // imagen grande al seleccionar este color
+  imagenesVariante?: string; // galería de imágenes de la combinación, separadas por |
   tamano?: string;
   tirador?: string;
   precio_extra?: number;
@@ -23,6 +24,7 @@ const VARIANTE_VACIA: Variante = {
   color: "",
   imagenMuestra: "",
   imagen: "",
+  imagenesVariante: "",
   tamano: "",
   tirador: "",
   precio_extra: 0,
@@ -58,8 +60,8 @@ export default function TabCombinaciones({ data, onChange }: Props) {
       <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-sm text-blue-800">
         <p className="font-semibold mb-1">¿Cómo funcionan las combinaciones?</p>
         <ul className="list-disc list-inside flex flex-col gap-1 text-blue-700">
-          <li>Cada variante tiene una <strong>imagen muestra</strong> (miniatura del tejido) que aparece en el selector de color.</li>
-          <li>Al pulsar una muestra, la imagen principal del producto cambia a la <strong>imagen del producto</strong> de esa variante.</li>
+          <li>Cada variante puede tener una <strong>imagen muestra</strong> (miniatura del selector) y una <strong>galería propia</strong> para la ficha del producto.</li>
+          <li>Al pulsar una muestra, la imagen principal del producto cambia a la <strong>imagen del producto</strong> de esa variante y debajo puedes mostrar sus miniaturas.</li>
           <li>Si una variante no tiene imagen propia, se mostrará la imagen de portada del producto.</li>
         </ul>
       </div>
@@ -221,6 +223,24 @@ export default function TabCombinaciones({ data, onChange }: Props) {
                           />
                         )}
                       </div>
+                    </div>
+
+                    {/* Galería de la variante */}
+                    <div className="sm:col-span-2 lg:col-span-3">
+                      <label className="block text-xs font-medium text-gray-600 mb-1">
+                        Galería de la combinación
+                        <span className="ml-1 text-gray-400 font-normal">(URLs separadas por | para ambiente, detalle, etc.)</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={v.imagenesVariante ?? ""}
+                        onChange={(e) => updateVariante(idx, "imagenesVariante", e.target.value)}
+                        placeholder="https://...jpg | https://...jpg | https://...jpg"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                      />
+                      <p className="text-xs text-gray-400 mt-1">
+                        La primera URL se usará como imagen principal si no indicas una en Imagen del producto.
+                      </p>
                     </div>
 
                     {/* Talla */}

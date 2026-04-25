@@ -15,7 +15,6 @@ import {
   Ticket,
   Truck,
   Users,
-  MapPin,
   CreditCard,
   Settings,
   ClipboardList,
@@ -65,13 +64,14 @@ const navigation = [
     label: "CLIENTES",
     items: [
       { name: "Clientes",    href: "/admin/clientes",    icon: Users },
-      { name: "Direcciones", href: "/admin/direcciones", icon: MapPin },
     ],
   },
   {
-    label: "PAGO",
+    label: "PERSONALIZAR",
     items: [
-      { name: "Formas de pago", href: "/admin/formas-pago", icon: CreditCard },
+      { name: "Formas de pago", href: "/admin/personalizar/formas-pago", icon: CreditCard },
+      { name: "Módulos", href: "/admin/personalizar/modulos", icon: Settings },
+      { name: "Configuración de Correos", href: "/admin/personalizar/correos", icon: FileText },
     ],
   },
   {

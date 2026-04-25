@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
+import { DEFAULT_PAYMENT_CONFIG, normalizePaymentConfig, inferContrareembolsoBase, type PaymentCheckoutConfig } from "@/lib/paymentSettings";
 
 export default function ContrareembolsoPage() {
   const router = useRouter();
@@ -16,6 +17,7 @@ export default function ContrareembolsoPage() {
   
   const [loading, setLoading] = useState(false);
   const [pedidoId, setPedidoId] = useState("");
+  const [paymentConfig, setPaymentConfig] = useState<PaymentCheckoutConfig>(DEFAULT_PAYMENT_CONFIG);
 
   useEffect(() => {
     // 1. Leer parámetros de la URL
@@ -30,24 +32,28 @@ export default function ContrareembolsoPage() {
 
     setPedidoId(idUrl);
 
-    // 2. Procesar Importes
-    // El totalUrl YA VIENE con los recargos aplicados desde la página anterior.
-    // Fórmula usada antes: Total = Base + 3 + (Base * 0.03)
-    // Para desglosar, hacemos la inversa: Base = (Total - 3) / 1.03
-    
     const totalFinal = parseFloat(totalUrl);
-    
-    // Constantes de recargo (solo visuales ahora, para el desglose)
-    const FIJO = 3.00;
-    
-    // Matemática inversa para sacar la base limpia
-    const baseCalculada = (totalFinal - FIJO) / 1.03;
-    const variableCalculada = baseCalculada * 0.03;
 
-    setBasePedido(baseCalculada);
-    setRecargoFijo(FIJO);
-    setRecargoVariable(variableCalculada);
-    setTotalA_Pagar(totalFinal);
+    fetch("/api/formas-pago/configuracion", { cache: "no-store" })
+      .then((res) => res.json())
+      .then((data) => {
+        const cfg = normalizePaymentConfig(data.config);
+        setPaymentConfig(cfg);
+        const desglose = inferContrareembolsoBase(totalFinal, cfg.contrareembolso);
+        setBasePedido(desglose.base);
+        setRecargoFijo(desglose.comisionFija);
+        setRecargoVariable(desglose.variable);
+        setTotalA_Pagar(desglose.total);
+      })
+      .catch(() => {
+        const cfg = DEFAULT_PAYMENT_CONFIG;
+        setPaymentConfig(cfg);
+        const desglose = inferContrareembolsoBase(totalFinal, cfg.contrareembolso);
+        setBasePedido(desglose.base);
+        setRecargoFijo(desglose.comisionFija);
+        setRecargoVariable(desglose.variable);
+        setTotalA_Pagar(desglose.total);
+      });
 
   }, [searchParams, router]);
 
@@ -71,7 +77,7 @@ export default function ContrareembolsoPage() {
         <div className="bg-gray-800 dark:bg-gray-900 text-white p-8 text-center relative overflow-hidden">
             <div className="absolute top-[-50%] left-[-10%] w-32 h-32 bg-white opacity-5 rounded-full"></div>
             <h1 className="text-2xl font-bold uppercase tracking-widest relative z-10">Pago Contrareembolso</h1>
-            <p className="text-gray-400 text-sm mt-2 relative z-10">Abona el importe en efectivo al recibir tu paquete</p>
+            <p className="text-gray-400 text-sm mt-2 relative z-10">{paymentConfig.contrareembolso.instrucciones}</p>
         </div>
 
         <div className="p-8 md:p-10 space-y-8">
@@ -85,8 +91,8 @@ export default function ContrareembolsoPage() {
                     <div>
                         <h3 className="font-bold text-yellow-800 dark:text-yellow-400 text-sm uppercase tracking-wide">Recargo por gestión</h3>
                         <p className="text-sm text-yellow-700 dark:text-yellow-300 mt-1 leading-relaxed">
-                            La agencia de transporte aplica una comisión por gestionar el dinero en efectivo. 
-                            (Fijo de 3,00€ + 3% del total).
+                            La comisión se calcula según la configuración del panel.
+                            (Fijo {paymentConfig.contrareembolso.comisionFija.toFixed(2)}€ + {paymentConfig.contrareembolso.porcentaje}%).
                         </p>
                     </div>
                 </div>
@@ -109,7 +115,7 @@ export default function ContrareembolsoPage() {
                         <span>+ {recargoFijo.toFixed(2)} €</span>
                     </div>
                     <div className="flex justify-between text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/10 px-3 py-1 rounded">
-                        <span>Comisión Transportista (3%)</span>
+                        <span>Comisión variable ({paymentConfig.contrareembolso.porcentaje}%)</span>
                         <span>+ {recargoVariable.toFixed(2)} €</span>
                     </div>
 

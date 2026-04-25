@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { getCart } from "@/lib/cartService";
 import toast from "react-hot-toast";
+import { DEFAULT_PAYMENT_CONFIG, normalizePaymentConfig, type PaymentCheckoutConfig } from "@/lib/paymentSettings";
 
 export default function TransferenciaPage() {
   const router = useRouter();
@@ -11,13 +12,12 @@ export default function TransferenciaPage() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [orderId, setOrderId] = useState("");
+  const [paymentConfig, setPaymentConfig] = useState<PaymentCheckoutConfig>(DEFAULT_PAYMENT_CONFIG);
   const totalUrl = searchParams.get("total");
   const pedidoId = searchParams.get("id");
 
   // Si por lo que sea no viene en la URL, ponemos 0 o gestionamos error
   const importeFinal = totalUrl ? parseFloat(totalUrl).toFixed(2) : "0.00";
-
-  const IBAN = "ES82 0081 0319 0452 7458 0563";
 
   useEffect(() => {
     // Generar ID en cliente
@@ -37,6 +37,10 @@ export default function TransferenciaPage() {
       if (envioData) envio = JSON.parse(envioData).coste || 0;
     }
     setTotal(sub + envio);
+    fetch("/api/formas-pago/configuracion", { cache: "no-store" })
+      .then((res) => res.json())
+      .then((data) => setPaymentConfig(normalizePaymentConfig(data.config)))
+      .catch(() => setPaymentConfig(DEFAULT_PAYMENT_CONFIG));
   }, [router]);
 
   const handleConfirmar = () => {
@@ -48,7 +52,7 @@ export default function TransferenciaPage() {
   };
 
   const copiarIBAN = () => {
-    navigator.clipboard.writeText(IBAN);
+    navigator.clipboard.writeText(paymentConfig.transferencia.iban);
     toast.success("IBAN copiado al portapapeles");
   };
 
@@ -61,7 +65,7 @@ export default function TransferenciaPage() {
         <div className="bg-gradient-to-r from-blue-600 to-blue-500 p-8 text-center relative overflow-hidden">
             <div className="absolute top-[-50%] left-[-10%] w-32 h-32 bg-white opacity-10 rounded-full"></div>
             <h1 className="text-2xl font-bold uppercase tracking-widest text-white relative z-10">Transferencia Bancaria</h1>
-            <p className="text-blue-100 text-sm mt-2 relative z-10">Realiza el pago cómodamente desde tu banco</p>
+                <p className="text-blue-100 text-sm mt-2 relative z-10">{paymentConfig.transferencia.instrucciones}</p>
         </div>
 
         <div className="p-8 md:p-10 space-y-8">
@@ -80,8 +84,8 @@ export default function TransferenciaPage() {
             <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl p-6 bg-gray-50 dark:bg-gray-800/30 text-center relative">
                 
                 <p className="text-gray-400 text-xs uppercase font-bold mb-1 tracking-wider">Entidad Bancaria</p>
-                <h3 className="text-xl font-bold text-blue-600 dark:text-blue-400 mb-6 flex items-center justify-center gap-2">
-                    <span className="text-2xl">🏦</span> Banco Sabadell
+                    <h3 className="text-xl font-bold text-blue-600 dark:text-blue-400 mb-6 flex items-center justify-center gap-2">
+                    <span className="text-2xl">🏦</span> {paymentConfig.transferencia.banco}
                 </h3>
                 
                 <div className="mb-6">
@@ -92,7 +96,7 @@ export default function TransferenciaPage() {
                         title="Click para copiar"
                     >
                         <code className="text-lg md:text-2xl font-mono font-bold text-gray-800 dark:text-white tracking-wider block">
-                            {IBAN}
+                            {paymentConfig.transferencia.iban}
                         </code>
                         <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
                             <svg className="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
@@ -104,7 +108,7 @@ export default function TransferenciaPage() {
                 <div className="grid grid-cols-2 gap-4 text-left max-w-sm mx-auto border-t border-gray-200 dark:border-gray-700 pt-4">
                     <div>
                         <p className="text-xs text-gray-400 font-bold uppercase mb-1">Beneficiario</p>
-                        <p className="font-medium text-gray-800 dark:text-white text-sm">El Hogar de tus Sueños S.L.</p>
+                        <p className="font-medium text-gray-800 dark:text-white text-sm">{paymentConfig.transferencia.titular}</p>
                     </div>
                     <div>
                         <p className="text-xs text-gray-400 font-bold uppercase mb-1">Concepto (Vital)</p>

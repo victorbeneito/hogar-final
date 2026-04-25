@@ -1,12 +1,13 @@
 "use client";
 export const dynamic = "force-dynamic";
 
-import { useState, useEffect } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
 
 interface Pedido {
   id: number;
+  referencia?: string;
   numeroPedido?: string;
 
   nombre: string;
@@ -23,6 +24,9 @@ interface Pedido {
 
   // 👇 Añadir este campo
   totalFinal?: number;
+  estadoPago?: string;
+  transportistaNombre?: string;
+  numeroSeguimiento?: string;
 
   estado: string;
   fecha?: string;
@@ -34,15 +38,37 @@ interface Pedido {
 export default function AdminPedidos() {
   const [pedidos, setPedidos] = useState<Pedido[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const router = useRouter();
+  const [filters, setFilters] = useState({
+    id: "",
+    referencia: "",
+    cliente: "",
+    estado: "",
+    estadoPago: "",
+    fechaDesde: "",
+    fechaHasta: "",
+    sortBy: "fechaPedido",
+    sortDir: "desc",
+  });
+  const normalize = (value?: string) => String(value || "").toLowerCase();
 
   useEffect(() => {
     fetchPedidos();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const fetchPedidos = async () => {
+  const queryString = useMemo(() => {
+    const params = new URLSearchParams();
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value) params.set(key, value);
+    });
+    return params.toString();
+  }, [filters]);
+
+  const fetchPedidos = async (query = queryString) => {
     try {
-      const res = await fetch("/api/pedidos");
+      const res = await fetch(`/api/pedidos${query ? `?${query}` : ""}`, { cache: "no-store" });
       const data = await res.json();
       setPedidos(data.pedidos || []);
     } catch (error) {
@@ -50,6 +76,44 @@ export default function AdminPedidos() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await fetchPedidos();
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  const handleExport = async () => {
+    const res = await fetch(`/api/pedidos${queryString ? `?${queryString}` : ""}`, { cache: "no-store" });
+    const data = await res.json();
+    const rows = (data.pedidos || []).map((pedido: Pedido) => [
+      pedido.id,
+      pedido.referencia || pedido.numeroPedido || "",
+      pedido.nombre || pedido.cliente?.nombre || "",
+      pedido.estado || "",
+      pedido.estadoPago || "",
+      pedido.totalFinal ?? "",
+      pedido.fecha || pedido.fechaPedido || pedido.createdAt || "",
+    ]);
+
+    const csv = [
+      ["ID", "Referencia", "Cliente", "Estado", "Estado pago", "Total", "Fecha"].join(";"),
+      ...rows.map((row: string[]) => row.map((cell) => `"${String(cell).replaceAll('"', '""')}"`).join(";")),
+    ].join("\n");
+
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `pedidos-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   const handleDelete = async (id: number) => {
@@ -63,29 +127,142 @@ export default function AdminPedidos() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F8F8F5] py-8 px-6">
-      <div className="max-w-7xl mx-auto">
-        <h1 className="text-4xl font-bold text-[#4A4A4A] mb-12">
-          📋 Gestión de Pedidos
-        </h1>
+    <div className="min-h-screen bg-[#F8F8F5] py-6 md:py-8 px-3 sm:px-4 md:px-6">
+      <div className="max-w-screen-2xl mx-auto">
+        <div className="mb-6 flex flex-col gap-3">
+          <div>
+            <p className="text-sm text-gray-500">Pedidos</p>
+            <h1 className="text-3xl md:text-4xl font-bold text-[#4A4A4A]">
+              📋 Gestión de Pedidos
+            </h1>
+          </div>
 
-        {/* Botón volver al panel de administración */}
-        <div className="mb-12">
-          <button
-            onClick={() => router.push("/admin")}
-            className="inline-flex items-center gap-2 px-6 py-3 rounded-xl font-semibold text-white bg-gradient-to-r from-[#6BAEC9] to-[#A8D7E6] hover:from-[#5FA0B3] hover:to-[#91C8D9] shadow-md transition-all duration-300"
-          >
-            ← Volver al Panel de Administración
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => router.push("/admin/pedidos/nuevo")}
+              className="inline-flex items-center gap-2 rounded-xl bg-[#6BAEC9] px-4 py-3 text-sm font-semibold text-white hover:bg-[#5FA0B3] shadow-md"
+            >
+              + Nuevo pedido
+            </button>
+            <button
+              onClick={handleExport}
+              className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+            >
+              Exportar
+            </button>
+            <button
+              onClick={handleRefresh}
+              className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+            >
+              {refreshing ? "Actualizando..." : "Actualizar"}
+            </button>
+            <button
+              onClick={() => router.push("/admin")}
+              className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+            >
+              Volver
+            </button>
+          </div>
         </div>
 
-        <div className="bg-white rounded-2xl shadow-xl p-8 border border-[#6BAEC9]/10">
-          <div className="overflow-x-auto">
-            <table className="w-full">
+        <div className="bg-white rounded-2xl shadow-xl p-4 md:p-8 border border-[#6BAEC9]/10">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 mb-6">
+            <input
+              value={filters.id}
+              onChange={(e) => setFilters((prev) => ({ ...prev, id: e.target.value }))}
+              placeholder="Buscar por ID"
+              className="rounded-xl border border-gray-200 px-3 py-2.5 text-sm"
+            />
+            <input
+              value={filters.referencia}
+              onChange={(e) => setFilters((prev) => ({ ...prev, referencia: e.target.value }))}
+              placeholder="Referencia / Nº pedido"
+              className="rounded-xl border border-gray-200 px-3 py-2.5 text-sm"
+            />
+            <input
+              value={filters.cliente}
+              onChange={(e) => setFilters((prev) => ({ ...prev, cliente: e.target.value }))}
+              placeholder="Buscar por cliente"
+              className="rounded-xl border border-gray-200 px-3 py-2.5 text-sm"
+            />
+            <div className="grid grid-cols-2 gap-2">
+              <select
+                value={filters.estado}
+                onChange={(e) => setFilters((prev) => ({ ...prev, estado: e.target.value }))}
+                className="rounded-xl border border-gray-200 px-3 py-2.5 text-sm bg-white"
+              >
+                <option value="">Estado</option>
+                <option value="PENDIENTE">PENDIENTE</option>
+                <option value="PROCESANDO">PROCESANDO</option>
+                <option value="ENVIADO">ENVIADO</option>
+                <option value="ENTREGADO">ENTREGADO</option>
+                <option value="CANCELADO">CANCELADO</option>
+                <option value="DEVUELTO">DEVUELTO</option>
+              </select>
+              <select
+                value={filters.estadoPago}
+                onChange={(e) => setFilters((prev) => ({ ...prev, estadoPago: e.target.value }))}
+                className="rounded-xl border border-gray-200 px-3 py-2.5 text-sm bg-white"
+              >
+                <option value="">Pago</option>
+                <option value="PENDIENTE">PENDIENTE</option>
+                <option value="PAGADO">PAGADO</option>
+                <option value="FALLIDO">FALLIDO</option>
+                <option value="REEMBOLSADO">REEMBOLSADO</option>
+              </select>
+            </div>
+            <input
+              type="date"
+              value={filters.fechaDesde}
+              onChange={(e) => setFilters((prev) => ({ ...prev, fechaDesde: e.target.value }))}
+              className="rounded-xl border border-gray-200 px-3 py-2.5 text-sm"
+            />
+            <input
+              type="date"
+              value={filters.fechaHasta}
+              onChange={(e) => setFilters((prev) => ({ ...prev, fechaHasta: e.target.value }))}
+              className="rounded-xl border border-gray-200 px-3 py-2.5 text-sm"
+            />
+            <select
+              value={filters.sortBy}
+              onChange={(e) => setFilters((prev) => ({ ...prev, sortBy: e.target.value }))}
+              className="rounded-xl border border-gray-200 px-3 py-2.5 text-sm bg-white"
+            >
+              <option value="fechaPedido">Ordenar por fecha</option>
+              <option value="id">Ordenar por ID</option>
+              <option value="numeroPedido">Ordenar por número</option>
+              <option value="totalFinal">Ordenar por total</option>
+              <option value="estado">Ordenar por estado</option>
+              <option value="estadoPago">Ordenar por pago</option>
+            </select>
+            <select
+              value={filters.sortDir}
+              onChange={(e) => setFilters((prev) => ({ ...prev, sortDir: e.target.value }))}
+              className="rounded-xl border border-gray-200 px-3 py-2.5 text-sm bg-white"
+            >
+              <option value="desc">Descendente</option>
+              <option value="asc">Ascendente</option>
+            </select>
+          </div>
+
+          <div className="mb-4 flex justify-end">
+            <button
+              onClick={() => fetchPedidos()}
+              className="rounded-xl bg-[#6BAEC9] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#5FA0B3]"
+            >
+              Buscar
+            </button>
+          </div>
+
+          <div className="hidden md:block overflow-x-auto">
+            <table className="w-full min-w-[1280px]">
               <thead>
                 <tr className="bg-[#F8F8F5]">
                   <th className="px-8 py-4 text-left text-lg font-bold text-[#4A4A4A]">
                     ID Pedido
+                  </th>
+                  <th className="px-8 py-4 text-left text-lg font-bold text-[#4A4A4A]">
+                    Referencia
                   </th>
                   <th className="px-8 py-4 text-left text-lg font-bold text-[#4A4A4A]">
                     Cliente
@@ -95,6 +272,9 @@ export default function AdminPedidos() {
                   </th>
                   <th className="px-8 py-4 text-left text-lg font-bold text-[#4A4A4A]">
                     Estado
+                  </th>
+                  <th className="px-8 py-4 text-left text-lg font-bold text-[#4A4A4A]">
+                    Pago
                   </th>
                   <th className="px-8 py-4 text-left text-lg font-bold text-[#4A4A4A]">
                     Fecha
@@ -109,7 +289,7 @@ export default function AdminPedidos() {
                 {loading ? (
                   <tr>
                     <td
-                      colSpan={6}
+                      colSpan={8}
                       className="px-8 py-12 text-center text-gray-500"
                     >
                       Cargando pedidos...
@@ -118,7 +298,7 @@ export default function AdminPedidos() {
                 ) : pedidos.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={6}
+                      colSpan={8}
                       className="px-8 py-12 text-center text-gray-500"
                     >
                       No hay pedidos aún
@@ -129,6 +309,9 @@ export default function AdminPedidos() {
                     <tr key={pedido.id} className="border-t hover:bg-[#F8F8F5]">
                       <td className="px-8 py-6 font-mono text-sm text-[#6BAEC9]">
                         {pedido.id}
+                      </td>
+                      <td className="px-8 py-6 font-mono text-sm text-gray-500">
+                        {pedido.referencia || pedido.numeroPedido || "—"}
                       </td>
 
                       <td className="px-8 py-6 font-semibold text-[#4A4A4A]">
@@ -151,14 +334,34 @@ export default function AdminPedidos() {
                       <td className="px-8 py-6">
                         <span
                           className={`px-4 py-2 rounded-full text-sm font-semibold ${
-                            pedido.estado === "entregado"
+                            normalize(pedido.estado) === "entregado"
                               ? "bg-green-100 text-green-700"
-                              : pedido.estado === "pendiente"
+                              : normalize(pedido.estado) === "pendiente"
                               ? "bg-yellow-100 text-yellow-700"
+                              : normalize(pedido.estado) === "procesando"
+                              ? "bg-blue-100 text-blue-700"
+                              : normalize(pedido.estado) === "enviado"
+                              ? "bg-purple-100 text-purple-700"
                               : "bg-red-100 text-red-700"
                           }`}
                         >
                           {pedido.estado}
+                        </span>
+                      </td>
+
+                      <td className="px-8 py-6">
+                        <span
+                          className={`px-4 py-2 rounded-full text-sm font-semibold ${
+                            normalize(pedido.estadoPago) === "pagado"
+                              ? "bg-green-100 text-green-700"
+                              : normalize(pedido.estadoPago) === "fallido"
+                              ? "bg-red-100 text-red-700"
+                              : normalize(pedido.estadoPago) === "reembolsado"
+                              ? "bg-gray-200 text-gray-700"
+                              : "bg-yellow-100 text-yellow-700"
+                          }`}
+                        >
+                          {pedido.estadoPago || "PENDIENTE"}
                         </span>
                       </td>
 
@@ -228,6 +431,76 @@ export default function AdminPedidos() {
                 )}
               </tbody>
             </table>
+          </div>
+
+          <div className="md:hidden space-y-4">
+            {loading ? (
+              <div className="py-10 text-center text-gray-500">Cargando pedidos...</div>
+            ) : pedidos.length === 0 ? (
+              <div className="py-10 text-center text-gray-500">No hay pedidos aún</div>
+            ) : (
+              pedidos.map((pedido) => (
+                <div key={pedido.id} className="rounded-2xl border border-gray-200 bg-[#F8F8F5] p-4 shadow-sm">
+                  <div className="flex items-start justify-between gap-3 mb-3">
+                    <div>
+                      <p className="text-xs uppercase tracking-wide text-gray-400">Pedido</p>
+                      <p className="font-mono text-sm text-[#6BAEC9]">{pedido.referencia || pedido.numeroPedido || `#${pedido.id}`}</p>
+                    </div>
+                    <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                      normalize(pedido.estado) === "entregado"
+                        ? "bg-green-100 text-green-700"
+                        : normalize(pedido.estado) === "pendiente"
+                        ? "bg-yellow-100 text-yellow-700"
+                        : normalize(pedido.estado) === "procesando"
+                        ? "bg-blue-100 text-blue-700"
+                        : normalize(pedido.estado) === "enviado"
+                        ? "bg-purple-100 text-purple-700"
+                        : "bg-red-100 text-red-700"
+                    }`}>
+                      {pedido.estado}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div>
+                      <p className="text-xs text-gray-400 mb-1">Cliente</p>
+                      <p className="font-semibold text-gray-800">{pedido.nombre || pedido.cliente?.nombre || "Sin nombre"}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-400 mb-1">Total</p>
+                      <p className="font-semibold text-[#6BAEC9]">{pedido.totalFinal ? pedido.totalFinal.toFixed(2) : "0.00"} €</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-400 mb-1">Pago</p>
+                      <p className="font-semibold text-gray-700">{pedido.estadoPago || "PENDIENTE"}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-400 mb-1">Fecha</p>
+                      <p className="font-semibold text-gray-700">
+                        {pedido.fecha
+                          ? new Date(pedido.fecha).toLocaleDateString("es-ES")
+                          : pedido.fechaPedido
+                          ? new Date(pedido.fechaPedido).toLocaleDateString("es-ES")
+                          : "—"}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="mt-4 flex justify-end gap-2">
+                    <button
+                      onClick={() => router.push(`/admin/pedidos/${pedido.id}`)}
+                      className="rounded-xl bg-white px-3 py-2 text-sm font-semibold text-gray-700 border border-gray-200"
+                    >
+                      Ver
+                    </button>
+                    <button
+                      onClick={() => handleDelete(pedido.id)}
+                      className="rounded-xl bg-white px-3 py-2 text-sm font-semibold text-[#F7A38B] border border-gray-200"
+                    >
+                      Eliminar
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </div>
       </div>

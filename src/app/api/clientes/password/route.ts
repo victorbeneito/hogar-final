@@ -13,7 +13,10 @@ export async function PUT(req: Request) {
 
     const { oldPassword, newPassword } = await req.json();
 
-    const cliente = await prisma.cliente.findUnique({ where: { id } });
+    const cliente = await prisma.cliente.findUnique({
+      where: { id },
+      select: { id: true, password: true },
+    });
     if (!cliente) return NextResponse.json({ error: "Cliente no encontrado" }, { status: 404 });
 
     const match = await bcrypt.compare(oldPassword, cliente.password);
@@ -23,7 +26,7 @@ export async function PUT(req: Request) {
 
     await prisma.cliente.update({
       where: { id },
-      data: { password: hashedPassword }
+      data: { password: hashedPassword },
     });
 
     return NextResponse.json({ message: "Contraseña actualizada correctamente" });

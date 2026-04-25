@@ -36,16 +36,37 @@ export async function GET(req: NextRequest) {
   const page    = Math.max(1, parseInt(searchParams.get("page")  ?? "1"));
   const limit   = Math.min(100, parseInt(searchParams.get("limit") ?? "20"));
   const skip    = (page - 1) * limit;
-  const sortBy  = searchParams.get("sortBy")  ?? "id";
-  const sortDir = (searchParams.get("sortDir") ?? "asc") === "desc" ? "desc" : "asc";
+  const sortBy  = searchParams.get("sortBy")  ?? "relevance";
+  const sortDir = (searchParams.get("sortDir") ?? "desc") === "asc" ? "asc" : "desc";
 
   const fieldMap: Record<string, string> = {
-    id: "id", nombre: "nombre", precio: "precio",
-    stock: "stock", activo: "activo", referencia: "referencia",
+    id: "id",
+    nombre: "nombre",
+    precio: "precio",
+    stock: "stock",
+    activo: "activo",
+    referencia: "referencia",
+    createdAt: "createdAt",
   };
-  const orderBy = { [fieldMap[sortBy] ?? "id"]: sortDir };
+  const orderBy = sortBy === "relevance"
+    ? [
+        { destacado: "desc" },
+        { enOferta: "desc" },
+        { createdAt: "desc" },
+        { id: "desc" },
+      ]
+    : { [fieldMap[sortBy] ?? "id"]: sortDir };
 
   const where: Prisma.ProductoWhereInput = {};
+
+  const q = searchParams.get("q")?.trim();
+  if (q) {
+    where.OR = [
+      { nombre: { contains: q } },
+      { referencia: { contains: q } },
+      { slug: { contains: q } },
+    ];
+  }
 
   const idMin = searchParams.get("idMin");
   const idMax = searchParams.get("idMax");
@@ -62,7 +83,7 @@ export async function GET(req: NextRequest) {
 
   const categoria = searchParams.get("categoria");
   if (categoria) where.productocategoria = {
-    some: { Categoria: { nombre: { contains: categoria } } },
+    some: { categoria: { nombre: { contains: categoria } } },
   };
 
   const precioMin = searchParams.get("precioMin");
@@ -123,7 +144,7 @@ export async function GET(req: NextRequest) {
     categoria:     p.productocategoria?.[0]?.categoria ?? null,
   }));
 
-  return NextResponse.json({ ok: true, productos: productosNormalizados, total, page, limit });
+  return NextResponse.json({ ok: true, productos: productosNormalizados, total, page, limit, sortBy, sortDir });
 }
 
 
@@ -133,6 +154,14 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
+    const reglaImpuestoDefault = await prisma.reglaimpuesto.findFirst({
+      where: {
+        OR: [
+          { nombre: "IVA GENERAL" },
+          { porcentaje: 21 },
+        ],
+      },
+    });
 
     // 1. Validar si existen Marca y Categoría Principal — IGUAL QUE TENÍAS
     let marcaConnect = undefined;
@@ -169,7 +198,11 @@ export async function POST(req: NextRequest) {
           visibilidad: body.visibilidad || "tienda",
           tieneVariantes: body.tieneVariantes || false,
           marca: marcaConnect,
-          reglaimpuesto: body.reglaImpuestoId ? { connect: { id: parseInt(body.reglaImpuestoId) } } : undefined
+          reglaimpuesto: body.reglaImpuestoId
+            ? { connect: { id: parseInt(body.reglaImpuestoId) } }
+            : reglaImpuestoDefault
+              ? { connect: { id: reglaImpuestoDefault.id } }
+              : undefined
         },
         include: {
           marca: true,

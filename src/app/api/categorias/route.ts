@@ -31,6 +31,8 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const { nombre, descripcion, imagen, activa, orden, parentId } = body;
+    const ordenNumero = orden !== undefined ? Number(orden) : 0;
+    const parentIdNumero = parentId !== undefined && parentId !== null && parentId !== "" ? Number(parentId) : null;
 
     if (!nombre) {
       return NextResponse.json({ ok: false, error: "El nombre es obligatorio" }, { status: 400 });
@@ -48,8 +50,8 @@ export async function POST(req: NextRequest) {
         descripcion: descripcion ?? null,
         imagen:      imagen      ?? null,
         activa:      activa      ?? true,
-        orden:       orden       ?? 0,
-        parentId:    parentId    ?? null,
+        orden:       Number.isFinite(ordenNumero) ? ordenNumero : 0,
+        parentId:    parentIdNumero,
       },
     });
 

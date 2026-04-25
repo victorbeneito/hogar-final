@@ -26,6 +26,11 @@ type Props = {
 
 export default function ProductoForm({ producto, categorias, marcas, reglasImpuesto }: Props) {
   const [activeTab, setActiveTab] = useState("basicos");
+  const defaultReglaImpuestoId =
+    producto?.reglaImpuestoId ??
+    reglasImpuesto.find((r) => r?.nombre?.toString().toUpperCase().includes("IVA GENERAL") || Number(r?.porcentaje) === 21)?.id ??
+    reglasImpuesto[0]?.id ??
+    null;
 
   const [formData, setFormData] = useState({
     // Básicos
@@ -43,7 +48,7 @@ export default function ProductoForm({ producto, categorias, marcas, reglasImpue
     precio:           producto?.precio           ?? 0,
     precioOferta:     producto?.precioOferta     ?? null,
     precioCoste:      producto?.precioCoste      ?? null,
-    reglaImpuestoId:  producto?.reglaImpuestoId  ?? null,
+    reglaImpuestoId:  defaultReglaImpuestoId,
     stock:            producto?.stock            ?? 0,
     stockMinimo:      producto?.stockMinimo      ?? 0,
     // Opciones

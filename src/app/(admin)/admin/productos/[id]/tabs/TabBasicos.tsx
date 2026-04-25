@@ -101,20 +101,6 @@ export default function TabBasicos({ producto, categorias, marcas, onChange, dat
 </div>
 
 
-        {/* HTML directo */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            HTML personalizado
-            <span className="ml-2 text-xs text-gray-400 font-normal">Pega código HTML con estilos personalizados</span>
-          </label>
-          <textarea
-            value={data.descripcion_html ?? ""}
-            onChange={(e) => onChange("descripcion_html", e.target.value)}
-            rows={5}
-            placeholder='<div class="mi-estilos">...</div>'
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y"
-          />
-        </div>
       </div>
 
       {/* Columna lateral */}
@@ -202,6 +188,21 @@ export default function TabBasicos({ producto, categorias, marcas, onChange, dat
             ))}
           </div>
         </div>
+      </div>
+
+      {/* HTML personalizado */}
+      <div className="lg:col-span-3 bg-gray-50 border border-gray-200 rounded-xl p-4">
+        <label className="block text-sm font-semibold text-gray-700 mb-2">
+          HTML personalizado
+          <span className="ml-2 text-xs text-gray-400 font-normal">Pega código HTML con estilos personalizados</span>
+        </label>
+        <textarea
+          value={data.descripcion_html ?? ""}
+          onChange={(e) => onChange("descripcion_html", e.target.value)}
+          rows={14}
+          placeholder='<div class="mi-estilos">...</div>'
+          className="w-full min-h-[360px] px-4 py-3 border border-gray-300 rounded-lg text-sm font-mono leading-6 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y bg-white"
+        />
       </div>
     </div>
   );

@@ -19,6 +19,7 @@ export async function POST(req: Request) {
     // 2. Verificar duplicados
     const usuarioExistente = await prisma.cliente.findUnique({
       where: { email },
+      select: { id: true },
     });
 
     if (usuarioExistente) {
@@ -46,6 +47,26 @@ export async function POST(req: Request) {
         pais: pais || null,
         role: "client",
         updatedAt: new Date()
+      },
+      select: {
+        id: true,
+        nombre: true,
+        apellidos: true,
+        email: true,
+        telefono: true,
+        empresa: true,
+        nif: true,
+        direccion: true,
+        direccionComplementaria: true,
+        codigoPostal: true,
+        ciudad: true,
+        provincia: true,
+        pais: true,
+        activo: true,
+        aceptaMarketing: true,
+        role: true,
+        createdAt: true,
+        updatedAt: true,
       },
     });
 

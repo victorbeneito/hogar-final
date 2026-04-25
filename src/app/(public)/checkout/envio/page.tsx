@@ -22,6 +22,7 @@ type CheckoutShippingOption = {
 
 type CheckoutShippingSelection = CheckoutShippingOption & {
   subtotal: number;
+  comentarios?: string;
 };
 
 export default function EnvioPage() {
@@ -34,6 +35,7 @@ export default function EnvioPage() {
   const [zoneLabel, setZoneLabel] = useState<string | null>(null);
   const [warning, setWarning] = useState("");
   const [loadingOptions, setLoadingOptions] = useState(true);
+  const [comentarios, setComentarios] = useState("");
 
   useEffect(() => {
     if (!loading && !cliente) {
@@ -79,7 +81,13 @@ export default function EnvioPage() {
           throw new Error(data.error || "No se pudieron cargar las opciones de envío");
         }
 
-        setOptions(Array.isArray(data.options) ? data.options : []);
+        const normalizedOptions = Array.isArray(data.options) ? data.options : [];
+        const orderedOptions = [...normalizedOptions].sort((a, b) => {
+          if (a.metodo === b.metodo) return 0;
+          return a.metodo === "delivery" ? -1 : 1;
+        });
+
+        setOptions(orderedOptions);
         setZoneLabel(data.zoneName || null);
         setWarning(data.warning || "");
 
@@ -87,13 +95,20 @@ export default function EnvioPage() {
         if (saved) {
           const parsed = JSON.parse(saved);
           const candidateId = parsed?.id || parsed?.metodo;
-          if (candidateId) {
-            setEnvioSeleccionado(candidateId);
+          const savedOption = candidateId ? orderedOptions.find((option) => option.id === candidateId || option.metodo === candidateId) : null;
+          if (typeof parsed?.comentarios === "string") {
+            setComentarios(parsed.comentarios);
+          }
+          if (savedOption?.metodo === "delivery") {
+            setEnvioSeleccionado(savedOption.id);
             return;
           }
         }
 
-        const defaultOption = data.options?.find((option: CheckoutShippingOption) => option.metodo === "pickup") || data.options?.[0] || null;
+        const defaultOption =
+          orderedOptions.find((option: CheckoutShippingOption) => option.metodo === "delivery") ||
+          orderedOptions[0] ||
+          null;
         if (defaultOption) setEnvioSeleccionado(defaultOption.id);
       } catch (loadError: any) {
         if (active) {
@@ -126,9 +141,11 @@ export default function EnvioPage() {
     const envioData: CheckoutShippingSelection = {
       ...selectedOption,
       subtotal,
+      comentarios: comentarios.trim(),
     };
 
     localStorage.setItem("checkout_envio", JSON.stringify(envioData));
+    localStorage.setItem("checkout_comentarios", comentarios.trim());
     router.push("/checkout/resumen");
   };
 
@@ -143,7 +160,7 @@ export default function EnvioPage() {
   return (
     <div className="min-h-screen bg-fondo dark:bg-darkBg flex flex-col transition-colors duration-300">
       <main className="flex-1 flex items-start justify-center px-4 py-8 md:py-16">
-        <div className="w-full max-w-5xl">
+        <div className="w-full max-w-6xl">
           <div className="text-center mb-10">
             <h1 className="text-3xl md:text-4xl font-extrabold text-gray-900 dark:text-white mb-2">
               Método de Envío 🚚
@@ -161,7 +178,7 @@ export default function EnvioPage() {
             </div>
           </div>
 
-          <div className="bg-white dark:bg-darkNavBg rounded-2xl shadow-xl border border-gray-100 dark:border-gray-700 p-6 md:p-10 transition-colors">
+          <div className="bg-white dark:bg-darkNavBg rounded-2xl shadow-xl border border-gray-100 dark:border-gray-700 p-6 md:p-8 transition-colors">
             <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
               <div>
                 <p className="text-xs uppercase tracking-[0.25em] text-gray-400 font-bold">Destino</p>
@@ -180,13 +197,13 @@ export default function EnvioPage() {
               </div>
             )}
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="mt-6 grid grid-cols-1 gap-4">
               {options.map((option) => (
                 <label
                   key={option.id}
-                  className={`relative flex flex-col p-6 rounded-xl border-2 cursor-pointer transition-all duration-300 ${
+                  className={`relative flex items-center gap-4 p-4 md:p-5 rounded-xl border-2 cursor-pointer transition-all duration-300 ${
                     envioSeleccionado === option.id
-                      ? "border-primary bg-yellow-50 dark:bg-yellow-900/10 shadow-md transform scale-[1.02]"
+                      ? "border-primary bg-yellow-50 dark:bg-yellow-900/10 shadow-md"
                       : "border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-500 bg-transparent"
                   }`}
                 >
@@ -198,38 +215,59 @@ export default function EnvioPage() {
                     onChange={() => setEnvioSeleccionado(option.id)}
                     className="absolute opacity-0"
                   />
-                  <div className="flex justify-between items-start mb-4 gap-3">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-14 h-14 rounded-2xl bg-white border border-gray-200 overflow-hidden flex items-center justify-center flex-shrink-0 shadow-sm">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-start gap-3 md:gap-4 min-w-0">
+                      <div className="w-12 h-12 md:w-16 md:h-16 rounded-2xl bg-white border border-gray-200 overflow-hidden flex items-center justify-center flex-shrink-0 shadow-sm">
                         {option.carrierImage ? (
-                          <img src={option.carrierImage} alt={option.carrierName || option.label} className="w-full h-full object-contain p-2" />
+                          <img src={option.carrierImage} alt={option.carrierName || option.label} className="w-full h-full object-contain p-1" />
                         ) : (
-                          <span className="text-3xl">{option.metodo === "pickup" ? "🏬" : "🚚"}</span>
+                          <span className="text-3xl md:text-4xl">{option.metodo === "pickup" ? "🏬" : "🚚"}</span>
                         )}
                       </div>
-                      <div className="min-w-0">
-                        <p className="text-xs uppercase tracking-[0.2em] text-gray-400 font-bold">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm md:text-base uppercase tracking-[0.2em] text-gray-400 font-bold">
                           {option.metodo === "pickup" ? "Recogida" : option.carrierName || "Transportista"}
                         </p>
-                        <p className="text-sm text-gray-500 truncate">{option.carrierName || option.label}</p>
+                        <h3 className="font-bold text-xl md:text-2xl text-gray-900 dark:text-white mt-1 truncate">{option.label}</h3>
+                        <p className="mt-2 text-sm md:text-base text-gray-500 dark:text-gray-400 max-w-full leading-snug">
+                          {option.descripcion}
+                        </p>
                       </div>
+                      <div className="flex shrink-0 flex-col items-end text-right gap-2">
+                        <span className={`inline-flex font-bold py-1 px-3 rounded-full text-sm ${option.coste === 0 ? "text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20" : "text-gray-900 dark:text-white bg-gray-100 dark:bg-gray-700"}`}>
+                          {option.coste === 0 ? "Gratis" : `${option.coste.toFixed(2)} €`}
+                          {option.gratisAplicado ? " · Envío gratis aplicado" : ""}
+                        </span>
+                      </div>
+                      {envioSeleccionado === option.id && (
+                        <div className="w-6 h-6 bg-primary text-white rounded-full flex items-center justify-center shrink-0">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"></path>
+                          </svg>
+                        </div>
+                      )}
                     </div>
-                    {envioSeleccionado === option.id && (
-                      <div className="w-6 h-6 bg-primary text-white rounded-full flex items-center justify-center">
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"></path>
-                        </svg>
-                      </div>
-                    )}
                   </div>
-                  <h3 className="font-bold text-lg text-gray-900 dark:text-white mb-1">{option.label}</h3>
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mb-4 flex-1">{option.descripcion}</p>
-                  <span className={`font-bold py-1 px-3 rounded-full text-sm self-start ${option.coste === 0 ? "text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20" : "text-gray-900 dark:text-white bg-gray-100 dark:bg-gray-700"}`}>
-                    {option.coste === 0 ? "Gratis" : `${option.coste.toFixed(2)} €`}
-                    {option.gratisAplicado ? " · Envío gratis aplicado" : ""}
-                  </span>
                 </label>
               ))}
+            </div>
+
+            <div className="mt-6 rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-darkNavBg p-5">
+              <label className="block">
+                <span className="block text-sm font-bold text-gray-700 dark:text-gray-200 mb-2">
+                  Enviar comentarios sobre el pedido
+                </span>
+                <textarea
+                  value={comentarios}
+                  onChange={(e) => setComentarios(e.target.value)}
+                  rows={4}
+                  placeholder="Escribe aquí cualquier indicación sobre el pedido, entrega, horario, acceso, etc."
+                  className="w-full rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-950 px-4 py-3 text-sm text-gray-800 dark:text-white focus:ring-2 focus:ring-primary outline-none"
+                />
+              </label>
+              <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                Si no quieres añadir nada, puedes dejarlo en blanco.
+              </p>
             </div>
 
             {options.length === 0 && (

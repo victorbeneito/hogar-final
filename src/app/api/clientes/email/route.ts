@@ -17,21 +17,28 @@ export async function PUT(req: Request) {
       return NextResponse.json({ error: "Faltan datos" }, { status: 400 });
     }
 
-    const cliente = await prisma.cliente.findUnique({ where: { id } });
+    const cliente = await prisma.cliente.findUnique({
+      where: { id },
+      select: { id: true, password: true },
+    });
     if (!cliente) return NextResponse.json({ error: "Cliente no encontrado" }, { status: 404 });
 
     const match = await bcrypt.compare(password, cliente.password);
     if (!match) return NextResponse.json({ error: "Contraseña incorrecta" }, { status: 401 });
 
     // Verificar si el email ya existe en OTRO cliente
-    const emailExistente = await prisma.cliente.findUnique({ where: { email: newEmail } });
+    const emailExistente = await prisma.cliente.findUnique({
+      where: { email: newEmail },
+      select: { id: true },
+    });
     if (emailExistente && emailExistente.id !== id) {
       return NextResponse.json({ error: "Ese correo ya está registrado" }, { status: 409 });
     }
 
     const actualizado = await prisma.cliente.update({
       where: { id },
-      data: { email: newEmail }
+      data: { email: newEmail },
+      select: { email: true },
     });
 
     return NextResponse.json({ message: "Email actualizado", email: actualizado.email });

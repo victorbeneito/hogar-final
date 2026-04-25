@@ -29,19 +29,20 @@ export async function GET(_req: NextRequest, { params }: Params) {
         orderBy: { orden: "asc" },
         select: { id: true, url: true, orden: true, esPortada: true },
       },
-      variante: {
-        select: {
-          id: true,
-          productoId: true,
-          referencia: true,
-          stock: true,
-          imagen: true,
-          color: true,
-          imagenMuestra: true,
-          precio_extra: true,
-          tamano: true,
-          tirador: true,
-        },
+          variante: {
+            select: {
+              id: true,
+              productoId: true,
+              referencia: true,
+              stock: true,
+              imagen: true,
+              color: true,
+              imagenMuestra: true,
+              imagenesVariante: true,
+              precio_extra: true,
+              tamano: true,
+              tirador: true,
+            },
       },
       productocategoria: {
         select: {
@@ -80,6 +81,17 @@ if (!Number.isInteger(id)) {
 
   const body = await req.json();
   const { imagenes, variantes, categoriaId, ...campos } = body;
+  if (!campos.referencia) {
+    return NextResponse.json({ error: "La referencia es obligatoria" }, { status: 400 });
+  }
+  const reglaImpuestoDefault = await prisma.reglaimpuesto.findFirst({
+    where: {
+      OR: [
+        { nombre: "IVA GENERAL" },
+        { porcentaje: 21 },
+      ],
+    },
+  });
 
   try {
     const producto = await prisma.$transaction(async (tx) => {
@@ -89,13 +101,14 @@ if (!Number.isInteger(id)) {
         where: { id },
         data: {
           nombre:               campos.nombre,
+          referencia:           campos.referencia,
           resumen:              campos.resumen              ?? null,
           descripcion:          campos.descripcion          ?? null,
           descripcion_html:     campos.descripcion_html     ?? null,
           precio:               parseFloat(campos.precio)   || 0,
           precioOferta:         campos.precioOferta         ? parseFloat(campos.precioOferta)  : null,
           precioCoste:          campos.precioCoste          ? parseFloat(campos.precioCoste)   : null,
-          reglaImpuestoId:      campos.reglaImpuestoId      ?? null,
+           reglaImpuestoId:      campos.reglaImpuestoId      ?? reglaImpuestoDefault?.id ?? null,
           stock:                parseInt(campos.stock)      || 0,
           stockMinimo:          parseInt(campos.stockMinimo) || 0,
           activo:               campos.activo               ?? true,
@@ -167,6 +180,7 @@ if (!Number.isInteger(id)) {
               color:         v.color         ?? null,
               imagenMuestra: v.imagenMuestra ?? null,
               imagen:        v.imagen        ?? null,
+              imagenesVariante: v.imagenesVariante ?? null,
               tamano:        v.tamano        ?? null,
               tirador:       v.tirador       ?? null,
               precio_extra:  v.precio_extra  ? parseFloat(v.precio_extra) : 0,

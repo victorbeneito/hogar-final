@@ -24,22 +24,30 @@ export default async function ProductoPage({ params }: PageProps) {
       precio: true,
       precioOferta: true,
       productoimagen: {
-      orderBy: { orden: "asc" },
-      select: { id: true, url: true }
-    },
-    variante: {
-      select: { id: true, tamano: true, tirador: true, color: true, precio_extra: true }
-    },
-    productocategoria: {
-      select: {
-        categoria: { select: { id: true, nombre: true } }
-      }
-    },
-    marca: {
-      select: { id: true, nombre: true }
-    },
-      
-      
+        orderBy: { orden: "asc" },
+        select: { id: true, url: true },
+      },
+      variante: {
+        select: {
+          id: true,
+          tamano: true,
+          tirador: true,
+          color: true,
+          precio_extra: true,
+          imagen: true,
+          imagenMuestra: true,
+        },
+      },
+      productocategoria: {
+        select: {
+          categoria: {
+            select: { id: true, nombre: true },
+          },
+        },
+      },
+      marca: {
+        select: { id: true, nombre: true },
+      },
     },
   });
 
@@ -54,9 +62,9 @@ export default async function ProductoPage({ params }: PageProps) {
     descripcion: productoRaw.descripcion ?? "",
     descripcion_html_cruda: productoRaw.descripcion_html ?? "",
     precio: Number(productoRaw.precio),
-    precio_descuento: productoRaw.precioOferta ? Number(productoRaw.precioOferta) : null,
-    descuento_porcentaje: productoRaw.precioOferta && productoRaw.precio > 0 
-      ? ((productoRaw.precio - Number(productoRaw.precioOferta)) / productoRaw.precio * 100).toFixed(1)
+    precio_descuento: productoRaw.precioOferta != null ? Number(productoRaw.precioOferta) : null,
+    descuento_porcentaje: productoRaw.precioOferta != null && productoRaw.precio > 0 
+      ? ((productoRaw.precio - Number(productoRaw.precioOferta)) / productoRaw.precio * 100).toFixed(2)
       : null,
     imagenes: productoRaw.productoimagen.map((img: any) => img.url),
     variantes: productoRaw.variante ?? [],

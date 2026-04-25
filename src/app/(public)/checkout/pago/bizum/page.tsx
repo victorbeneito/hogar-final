@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter , useSearchParams } from "next/navigation";
 import { getCart } from "@/lib/cartService";
+import { DEFAULT_PAYMENT_CONFIG, normalizePaymentConfig, type PaymentCheckoutConfig } from "@/lib/paymentSettings";
 
 export default function BizumPage() {
   const router = useRouter();
@@ -10,6 +11,7 @@ export default function BizumPage() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [orderId, setOrderId] = useState("");
+  const [paymentConfig, setPaymentConfig] = useState<PaymentCheckoutConfig>(DEFAULT_PAYMENT_CONFIG);
 
   const totalUrl = searchParams.get("total");
   const pedidoId = searchParams.get("id");
@@ -34,6 +36,10 @@ export default function BizumPage() {
       if (envioData) envio = JSON.parse(envioData).coste || 0;
     }
     setTotal(sub + envio);
+    fetch("/api/formas-pago/configuracion", { cache: "no-store" })
+      .then((res) => res.json())
+      .then((data) => setPaymentConfig(normalizePaymentConfig(data.config)))
+      .catch(() => setPaymentConfig(DEFAULT_PAYMENT_CONFIG));
   }, [router]);
 
   const handleConfirmar = () => {
@@ -63,9 +69,9 @@ export default function BizumPage() {
             
             {/* Instrucciones */}
             <div className="text-center">
-                <p className="text-gray-600 dark:text-gray-300 mb-6 text-lg">
-                    Para completar tu pedido, envía un Bizum por el importe exacto al siguiente número:
-                </p>
+                    <p className="text-gray-600 dark:text-gray-300 mb-6 text-lg">
+                    {paymentConfig.bizum.instrucciones}
+                    </p>
                 
                 {/* Tarjeta de Datos de Pago */}
                 <div className="bg-gray-50 dark:bg-gray-800/50 border-2 border-dashed border-[#00bfa5] rounded-xl p-6 relative mx-auto max-w-sm">
@@ -77,15 +83,15 @@ export default function BizumPage() {
                     <div className="mb-4 mt-2">
                         <p className="text-xs text-gray-400 uppercase font-bold mb-1">Teléfono Destino</p>
                         <p className="text-3xl font-mono font-bold text-gray-800 dark:text-white tracking-tight select-all">
-                            678 529 510
+                            {paymentConfig.bizum.telefono}
                         </p>
                     </div>
                     
                     <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
                          <p className="text-xs text-gray-400 uppercase font-bold mb-1">Concepto (Importante)</p>
                          <p className="text-xl font-bold text-[#009688] dark:text-[#4db6ac] select-all">
-                            PEDIDO {orderId}
-                         </p>
+                            {paymentConfig.bizum.conceptoPrefix} {orderId}
+                        </p>
                     </div>
                 </div>
             </div>

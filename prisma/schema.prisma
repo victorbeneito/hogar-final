@@ -53,12 +53,14 @@ model caracteristica {
 
 model carritocompra {
   id          Int           @id @default(autoincrement())
-  sessionId   String?
+  sessionId   String?       @unique(map: "CarritoCompra_sessionId_key")
   clienteId   Int?
   total       Float         @default(0)
   createdAt   DateTime      @default(now())
   updatedAt   DateTime
   carritoitem carritoitem[]
+  pedido      pedido?
+  cliente     cliente?      @relation(fields: [clienteId], references: [id], onDelete: SetNull, map: "CarritoCompra_clienteId_fkey")
 
   @@index([clienteId], map: "CarritoCompra_clienteId_idx")
 }
@@ -115,6 +117,7 @@ model cliente {
   updatedAt               DateTime
   cupon_uso               cupon_uso[]
   pedido                  pedido[]
+  carritos                carritocompra[]
   Direcciones direccion[]
   precioespecifico        precioespecifico[]
 }
@@ -229,12 +232,29 @@ model pedido {
   telefono       String?
   nif            String?
   direccion      String?
+  direccionComplementaria String?
   ciudad         String?
   provincia      String?
   cp             String?
   pais           String?           @default("España")
+  facturacionNombre         String?
+  facturacionApellidos      String?
+  facturacionEmpresa        String?
+  facturacionNif            String?
+  facturacionTelefono       String?
+  facturacionDireccion      String?
+  facturacionDireccionComplementaria String?
+  facturacionCodigoPostal   String?
+  facturacionCiudad         String?
+  facturacionProvincia      String?
+  facturacionPais           String?           @default("España")
   envioMetodo    String
   envioCoste     Float             @default(0)
+  transportistaNombre String?
+  numeroSeguimiento String?
+  trackingUrl   String?
+  fechaEnvio    DateTime?
+  fechaEntrega  DateTime?
   pagoMetodo     String
   pagoRecargo    Float             @default(0)
   estadoPago     pedido_estadoPago @default(PENDIENTE)
@@ -247,9 +267,12 @@ model pedido {
   notas          String?           @db.Text
   fechaPedido    DateTime          @default(now())
   updatedAt      DateTime
+  carritoId      Int?              @unique
   factura        factura?
   cliente        cliente           @relation(fields: [clienteId], references: [id], map: "Pedido_clienteId_fkey")
   pedidoproducto pedidoproducto[]
+  mensajes       pedido_mensaje[]
+  carrito        carritocompra?    @relation(fields: [carritoId], references: [id], onDelete: SetNull, map: "Pedido_carritoId_fkey")
 
   @@index([clienteId], map: "Pedido_clienteId_idx")
 }
@@ -271,6 +294,20 @@ model pedidoproducto {
   @@index([pedidoId], map: "PedidoProducto_pedidoId_idx")
   @@index([productoIdRef], map: "PedidoProducto_productoIdRef_idx")
   @@index([varianteIdRef], map: "PedidoProducto_varianteIdRef_idx")
+}
+
+model pedido_mensaje {
+  id          Int      @id @default(autoincrement())
+  pedidoId    Int
+  autor       String   @default("admin")
+  autorNombre String?
+  mensaje     String   @db.Text
+  privado     Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime
+  pedido      pedido   @relation(fields: [pedidoId], references: [id], onDelete: Cascade, map: "PedidoMensaje_pedidoId_fkey")
+
+  @@index([pedidoId], map: "PedidoMensaje_pedidoId_idx")
 }
 
 model precioespecifico {
@@ -329,7 +366,7 @@ model producto {
   marcaId              Int?
   createdAt            DateTime            @default(now())
   updatedAt            DateTime
-  referencia           String?
+  referencia           String              @unique(map: "Producto_referencia_key")
   slug                 String?             @unique(map: "Producto_slug_key")
   caracteristica       caracteristica[]
   pedidoproducto       pedidoproducto[]
@@ -416,6 +453,7 @@ model variante {
   imagen           String?
   color            String?
   imagenMuestra    String?
+  imagenesVariante String?            @db.Text
   precio_extra     Float?             @default(0)
   tamano           String?
   tirador          String?

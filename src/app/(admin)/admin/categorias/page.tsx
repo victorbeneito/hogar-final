@@ -20,6 +20,7 @@ const EMPTY = {
 export default function AdminCategorias() {
   const [categorias, setCategorias]   = useState<Categoria[]>([]);
   const [form, setForm]               = useState({ ...EMPTY });
+  const [originalForm, setOriginalForm] = useState<typeof EMPTY | null>(null);
   const [editando, setEditando]       = useState<number | null>(null);
   const [loading, setLoading]         = useState(false);
   const [expandidas, setExpandidas]   = useState<Set<number>>(new Set());
@@ -48,11 +49,19 @@ export default function AdminCategorias() {
     try {
       const url    = editando ? `/api/categorias/${editando}` : "/api/categorias";
       const method = editando ? "PUT" : "POST";
+      const body = editando && originalForm
+        ? Object.fromEntries(
+            Object.entries(form).filter(([key, value]) => {
+              const originalValue = (originalForm as Record<string, unknown>)[key];
+              return value !== originalValue;
+            })
+          )
+        : form;
 
       const res = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify(body),
       });
 
       if (!res.ok) {
@@ -63,6 +72,7 @@ export default function AdminCategorias() {
       await fetchCategorias();
       setForm({ ...EMPTY });
       setEditando(null);
+      setOriginalForm(null);
     } catch (err: any) {
       alert("Error: " + err.message);
     } finally {
@@ -71,13 +81,16 @@ export default function AdminCategorias() {
   }
 
   function handleEdit(cat: Categoria) {
-    setForm({
-      nombre:      cat.nombre,
+    const current = {
+      nombre: cat.nombre,
       descripcion: cat.descripcion ?? "",
-      activa:      cat.activa,
-      orden:       cat.orden,
-      parentId:    cat.parentId,
-    });
+      activa: cat.activa,
+      orden: cat.orden,
+      parentId: cat.parentId,
+    };
+
+    setForm({ ...current });
+    setOriginalForm({ ...current });
     setEditando(cat.id);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
@@ -90,6 +103,13 @@ export default function AdminCategorias() {
 
   // Solo categorías raíz (sin padre) para el selector de padre
   const raices = categorias.filter(c => c.parentId === null);
+  const compararOrden = (a: Categoria, b: Categoria) => {
+    const ordenA = Number(a.orden ?? 0);
+    const ordenB = Number(b.orden ?? 0);
+    if (ordenA !== ordenB) return ordenA - ordenB;
+    return a.nombre.localeCompare(b.nombre);
+  };
+  const raicesOrdenadas = [...raices].sort(compararOrden);
 
   return (
     <div className="min-h-screen bg-[#F8F8F5] py-8 px-6">
@@ -191,7 +211,7 @@ export default function AdminCategorias() {
               {editando && (
                 <button
                   type="button"
-                  onClick={() => { setEditando(null); setForm({ ...EMPTY }); }}
+                  onClick={() => { setEditando(null); setForm({ ...EMPTY }); setOriginalForm(null); }}
                   className="px-8 py-3 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-xl font-semibold transition"
                 >
                   Cancelar
@@ -210,15 +230,14 @@ export default function AdminCategorias() {
             </h2>
           </div>
 
-          {categorias.filter(c => c.parentId === null).length === 0 ? (
+          {raices.length === 0 ? (
             <div className="p-12 text-center text-gray-400">
               <div className="text-5xl mb-4">🏷️</div>
               <p className="text-lg font-semibold">No hay categorías todavía</p>
             </div>
           ) : (
             <div className="divide-y divide-gray-100">
-              {categorias
-                .filter(c => c.parentId === null)
+              {raicesOrdenadas
                 .map(cat => (
                   <div key={cat.id}>
                     {/* Fila categoría raíz */}
@@ -263,7 +282,7 @@ export default function AdminCategorias() {
                     </div>
 
                     {/* Subcategorías expandibles */}
-                    {expandidas.has(cat.id) && cat.other_categoria.map(sub => (
+                    {expandidas.has(cat.id) && [...cat.other_categoria].sort(compararOrden).map(sub => (
                       <div key={sub.id} className="px-8 py-4 flex items-center justify-between bg-[#F8F8F5] border-t border-dashed border-gray-200">
                         <div className="flex items-center gap-4 pl-10">
                           <div className="w-8 h-8 bg-[#A8D7E6]/40 border border-[#6BAEC9]/30 rounded-lg flex items-center justify-center text-[#6BAEC9] font-semibold text-sm">

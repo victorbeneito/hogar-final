@@ -167,7 +167,7 @@ export default function AdminTransportesPage() {
               <Truck className="w-9 h-9 text-[#6BAEC9]" /> Transportes
             </h1>
             <p className="text-sm text-gray-500 mt-2 max-w-3xl">
-              Crea varios transportistas, asigna imagen, precio por zona y umbral de envío gratis. La recogida en tienda sigue como método separado.
+              Crea varios transportistas, asigna imagen, precio por zona y umbral de envío gratis. Las zonas predefinidas son Península, Baleares, Canarias, Portugal e Italia.
             </p>
           </div>
 
@@ -399,6 +399,7 @@ export default function AdminTransportesPage() {
                     <thead className="bg-gray-50 text-gray-500 uppercase text-xs">
                       <tr>
                         <th className="px-4 py-3 text-left">Zona</th>
+                        <th className="px-4 py-3 text-left">Cobertura</th>
                         <th className="px-4 py-3 text-left">Activa</th>
                         <th className="px-4 py-3 text-left">Importe</th>
                         <th className="px-4 py-3 text-left">Notas</th>
@@ -408,6 +409,12 @@ export default function AdminTransportesPage() {
                       {carrier.zones.map((zone) => (
                         <tr key={zone.id} className="align-top">
                           <td className="px-4 py-3 font-semibold text-gray-800">{zone.name}</td>
+                          <td className="px-4 py-3 text-xs text-gray-500">
+                            <div className="space-y-1">
+                              <p>{zone.countries.length ? `Países: ${zone.countries.join(", ")}` : "Países: todos"}</p>
+                              <p>{zone.provinces.length ? `Provincias: ${zone.provinces.slice(0, 4).join(", ")}${zone.provinces.length > 4 ? "..." : ""}` : "Provincias: todas"}</p>
+                            </div>
+                          </td>
                           <td className="px-4 py-3">
                             <input
                               type="checkbox"
@@ -454,7 +461,7 @@ export default function AdminTransportesPage() {
               <div className="rounded-xl border border-gray-200 bg-[#F8F8F5] p-4 space-y-3 text-sm text-gray-700">
                 <p className="font-semibold text-gray-800">Recogida: {config.pickupEnabled ? "Activa" : "Inactiva"}</p>
                 <p className="flex items-center gap-2"><Clock className="w-4 h-4 text-[#6BAEC9]" /> {config.pickupName}</p>
-                <p className="flex items-center gap-2"><MapPin className="w-4 h-4 text-[#6BAEC9]" /> Canarias bloqueada por defecto</p>
+                <p className="flex items-center gap-2"><MapPin className="w-4 h-4 text-[#6BAEC9]" /> Zonas: Península, Baleares, Canarias, Portugal, Italia</p>
               </div>
 
               <div className="space-y-3">
@@ -479,7 +486,7 @@ export default function AdminTransportesPage() {
                           </span>
                         </div>
                         <p className="text-xs text-gray-500 mt-2">
-                          {carrier.zones.filter((zone) => zone.active).length} zonas activas
+                          {carrier.zones.filter((zone) => zone.active).length} zonas activas · {carrier.zones.map((zone) => zone.name).join(" · ")}
                         </p>
                       </div>
                     </div>

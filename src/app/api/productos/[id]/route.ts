@@ -109,6 +109,14 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
 
     const body = await req.json();
     console.log(`📝 [API PUT] Actualizando Producto ID ${id}...`);
+    const reglaImpuestoDefault = await prisma.reglaimpuesto.findFirst({
+      where: {
+        OR: [
+          { nombre: "IVA GENERAL" },
+          { porcentaje: 21 },
+        ],
+      },
+    });
 
     // 1. Preparar relaciones — TU CÓDIGO ORIGINAL
     let marcaConnect = undefined;
@@ -150,7 +158,11 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
           visibilidad: body.visibilidad || "tienda",
           tieneVariantes: body.tieneVariantes || false,
           marca: marcaConnect ? marcaConnect : { disconnect: true },
-          reglaimpuesto: body.reglaImpuestoId ? { connect: { id: parseInt(body.reglaImpuestoId) } } : { disconnect: true }
+        reglaimpuesto: body.reglaImpuestoId
+          ? { connect: { id: parseInt(body.reglaImpuestoId) } }
+          : reglaImpuestoDefault
+            ? { connect: { id: reglaImpuestoDefault.id } }
+            : { disconnect: true }
         },
         include: {
           marca: true,

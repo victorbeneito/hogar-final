@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { addToCart } from "@/lib/cartService";
 import CartModal from "@/components/CartModal";
@@ -17,6 +17,8 @@ interface Variante {
   tamano?: string; // 👈 Usamos 'tamano' (sin ñ) para coincidir con la BD
   tirador?: string;
   precio_extra?: number | null;
+  imagenMuestra?: string;
+  imagenesVariante?: string;
 }
 
 interface Producto {
@@ -33,11 +35,19 @@ interface Producto {
 }
 
 export default function ProductDetail({ producto }: { producto: Producto }) {
+  const splitImages = (value?: string) =>
+    String(value ?? "")
+      .split(/[|;\n,]/g)
+      .map((part) => part.trim())
+      .filter(Boolean);
+
   // Aseguramos que son arrays
   const imagenes = Array.isArray(producto.imagenes) ? producto.imagenes : [];
   const variantes = Array.isArray(producto.variantes) ? producto.variantes : [];
 
   const [imagenActiva, setImagenActiva] = useState(imagenes[0] ?? "");
+  const [imagenHover, setImagenHover] = useState<string | null>(null);
+  const [imagenAmpliada, setImagenAmpliada] = useState<string | null>(null);
   const [cantidad, setCantidad] = useState(1);
   const [tabActiva, setTabActiva] = useState<"descripcion" | "detalles" | "opiniones">("descripcion");
   
@@ -57,12 +67,71 @@ const tiradoresUnicos = [...new Set(variantes
   .map(v => v.tirador)
 )].sort();
 
-const coloresUnicos = [...new Set(variantes
+  const coloresUnicos = [...new Set(variantes
   .filter((v): v is Variante & { color: string } => Boolean(v.color))
   .map(v => v.color)
 )].sort();
 
   const precioBase = producto.precio_descuento ?? producto.precio;
+  const varianteSeleccionada =
+    variantes.find((v) =>
+      (colorSeleccionado ? v.color === colorSeleccionado : true) &&
+      (tamanoSeleccionado ? v.tamano === tamanoSeleccionado : true) &&
+      (tiradorSeleccionado ? v.tirador === tiradorSeleccionado : true)
+    ) ||
+    variantes.find((v) => colorSeleccionado && v.color === colorSeleccionado) ||
+    variantes.find((v) => tamanoSeleccionado && v.tamano === tamanoSeleccionado) ||
+    variantes.find((v) => tiradorSeleccionado && v.tirador === tiradorSeleccionado) ||
+    null;
+
+  const imagenesVarianteSeleccionada = [
+    varianteSeleccionada?.imagen,
+    ...splitImages(varianteSeleccionada?.imagenesVariante),
+  ].filter((imagen, idx, arr): imagen is string => Boolean(imagen) && arr.indexOf(imagen) === idx);
+
+  const imagenPrincipalSeleccionada = varianteSeleccionada?.imagen || imagenesVarianteSeleccionada[0] || imagenes[0] || "";
+  const imagenesCarrusel = imagenesVarianteSeleccionada.length > 0 ? imagenesVarianteSeleccionada : imagenes;
+  const imagenPrincipal = imagenActiva || imagenPrincipalSeleccionada || imagenesCarrusel[0] || "";
+  const imagenAlternativa = imagenesCarrusel.find((img) => img !== imagenPrincipal) || "";
+  const imagenVisible = imagenHover || imagenPrincipal;
+
+  useEffect(() => {
+    setImagenActiva(imagenPrincipalSeleccionada);
+    setImagenHover(null);
+  }, [colorSeleccionado, tamanoSeleccionado, tiradorSeleccionado, imagenPrincipalSeleccionada]);
+
+  useEffect(() => {
+    if (!imagenAmpliada) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setImagenAmpliada(null);
+      }
+    };
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [imagenAmpliada]);
+
+  const limpiarHoverImagen = () => setImagenHover(null);
+
+  const mostrarImagenAlternativa = () => {
+    if (imagenAlternativa) {
+      setImagenHover(imagenAlternativa);
+    }
+  };
+
+  const abrirImagenAmpliada = () => {
+    if (imagenVisible) {
+      setImagenAmpliada(imagenVisible);
+    }
+  };
   
   // Calcular precio extra (buscando por 'tamano')
   const extraTamanoVariante = variantes.find(v => v.tamano === tamanoSeleccionado);
@@ -81,13 +150,13 @@ const extraTamano = extraTamanoVariante?.precio_extra ?? 0;
       tiradorSeleccionado: tiradorSeleccionado ?? undefined,
       colorSeleccionado: colorSeleccionado ?? undefined,
       precioFinal,
-      imagen: imagenActiva || producto.imagenes?.[0] || "",
+      imagen: imagenActiva || imagenPrincipalSeleccionada || producto.imagenes?.[0] || "",
     });
     setModalAbierto(true);
   };
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-8 space-y-8">
+    <div className="max-w-7xl mx-auto px-4 py-8 space-y-8">
       {/* Migas de pan */}
       <nav className="text-sm text-gray-500 dark:text-gray-400 mb-2">
         <Link href="/" className="cursor-pointer hover:underline">Inicio</Link>
@@ -104,29 +173,62 @@ const extraTamano = extraTamanoVariante?.precio_extra ?? 0;
       </nav>
 
       {/* Zona superior: imágenes + info */}
-      <div className="grid gap-8 lg:grid-cols-2">
+      <div className="grid gap-8 lg:grid-cols-[minmax(0,1.08fr)_minmax(0,0.92fr)] lg:items-stretch">
         {/* Card imágenes */}
-        <div className="bg-white dark:bg-darkNavBg shadow rounded-lg p-4 transition-colors duration-300">
-          <div className="aspect-[4/3] w-full overflow-hidden rounded-md bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
-            {imagenActiva ? (
-              <img src={imagenActiva} alt={producto.nombre} className="h-full w-full object-contain" />
+        <div className="bg-white dark:bg-darkNavBg shadow rounded-lg p-4 transition-colors duration-300 h-full flex flex-col">
+          <button
+            type="button"
+            onClick={abrirImagenAmpliada}
+            onMouseEnter={mostrarImagenAlternativa}
+            onMouseLeave={limpiarHoverImagen}
+            onFocus={mostrarImagenAlternativa}
+            onBlur={limpiarHoverImagen}
+            className={`group relative flex-1 min-h-[440px] lg:min-h-[620px] w-full overflow-hidden rounded-md bg-gray-100 dark:bg-gray-800 flex items-center justify-center outline-none transition-shadow ${
+              imagenVisible ? "cursor-zoom-in focus-visible:ring-2 focus-visible:ring-primary/40" : "cursor-default"
+            }`}
+            aria-label={imagenVisible ? `Ampliar imagen de ${producto.nombre}` : `Sin imagen de ${producto.nombre}`}
+            disabled={!imagenVisible}
+          >
+            {imagenVisible ? (
+              <div className="relative h-full w-full">
+                <img
+                  src={imagenVisible}
+                  alt={producto.nombre}
+                  className="absolute inset-0 h-full w-full object-contain object-center p-3 transition-opacity duration-300"
+                />
+                <span className="pointer-events-none absolute bottom-3 right-3 rounded-full bg-black/60 px-3 py-1 text-[11px] font-medium text-white opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+                  Ampliar
+                </span>
+              </div>
             ) : (
               <span className="text-gray-400 text-sm">Sin imagen</span>
             )}
-          </div>
+          </button>
 
-          {imagenes.length > 1 && (
-            <div className="mt-4 flex gap-2 overflow-x-auto">
-              {imagenes.map((img, idx) => (
+          {imagenesCarrusel.length > 1 && (
+            <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
+              {imagenesCarrusel.map((img, idx) => (
                 <button
                   key={idx}
                   type="button"
-                  onClick={() => setImagenActiva(img)}
-                  className={`h-16 w-16 flex-shrink-0 overflow-hidden rounded border ${
+                  onClick={() => {
+                    setImagenActiva(img);
+                    setImagenHover(null);
+                  }}
+                  onMouseEnter={() => setImagenHover(img)}
+                  onMouseLeave={limpiarHoverImagen}
+                  onFocus={() => setImagenHover(img)}
+                  onBlur={limpiarHoverImagen}
+                  className={`group h-16 w-16 flex-shrink-0 overflow-hidden rounded border transition-all ${
                     imagenActiva === img ? "border-primary" : "border-gray-200 dark:border-gray-700"
                   }`}
+                  aria-label={`Ver imagen ${idx + 1} de ${producto.nombre}`}
                 >
-                  <img src={img} alt={`${producto.nombre} ${idx + 1}`} className="h-full w-full object-cover" />
+                  <img
+                    src={img}
+                    alt={`${producto.nombre} ${idx + 1}`}
+                    className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                  />
                 </button>
               ))}
             </div>
@@ -134,8 +236,8 @@ const extraTamano = extraTamanoVariante?.precio_extra ?? 0;
         </div>
 
         {/* Card info producto */}
-        <div className="bg-white dark:bg-darkNavBg shadow rounded-lg p-6 flex flex-col gap-4 transition-colors duration-300">
-          <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">
+        <div className="bg-white dark:bg-darkNavBg shadow rounded-lg p-6 flex flex-col gap-5 transition-colors duration-300 h-full">
+          <h1 className="text-[1.65rem] leading-tight font-semibold text-gray-900 dark:text-white">
             {producto.nombre}
           </h1>
 
@@ -153,77 +255,73 @@ const extraTamano = extraTamanoVariante?.precio_extra ?? 0;
 
           {/* Variantes */}
           <div className="space-y-4">
-            
-         {/* TAMAÑOS */}
-{tamañosUnicos.length > 0 && (
-  <div>
-    <h3 className="text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Tamaño</h3>
-    <select
-      className="w-full border rounded px-3 py-2 text-sm bg-white dark:bg-darkBg dark:border-gray-600 dark:text-white"
-      value={tamanoSeleccionado ?? ""}
-      onChange={(e) => setTamanoSeleccionado(e.target.value || null)}
-    >
-      <option value="">Selecciona tamaño</option>
-      {tamañosUnicos.map((tamano, idx) => {
-        const varianteTamano = variantes.find(v => v.tamano === tamano);
-        return (
-          <option key={`${tamano}-${idx}`} value={tamano}>
-            {tamano} {varianteTamano?.precio_extra ? `(+${varianteTamano.precio_extra}€)` : ""}
-          </option>
-        );
-      })}
-    </select>
-  </div>
-)}
+          {/* TAMAÑOS */}
+            {tamañosUnicos.length > 0 && (
+              <div>
+                <h3 className="text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Tamaño</h3>
+                <select
+                  className="w-full border rounded px-3 py-2 text-sm bg-white dark:bg-darkBg dark:border-gray-600 dark:text-white"
+                  value={tamanoSeleccionado ?? ""}
+                  onChange={(e) => setTamanoSeleccionado(e.target.value || null)}
+                >
+                  <option value="">Selecciona tamaño</option>
+                  {tamañosUnicos.map((tamano, idx) => {
+                    const varianteTamano = variantes.find((v) => v.tamano === tamano);
+                    return (
+                      <option key={`${tamano}-${idx}`} value={tamano}>
+                        {tamano} {varianteTamano?.precio_extra ? `(+${varianteTamano.precio_extra}€)` : ""}
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+            )}
 
-{/* TIRADORES */}
-{tiradoresUnicos.length > 0 && (
-  <div>
-    <h3 className="text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Tirador</h3>
-    <div className="grid grid-cols-2 gap-2">
-      {tiradoresUnicos.map((tirador, idx) => (
-        <button
-          key={`${tirador}-${idx}`}
-          type="button"
-          onClick={() => setTiradorSeleccionado(tirador)}
-          className={`border rounded px-3 py-2 text-sm transition-colors ${
-            tiradorSeleccionado === tirador
-              ? "border-primary bg-primary/10 text-primary dark:text-primaryHover"
-              : "border-gray-200 dark:border-gray-600 dark:text-gray-300 hover:border-primary"
-          }`}
-        >
-          {tirador}
-        </button>
-      ))}
-    </div>
-  </div>
-)}
+            {/* TIRADORES */}
+            {tiradoresUnicos.length > 0 && (
+              <div>
+                <h3 className="text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Tirador</h3>
+                <div className="grid grid-cols-2 gap-2">
+                  {tiradoresUnicos.map((tirador, idx) => (
+                    <button
+                      key={`${tirador}-${idx}`}
+                      type="button"
+                      onClick={() => setTiradorSeleccionado(tirador)}
+                      className={`border rounded px-3 py-2 text-sm transition-colors ${
+                        tiradorSeleccionado === tirador
+                          ? "border-primary bg-primary/10 text-primary dark:text-primaryHover"
+                          : "border-gray-200 dark:border-gray-600 dark:text-gray-300 hover:border-primary"
+                      }`}
+                    >
+                      {tirador}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
-{/* COLORES */}
-{coloresUnicos.length > 0 && (
-  <div>
-    <h3 className="text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Color</h3>
-    <div className="flex flex-wrap gap-2">
-      {coloresUnicos.map((color, idx) => (
-        <button
-          key={`${color}-${idx}`}
-          type="button"
-          onClick={() => setColorSeleccionado(color)}
-          className={`border rounded-full h-8 px-3 text-xs flex items-center justify-center transition-colors ${
-            colorSeleccionado === color
-              ? "border-primary bg-primary/10 text-primary dark:text-primaryHover"
-              : "border-gray-200 dark:border-gray-600 dark:text-gray-300 hover:border-primary"
-          }`}
-        >
-          {color}
-        </button>
-      ))}
-    </div>
-  </div>
-)}
-   
-
-           
+            {/* COLORES */}
+            {coloresUnicos.length > 0 && (
+              <div>
+                <h3 className="text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Color</h3>
+                <div className="flex flex-wrap gap-2">
+                  {coloresUnicos.map((color, idx) => (
+                    <button
+                      key={`${color}-${idx}`}
+                      type="button"
+                      onClick={() => setColorSeleccionado(color)}
+                      className={`border rounded-full h-8 px-3 text-xs flex items-center justify-center transition-colors ${
+                        colorSeleccionado === color
+                          ? "border-primary bg-primary/10 text-primary dark:text-primaryHover"
+                          : "border-gray-200 dark:border-gray-600 dark:text-gray-300 hover:border-primary"
+                      }`}
+                    >
+                      {color}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Cantidad + Botón */}
@@ -263,6 +361,34 @@ const extraTamano = extraTamanoVariante?.precio_extra ?? 0;
         </div>
       </div>
 
+      {imagenAmpliada && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setImagenAmpliada(null)}
+        >
+          <div
+            className="relative flex max-h-[90vh] w-full max-w-5xl items-center justify-center"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={() => setImagenAmpliada(null)}
+              className="absolute right-3 top-3 rounded-full bg-white/90 px-3 py-1 text-sm font-semibold text-gray-700 shadow hover:bg-white"
+              aria-label="Cerrar imagen ampliada"
+            >
+              Cerrar
+            </button>
+            <img
+              src={imagenAmpliada}
+              alt={`${producto.nombre} ampliado`}
+              className="max-h-[88vh] w-full rounded-xl bg-white object-contain p-4 shadow-2xl dark:bg-gray-900"
+            />
+          </div>
+        </div>
+      )}
+
       {/* Tabs Descripción / Detalles */}
       <div className="bg-white dark:bg-darkNavBg shadow rounded-lg transition-colors duration-300">
         <div className="border-b dark:border-gray-700 flex">
@@ -284,7 +410,7 @@ const extraTamano = extraTamanoVariante?.precio_extra ?? 0;
         <div className="p-4 text-sm text-gray-700 dark:text-gray-300">
           {tabActiva === "descripcion" && (
             <div
-              className="prose max-w-none prose-img:max-w-full prose-img:h-auto dark:prose-invert"
+              className="product-description prose max-w-none prose-img:max-w-full prose-img:h-auto dark:prose-invert"
               dangerouslySetInnerHTML={{
                 __html:
                   producto.descripcion_html_cruda ||
