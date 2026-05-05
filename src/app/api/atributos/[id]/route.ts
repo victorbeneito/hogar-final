@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { resolveAtributoTipo } from "@/lib/atributoTipo";
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -13,6 +14,13 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
 
     const body = await req.json();
     const nombre = body.nombre !== undefined ? String(body.nombre).trim() : undefined;
+    const tipo = body.tipo !== undefined || body.group_type !== undefined || body.groupType !== undefined || body.is_color_group !== undefined || body.isColorGroup !== undefined
+      ? resolveAtributoTipo({
+          tipo: body.tipo,
+          groupType: body.group_type ?? body.groupType,
+          isColorGroup: body.is_color_group ?? body.isColorGroup,
+        })
+      : undefined;
     const orden = body.orden !== undefined ? Number(body.orden) : undefined;
 
     if (nombre !== undefined && !nombre) {
@@ -23,6 +31,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
       where: { id },
       data: {
         ...(nombre !== undefined ? { nombre } : {}),
+        ...(tipo !== undefined ? { tipo } : {}),
         ...(orden !== undefined ? { orden: Number.isFinite(orden) ? orden : 0 } : {}),
       },
     });

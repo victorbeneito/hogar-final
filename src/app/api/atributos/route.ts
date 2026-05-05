@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { resolveAtributoTipo } from "@/lib/atributoTipo";
 
 export async function GET() {
   try {
@@ -22,6 +23,11 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const nombre = String(body.nombre ?? "").trim();
+    const tipo = resolveAtributoTipo({
+      tipo: body.tipo,
+      groupType: body.group_type ?? body.groupType,
+      isColorGroup: body.is_color_group ?? body.isColorGroup,
+    });
     const orden = Number(body.orden ?? 0);
 
     if (!nombre) {
@@ -31,6 +37,7 @@ export async function POST(req: NextRequest) {
     const atributo = await prisma.atributo.create({
       data: {
         nombre,
+        tipo,
         orden: Number.isFinite(orden) ? orden : 0,
       },
     });

@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
+import { SPANISH_FISCAL_DOCUMENT_ERROR, isValidSpanishFiscalDocument, normalizeClientNif } from "@/lib/clientNif";
 
 export const dynamic = "force-dynamic";
 
@@ -35,21 +36,55 @@ export async function GET(req: NextRequest) {
 
     const { searchParams } = new URL(req.url);
     const search = searchParams.get("search")?.trim();
+    const nombre = searchParams.get("nombre")?.trim() || "";
+    const contacto = searchParams.get("contacto")?.trim() || "";
+    const page = Math.max(1, Number(searchParams.get("page") || "1") || 1);
+    const limit = Math.min(100, Math.max(1, Number(searchParams.get("limit") || "12") || 12));
 
-    const whereClause = search
-      ? {
-          OR: [
-            { nombre: { contains: search } },
-            { apellidos: { contains: search } },
-            { email: { contains: search } },
-            { telefono: { contains: search } },
-          ],
-        }
-      : {};
+    const whereParts: any[] = [];
+    if (nombre) {
+      whereParts.push({
+        OR: [
+          { nombre: { contains: nombre } },
+          { apellidos: { contains: nombre } },
+        ],
+      });
+    }
+
+    if (contacto) {
+      whereParts.push({
+        OR: [
+          { email: { contains: contacto } },
+          { telefono: { contains: contacto } },
+          { empresa: { contains: contacto } },
+          { nif: { contains: contacto } },
+        ],
+      });
+    }
+
+    if (!nombre && !contacto && search) {
+      whereParts.push({
+        OR: [
+          { nombre: { contains: search } },
+          { apellidos: { contains: search } },
+          { email: { contains: search } },
+          { telefono: { contains: search } },
+          { empresa: { contains: search } },
+          { nif: { contains: search } },
+        ],
+      });
+    }
+
+    const whereClause = whereParts.length > 0 ? { AND: whereParts } : {};
+    const total = await prisma.cliente.count({ where: whereClause });
+    const totalPages = Math.max(1, Math.ceil(total / limit));
+    const pageSafe = Math.min(page, totalPages);
 
     const clientes = await prisma.cliente.findMany({
       where: whereClause,
       orderBy: { id: "desc" },
+      skip: (pageSafe - 1) * limit,
+      take: limit,
       select: {
         id: true,
         nombre: true,
@@ -59,13 +94,21 @@ export async function GET(req: NextRequest) {
         ciudad: true,
         provincia: true,
         empresa: true,
+        nif: true,
         activo: true,
         role: true,
         createdAt: true
       }
     });
 
-    return NextResponse.json({ ok: true, clientes });
+    return NextResponse.json({
+      ok: true,
+      clientes,
+      total,
+      page: pageSafe,
+      limit,
+      totalPages,
+    });
 
   } catch (error: any) {
     console.error("❌ Error API Clientes:", error.message);
@@ -97,6 +140,15 @@ export async function POST(req: NextRequest) {
 
     const hashedPassword = await bcrypt.hash(String(password), 10);
     const ahora = new Date();
+    const nifFinal = normalizeClientNif(nif);
+
+    if (!nifFinal) {
+      return NextResponse.json({ ok: false, error: "El NIF/CIF es obligatorio" }, { status: 400 });
+    }
+
+    if (!isValidSpanishFiscalDocument(nifFinal)) {
+      return NextResponse.json({ ok: false, error: SPANISH_FISCAL_DOCUMENT_ERROR }, { status: 400 });
+    }
 
     const cliente = await prisma.$transaction(async (tx) => {
       const nuevoCliente = await tx.cliente.create({
@@ -107,7 +159,7 @@ export async function POST(req: NextRequest) {
           password: hashedPassword,
           telefono: telefono || "",
           empresa: empresa || null,
-          nif: nif || "",
+          nif: nifFinal,
           direccion: direccion || "",
           direccionComplementaria: direccionComplementaria || null,
           codigoPostal: codigoPostal || "",
@@ -147,7 +199,7 @@ export async function POST(req: NextRequest) {
             nombre: nombre,
             apellidos: apellidos || "",
             empresa: empresa || null,
-            nif: nif || null,
+            nif: nifFinal,
             telefono: telefono || null,
             direccion,
             complemento: direccionComplementaria || null,
@@ -165,7 +217,7 @@ export async function POST(req: NextRequest) {
       return nuevoCliente;
     });
 
-    const { password: _, ...clienteSinPassword } = cliente;
+    const clienteSinPassword = cliente;
     return NextResponse.json({ ok: true, cliente: clienteSinPassword }, { status: 201 });
   } catch (error: any) {
     console.error("❌ Error API Clientes POST:", error.message);

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
+import { buildFallbackNif, isPlausibleClientNif, normalizeClientNif } from "@/lib/clientNif";
+import { resolveAtributoTipo } from "@/lib/atributoTipo";
 
 export const dynamic = "force-dynamic";
 
@@ -101,6 +103,10 @@ function isEmail(value: string) {
 function normalizeAction(value: any): ImportAction {
   const normalized = normalizeText(value).toLowerCase();
   return normalized === "delete" ? "delete" : "upsert";
+}
+
+function isBcryptHash(value: string) {
+  return /^\$2[aby]\$\d{2}\$[./A-Za-z0-9]{53}$/.test(value);
 }
 
 async function validateImportRow(tipo: ImportType, row: ImportRow, accion: ImportAction) {
@@ -460,10 +466,15 @@ async function deleteProveedor(row: ImportRow) {
 async function upsertAtributo(row: ImportRow) {
   const nombre = normalizeText(row.nombre);
   if (!nombre) throw new Error("Falta nombre de atributo");
+  const tipo = resolveAtributoTipo({
+    tipo: row.tipo,
+    groupType: row.group_type ?? row.groupType,
+    isColorGroup: row.is_color_group ?? row.isColorGroup,
+  });
   return prisma.atributo.upsert({
     where: { nombre },
-    update: { orden: parseNumber(row.orden, 0) },
-    create: { nombre, orden: parseNumber(row.orden, 0) },
+    update: { tipo, orden: parseNumber(row.orden, 0) },
+    create: { nombre, tipo, orden: parseNumber(row.orden, 0) },
   });
 }
 
@@ -536,12 +547,44 @@ async function deleteAtributoValor(row: ImportRow) {
   await prisma.atributovalor.delete({ where: { id: existente.id } });
 }
 
-async function upsertCliente(row: ImportRow) {
+async function resolveClienteNif(row: ImportRow, nifOwnerCache: Map<string, string>) {
   const email = normalizeText(row.email);
   if (!email) throw new Error("Falta email de cliente");
 
-  const passwordPlain = normalizeText(row.password) || "123456";
-  const hashedPassword = await bcrypt.hash(passwordPlain, 10);
+  const nifCandidate = normalizeClientNif(row.nif);
+  if (!isPlausibleClientNif(nifCandidate)) {
+    return buildFallbackNif(email);
+  }
+
+  const emailKey = email.toLowerCase();
+  const cachedOwner = nifOwnerCache.get(nifCandidate);
+  if (cachedOwner) {
+    return cachedOwner === emailKey ? nifCandidate : buildFallbackNif(email);
+  }
+
+  const existingByNif = await prisma.cliente.findUnique({
+    where: { nif: nifCandidate },
+    select: { email: true },
+  });
+
+  const existingEmail = normalizeText(existingByNif?.email).toLowerCase();
+  if (existingEmail && existingEmail !== emailKey) {
+    nifOwnerCache.set(nifCandidate, existingEmail);
+    return buildFallbackNif(email);
+  }
+
+  nifOwnerCache.set(nifCandidate, emailKey);
+  return nifCandidate;
+}
+
+async function upsertCliente(row: ImportRow, nifOwnerCache: Map<string, string>) {
+  const email = normalizeText(row.email);
+  if (!email) throw new Error("Falta email de cliente");
+
+  const passwordValue = normalizeText(row.password) || "123456";
+  const hashedPassword = isBcryptHash(passwordValue) ? passwordValue : await bcrypt.hash(passwordValue, 10);
+  const now = new Date();
+  const nif = await resolveClienteNif(row, nifOwnerCache);
 
   const data = {
     nombre: normalizeText(row.nombre),
@@ -550,7 +593,7 @@ async function upsertCliente(row: ImportRow) {
     password: hashedPassword,
     telefono: normalizeText(row.telefono),
     empresa: row.empresa ? normalizeText(row.empresa) : null,
-    nif: normalizeText(row.nif),
+    nif,
     direccion: normalizeText(row.direccion),
     direccionComplementaria: row.direccionComplementaria ? normalizeText(row.direccionComplementaria) : null,
     codigoPostal: normalizeText(row.codigoPostal),
@@ -560,63 +603,108 @@ async function upsertCliente(row: ImportRow) {
     activo: row.activo !== undefined ? parseBool(row.activo, true) : true,
     aceptaMarketing: row.aceptaMarketing !== undefined ? parseBool(row.aceptaMarketing, false) : false,
     role: normalizeText(row.role) || "cliente",
-    updatedAt: new Date(),
+    updatedAt: now,
   };
 
   const existing = await prisma.cliente.findUnique({
     where: { email },
     select: { id: true },
   });
-  if (existing) {
-    return prisma.cliente.update({
-      where: { email },
-      data,
-      select: {
-        id: true,
-        nombre: true,
-        apellidos: true,
-        email: true,
-        telefono: true,
-        empresa: true,
-        nif: true,
-        direccion: true,
-        direccionComplementaria: true,
-        codigoPostal: true,
-        ciudad: true,
-        provincia: true,
-        pais: true,
-        activo: true,
-        aceptaMarketing: true,
-        role: true,
-        createdAt: true,
-        updatedAt: true,
-      },
-    });
-  }
 
-  return prisma.cliente.create({
-    data,
-    select: {
-      id: true,
-      nombre: true,
-      apellidos: true,
-      email: true,
-      telefono: true,
-      empresa: true,
-      nif: true,
-      direccion: true,
-      direccionComplementaria: true,
-      codigoPostal: true,
-      ciudad: true,
-      provincia: true,
-      pais: true,
-      activo: true,
-      aceptaMarketing: true,
-      role: true,
-      createdAt: true,
-      updatedAt: true,
-    },
+  const cliente = await prisma.$transaction(async (tx) => {
+    const clienteGuardado = existing
+      ? await tx.cliente.update({
+          where: { email },
+          data,
+          select: {
+            id: true,
+            nombre: true,
+            apellidos: true,
+            email: true,
+            telefono: true,
+            empresa: true,
+            nif: true,
+            direccion: true,
+            direccionComplementaria: true,
+            codigoPostal: true,
+            ciudad: true,
+            provincia: true,
+            pais: true,
+            activo: true,
+            aceptaMarketing: true,
+            role: true,
+            createdAt: true,
+            updatedAt: true,
+          },
+        })
+      : await tx.cliente.create({
+          data,
+          select: {
+            id: true,
+            nombre: true,
+            apellidos: true,
+            email: true,
+            telefono: true,
+            empresa: true,
+            nif: true,
+            direccion: true,
+            direccionComplementaria: true,
+            codigoPostal: true,
+            ciudad: true,
+            provincia: true,
+            pais: true,
+            activo: true,
+            aceptaMarketing: true,
+            role: true,
+            createdAt: true,
+            updatedAt: true,
+          },
+        });
+
+    const direccionPrincipal = normalizeText(row.direccion);
+    if (direccionPrincipal) {
+      const direccionData = {
+        clienteId: clienteGuardado.id,
+        alias: "Principal",
+        nombre: normalizeText(row.nombre),
+        apellidos: normalizeText(row.apellidos),
+        empresa: row.empresa ? normalizeText(row.empresa) : null,
+        nif,
+        telefono: row.telefono ? normalizeText(row.telefono) : null,
+        direccion: direccionPrincipal,
+        complemento: row.direccionComplementaria ? normalizeText(row.direccionComplementaria) : null,
+        codigoPostal: normalizeText(row.codigoPostal),
+        ciudad: normalizeText(row.ciudad),
+        provincia: normalizeText(row.provincia),
+        pais: row.pais ? normalizeText(row.pais) : "España",
+        predeterminada: true,
+        updatedAt: now,
+      };
+
+      const direccionExistente = await tx.direccion.findFirst({
+        where: { clienteId: clienteGuardado.id, alias: "Principal" },
+        select: { id: true },
+      });
+
+      if (direccionExistente) {
+        await tx.direccion.update({
+          where: { id: direccionExistente.id },
+          data: direccionData,
+        });
+      } else {
+        await tx.direccion.create({
+          data: {
+            ...direccionData,
+            createdAt: now,
+          },
+        });
+      }
+    }
+
+    return clienteGuardado;
   });
+
+  return cliente;
 }
 
 async function deleteCliente(row: ImportRow) {
@@ -946,6 +1034,7 @@ export async function POST(req: NextRequest) {
     let created = 0;
     let updated = 0;
     let deleted = 0;
+    const clienteNifCache = new Map<string, string>();
 
     for (let i = 0; i < rows.length; i += 1) {
       const row = rows[i] as ImportRow;
@@ -1002,7 +1091,7 @@ export async function POST(req: NextRequest) {
             else if (tipo === "proveedores") await upsertProveedor(row);
             else if (tipo === "atributos") await upsertAtributo(row);
             else if (tipo === "atributovalores") await upsertAtributoValor(row);
-            else if (tipo === "clientes") await upsertCliente(row);
+            else if (tipo === "clientes") await upsertCliente(row, clienteNifCache);
             else if (tipo === "direcciones") await upsertDireccion(row);
             else throw new Error(`Tipo no soportado: ${tipo}`);
 

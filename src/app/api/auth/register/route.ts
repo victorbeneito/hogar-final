@@ -2,11 +2,12 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken"; 
+import { SPANISH_FISCAL_DOCUMENT_ERROR, isValidSpanishFiscalDocument, normalizeClientNif } from "@/lib/clientNif";
 
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { nombre, apellidos, email, password, telefono, direccion, ciudad, cp, codigoPostal, provincia, pais } = body;
+    const { nombre, apellidos, email, password, telefono, empresa, direccion, ciudad, cp, codigoPostal, provincia, pais } = body;
 
     // 1. Validar campos
     if (!email || !password || !nombre) {
@@ -32,6 +33,22 @@ export async function POST(req: Request) {
     // 3. Crear usuario
     const hashedPassword = await bcrypt.hash(password, 10);
     const cpFinal = codigoPostal || cp || "";
+    const nifInput = body?.nif ?? body?.nifCliente ?? body?.documento;
+    const nifFinal = normalizeClientNif(nifInput);
+
+    if (!nifFinal) {
+      return NextResponse.json(
+        { ok: false, message: "El NIF/CIF es obligatorio" },
+        { status: 400 }
+      );
+    }
+
+    if (!isValidSpanishFiscalDocument(nifFinal)) {
+      return NextResponse.json(
+        { ok: false, message: SPANISH_FISCAL_DOCUMENT_ERROR },
+        { status: 400 }
+      );
+    }
 
     const nuevoCliente = await prisma.cliente.create({
       data: {
@@ -40,6 +57,8 @@ export async function POST(req: Request) {
         email,
         password: hashedPassword,
         telefono: telefono || null,
+        empresa: empresa || null,
+        nif: nifFinal,
         direccion: direccion || null,
         ciudad: ciudad || null,
         codigoPostal: cpFinal,

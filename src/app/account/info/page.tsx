@@ -8,6 +8,7 @@ import { fetchWithAuth } from "@/utils/fetchWithAuth";
 import toast from "react-hot-toast";
 import CambiarPassword from "@/components/CambiarPassword";
 import CambiarEmail from "@/components/CambiarEmail";
+import { SPANISH_FISCAL_DOCUMENT_ERROR, isValidSpanishFiscalDocument, normalizeClientNif } from "@/lib/clientNif";
 
 // --- COMPONENTE INTERNO DEL FORMULARIO ---
 function InfoForm() {
@@ -58,12 +59,26 @@ function InfoForm() {
         return;
     }
 
+        const nifFinal = normalizeClientNif(formData.nif);
+        if (!nifFinal) {
+                toast.error("El DNI/NIF/CIF es obligatorio");
+                return;
+        }
+
+        if (!isValidSpanishFiscalDocument(nifFinal)) {
+                toast.error(SPANISH_FISCAL_DOCUMENT_ERROR);
+                return;
+        }
+
     setSaving(true);
 
     try {
       const res = await fetchWithAuth(`/api/clientes/${cliente.id}`, token, {
         method: "PUT",
-        body: JSON.stringify(formData),
+                body: JSON.stringify({
+                    ...formData,
+                    nif: nifFinal,
+                }),
       });
 
       if (res.error) {
@@ -146,10 +161,12 @@ function InfoForm() {
                         />
                     </div>
                     <div>
-                        <label className="block text-sm font-bold text-gray-500 dark:text-gray-400 mb-1">DNI / NIF</label>
-                        <input type="text" name="nif" value={formData.nif || ""} onChange={handleChange} 
+                        <label className="block text-sm font-bold text-gray-500 dark:text-gray-400 mb-1">NIF / DNI / CIF</label>
+                        <input type="text" name="nif" value={formData.nif || ""} onChange={handleChange} required
+                            placeholder="12345678Z / B12345678"
                             className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary" 
                         />
+                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Se comprueba la letra del DNI/NIE o el control del CIF.</p>
                     </div>
                     <div>
                         <label className="block text-sm font-bold text-gray-500 dark:text-gray-400 mb-1">Teléfono</label>

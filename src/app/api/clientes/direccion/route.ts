@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import jwt from "jsonwebtoken";
+import { SPANISH_FISCAL_DOCUMENT_ERROR, isValidSpanishFiscalDocument, normalizeClientNif } from "@/lib/clientNif";
 
 const SECRET_KEY = process.env.SECRETO_JWT_CLIENTE || process.env.JWT_SECRET || process.env.NEXTAUTH_SECRET || "";
 
@@ -97,6 +98,16 @@ export async function PUT(req: NextRequest) {
     const id = parseInt(decoded.id, 10);
     const body = await req.json();
     const ahora = new Date();
+    const nifInput = body.nif ?? body.dni ?? body.documento;
+    const nifFinal = normalizeClientNif(nifInput);
+
+    if (!nifFinal) {
+      return NextResponse.json({ ok: false, error: "El NIF/CIF es obligatorio" }, { status: 400 });
+    }
+
+    if (!isValidSpanishFiscalDocument(nifFinal)) {
+      return NextResponse.json({ ok: false, error: SPANISH_FISCAL_DOCUMENT_ERROR }, { status: 400 });
+    }
 
     const result = await prisma.$transaction(async (tx) => {
       const clienteActualizado = await tx.cliente.update({
@@ -110,7 +121,7 @@ export async function PUT(req: NextRequest) {
           pais: body.pais || "España",
           provincia: body.provincia,
           telefono: body.telefono,
-          nif: body.nif,
+          nif: nifFinal,
           updatedAt: ahora,
         },
         select: {
@@ -145,7 +156,7 @@ export async function PUT(req: NextRequest) {
         nombre: body.nombre || "",
         apellidos: body.apellidos || "",
         empresa: body.empresa || null,
-        nif: body.nif || null,
+        nif: nifFinal,
         telefono: body.telefono || null,
         direccion: body.direccion || "",
         complemento: body.direccionComplementaria || null,

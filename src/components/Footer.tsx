@@ -1,13 +1,20 @@
 "use client";
+import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useClienteAuth } from "@/context/ClienteAuthContext";
+import { CMS_PAGE_DEFINITIONS } from "@/lib/cmsConfig";
 
 export default function Footer() {
 
   const pathname = usePathname();
+  const { cliente } = useClienteAuth();
 
   if (pathname && pathname.startsWith("/admin")) {
     return null;
   }
+
+  const accountHref = (target: string) =>
+    cliente ? target : `/auth?redirect=${encodeURIComponent(target)}`;
 
   return (
     <footer className="bg-fondo border-t w-full py-10 px-6 dark:bg-darkNavBg dark:text-darkNavText">
@@ -15,35 +22,63 @@ export default function Footer() {
         <div>
           <h3 className="font-poppins font-semibold mb-2">PRODUCTOS</h3>
           <ul>
-            <li className="font-orienta mb-1 cursor-pointer hover:text-hoverFooter">Ofertas</li>
-            <li className="font-orienta mb-1 cursor-pointer hover:text-hoverFooter">Novedades</li>
-            <li className="font-orienta mb-1 cursor-pointer hover:text-hoverFooter">Los más vendidos</li>
+            <li className="font-orienta mb-1"><Link href="/productos" className="hover:text-hoverFooter">Ofertas</Link></li>
+            <li className="font-orienta mb-1"><Link href="/productos" className="hover:text-hoverFooter">Novedades</Link></li>
+            <li className="font-orienta mb-1"><Link href="/productos" className="hover:text-hoverFooter">Los más vendidos</Link></li>
           </ul>
         </div>
 
         <div>
           <h3 className="font-poppins font-semibold mb-2">NUESTRA EMPRESA</h3>
           <ul>
-            <li className="font-orienta mb-1 cursor-pointer hover:text-hoverFooter">Aviso legal</li>
-            <li className="font-orienta mb-1 cursor-pointer hover:text-hoverFooter">Términos y condiciones</li>
-            <li className="font-orienta mb-1 cursor-pointer hover:text-hoverFooter">Preguntas frecuentes</li>
-            <li className="font-orienta mb-1 cursor-pointer hover:text-hoverFooter">Política de Cookies</li>
-            <li className="font-orienta mb-1 cursor-pointer hover:text-hoverFooter">Política privacidad</li>
-            <li className="font-orienta mb-1 cursor-pointer hover:text-hoverFooter">Formulario de desistimiento</li>
-            <li className="font-orienta mb-1 cursor-pointer hover:text-hoverFooter">Contacto con nosotros</li>
+            {CMS_PAGE_DEFINITIONS.map((page) => (
+              <li key={page.slug} className="font-orienta mb-1">
+                <Link href={page.route} className="hover:text-hoverFooter">
+                  {page.label}
+                </Link>
+              </li>
+            ))}
           </ul>
         </div>
 
         <div>
           <h3 className="font-poppins font-semibold mb-2">MI CUENTA</h3>
           <ul>
-            <li className="font-orienta mb-1 cursor-pointer hover:text-hoverFooter">Información personal</li>
-            <li className="font-orienta mb-1 cursor-pointer hover:text-hoverFooter">Pedidos</li>
-            <li className="font-orienta mb-1 cursor-pointer hover:text-hoverFooter">Facturas por abono</li>
-            <li className="font-orienta mb-1 cursor-pointer hover:text-hoverFooter">Direcciones</li>
-            <li className="font-orienta mb-1 cursor-pointer hover:text-hoverFooter">Vales</li>
-            <li className="font-orienta mb-1 cursor-pointer hover:text-hoverFooter">Mis alertas</li>
-            <li className="font-orienta mb-1 cursor-pointer hover:text-hoverFooter">Tu configuración de cookies</li>
+            <li className="font-orienta mb-1">
+              <Link href={accountHref("/account")} className="block w-full rounded-md py-0.5 hover:text-hoverFooter transition-colors">
+                Página principal
+              </Link>
+            </li>
+            <li className="font-orienta mb-1">
+              <Link href={accountHref("/account/info")} className="block w-full rounded-md py-0.5 hover:text-hoverFooter transition-colors">
+                Información personal
+              </Link>
+            </li>
+            <li className="font-orienta mb-1">
+              <Link href={accountHref("/account/orders")} className="block w-full rounded-md py-0.5 hover:text-hoverFooter transition-colors">
+                Pedidos
+              </Link>
+            </li>
+            <li className="font-orienta mb-1">
+              <Link href={accountHref("/direcciones")} className="block w-full rounded-md py-0.5 hover:text-hoverFooter transition-colors">
+                Direcciones
+              </Link>
+            </li>
+            <li className="font-orienta mb-1">
+              <Link href={accountHref("/account/coupons")} className="block w-full rounded-md py-0.5 hover:text-hoverFooter transition-colors">
+                Cupones
+              </Link>
+            </li>
+            <li className="font-orienta mb-1">
+              <Link href={accountHref("/account/alerts")} className="block w-full rounded-md py-0.5 hover:text-hoverFooter transition-colors">
+                Alertas
+              </Link>
+            </li>
+            <li className="font-orienta mb-1">
+              <Link href={accountHref("/account/cookies")} className="block w-full rounded-md py-0.5 hover:text-hoverFooter transition-colors">
+                Cookies
+              </Link>
+            </li>
           </ul>
         </div>
 

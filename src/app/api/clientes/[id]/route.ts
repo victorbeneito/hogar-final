@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
+import { SPANISH_FISCAL_DOCUMENT_ERROR, isValidSpanishFiscalDocument, normalizeClientNif } from "@/lib/clientNif";
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -168,6 +169,17 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
 
     const body = await req.json();
     const ahora = new Date();
+    const nifInput = body.nif ?? body.dni;
+    if (nifInput !== undefined) {
+      const nifFinal = normalizeClientNif(nifInput);
+      if (!nifFinal) {
+        return NextResponse.json({ error: "El NIF/CIF es obligatorio" }, { status: 400 });
+      }
+
+      if (!isValidSpanishFiscalDocument(nifFinal)) {
+        return NextResponse.json({ error: SPANISH_FISCAL_DOCUMENT_ERROR }, { status: 400 });
+      }
+    }
 
     const updateClienteData: Record<string, any> = {
       nombre: body.nombre,
@@ -175,7 +187,6 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
       email: body.email,
       telefono: body.telefono,
       empresa: body.empresa,
-      nif: body.nif || body.dni,
       direccion: body.direccion,
       direccionComplementaria: body.direccionComplementaria,
       codigoPostal: body.codigoPostal,
@@ -190,6 +201,10 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
 
     if (body.password && String(body.password).length > 0) {
       updateClienteData.password = await bcrypt.hash(String(body.password), 10);
+    }
+
+    if (nifInput !== undefined) {
+      updateClienteData.nif = normalizeClientNif(nifInput);
     }
 
     Object.keys(updateClienteData).forEach((key) => {

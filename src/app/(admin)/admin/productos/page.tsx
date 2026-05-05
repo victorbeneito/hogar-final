@@ -24,6 +24,7 @@ type Producto = {
   destacado: boolean;
   slug: true,
   imagenes: string[] | null;
+  productoimagen?: { url: string }[] | null;
   Categoria: { id: number; nombre: string } | null;
   Marca:     { id: number; nombre: string } | null;
 };
@@ -398,7 +399,10 @@ export default function ProductosPage() {
                 </tr>
               ) : (
                 productos.map(p => {
-                  const imagenUrl = Array.isArray(p.imagenes) && p.imagenes.length > 0 ? p.imagenes[0] : null;
+                  const imagenUrl =
+                    (Array.isArray(p.imagenes) && p.imagenes.length > 0 && p.imagenes[0]) ||
+                    (Array.isArray(p.productoimagen) && p.productoimagen.length > 0 && p.productoimagen[0]?.url) ||
+                    null;
                   return (
                     <tr key={p.id} className={`hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors \${seleccionados.includes(p.id) ? "bg-blue-50 dark:bg-blue-900/10" : ""}`}>
                       <td className="px-3 py-2.5">

@@ -191,7 +191,7 @@ export default function TabBasicos({ producto, categorias, marcas, onChange, dat
       </div>
 
       {/* HTML personalizado */}
-      <div className="lg:col-span-3 bg-gray-50 border border-gray-200 rounded-xl p-4">
+      <div className="lg:col-span-3 bg-gray-50 border border-gray-200 rounded-xl p-4 flex flex-col gap-3 min-h-[560px]">
         <label className="block text-sm font-semibold text-gray-700 mb-2">
           HTML personalizado
           <span className="ml-2 text-xs text-gray-400 font-normal">Pega código HTML con estilos personalizados</span>
@@ -199,9 +199,9 @@ export default function TabBasicos({ producto, categorias, marcas, onChange, dat
         <textarea
           value={data.descripcion_html ?? ""}
           onChange={(e) => onChange("descripcion_html", e.target.value)}
-          rows={14}
+          rows={24}
           placeholder='<div class="mi-estilos">...</div>'
-          className="w-full min-h-[360px] px-4 py-3 border border-gray-300 rounded-lg text-sm font-mono leading-6 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y bg-white"
+          className="w-full flex-1 min-h-[420px] px-4 py-3 border border-gray-300 rounded-lg text-sm font-mono leading-6 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y bg-white"
         />
       </div>
     </div>

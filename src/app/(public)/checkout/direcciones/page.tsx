@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useClienteAuth } from "@/context/ClienteAuthContext";
+import { SPANISH_FISCAL_DOCUMENT_ERROR, isValidSpanishFiscalDocument, normalizeClientNif } from "@/lib/clientNif";
 
 interface DireccionForm {
   empresa: string;
@@ -80,6 +81,18 @@ export default function CheckoutDireccionesPage() {
     e.preventDefault();
 
     if (!token) return;
+
+    const nifFinal = normalizeClientNif(form.nif);
+    if (!nifFinal) {
+      setError("El NIF/CIF es obligatorio");
+      return;
+    }
+
+    if (!isValidSpanishFiscalDocument(nifFinal)) {
+      setError(SPANISH_FISCAL_DOCUMENT_ERROR);
+      return;
+    }
+
     setGuardando(true);
     setError("");
     setMensaje("");
@@ -91,7 +104,10 @@ export default function CheckoutDireccionesPage() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          ...form,
+          nif: nifFinal,
+        }),
       });
 
       const data = await res.json();
@@ -256,10 +272,11 @@ export default function CheckoutDireccionesPage() {
                 />
               </div>
               <div>
-                <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-1.5">NIF / DNI *</label>
-                <input type="text" value={form.nif} onChange={(e) => handleChange("nif", e.target.value)} required 
+                <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-1.5">NIF / DNI / CIF *</label>
+                <input type="text" value={form.nif} onChange={(e) => handleChange("nif", e.target.value)} required placeholder="12345678Z / B12345678"
                     className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all" 
                 />
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Se valida DNI/NIE/CIF antes de continuar al envío.</p>
               </div>
 
               {/* Mensajes */}

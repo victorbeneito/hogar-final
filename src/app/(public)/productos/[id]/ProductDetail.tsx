@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { addToCart } from "@/lib/cartService";
 import CartModal from "@/components/CartModal";
+import { calcularPrecioVariante, ordenarValoresNaturales } from "@/lib/productVariantPricing";
 
 interface CategoriaProducto {
   id: number;
@@ -57,22 +58,24 @@ export default function ProductDetail({ producto }: { producto: Producto }) {
   const [colorSeleccionado, setColorSeleccionado] = useState<string | null>(null);
 
   // 🔍 FILTROS: Usamos 'tamano' (sin ñ)
-  const tamañosUnicos = [...new Set(variantes
-  .filter((v): v is Variante & { tamano: string } => Boolean(v.tamano))
-  .map(v => v.tamano)
-)].sort();
+  const tamañosUnicos = ordenarValoresNaturales(
+    variantes
+      .filter((v): v is Variante & { tamano: string } => Boolean(v.tamano))
+      .map((v) => v.tamano)
+  );
 
-const tiradoresUnicos = [...new Set(variantes
-  .filter((v): v is Variante & { tirador: string } => Boolean(v.tirador))
-  .map(v => v.tirador)
-)].sort();
+  const tiradoresUnicos = ordenarValoresNaturales(
+    variantes
+      .filter((v): v is Variante & { tirador: string } => Boolean(v.tirador))
+      .map((v) => v.tirador)
+  );
 
-  const coloresUnicos = [...new Set(variantes
-  .filter((v): v is Variante & { color: string } => Boolean(v.color))
-  .map(v => v.color)
-)].sort();
+  const coloresUnicos = ordenarValoresNaturales(
+    variantes
+      .filter((v): v is Variante & { color: string } => Boolean(v.color))
+      .map((v) => v.color)
+  );
 
-  const precioBase = producto.precio_descuento ?? producto.precio;
   const varianteSeleccionada =
     variantes.find((v) =>
       (colorSeleccionado ? v.color === colorSeleccionado : true) &&
@@ -132,12 +135,13 @@ const tiradoresUnicos = [...new Set(variantes
       setImagenAmpliada(imagenVisible);
     }
   };
-  
-  // Calcular precio extra (buscando por 'tamano')
-  const extraTamanoVariante = variantes.find(v => v.tamano === tamanoSeleccionado);
-const extraTamano = extraTamanoVariante?.precio_extra ?? 0;
-  
-  const precioFinal = precioBase + extraTamano;
+
+  const precioVariante = calcularPrecioVariante({
+    precioOriginal: producto.precio,
+    precioDescuento: producto.precio_descuento,
+    precioExtra: varianteSeleccionada?.precio_extra ?? 0,
+  });
+  const precioFinalProducto = precioVariante.precioFinal;
 
   const [modalAbierto, setModalAbierto] = useState(false);
 
@@ -149,7 +153,7 @@ const extraTamano = extraTamanoVariante?.precio_extra ?? 0;
       tamanoSeleccionado: tamanoSeleccionado ?? undefined,
       tiradorSeleccionado: tiradorSeleccionado ?? undefined,
       colorSeleccionado: colorSeleccionado ?? undefined,
-      precioFinal,
+      precioFinal: precioFinalProducto,
       imagen: imagenActiva || imagenPrincipalSeleccionada || producto.imagenes?.[0] || "",
     });
     setModalAbierto(true);
@@ -244,11 +248,11 @@ const extraTamano = extraTamanoVariante?.precio_extra ?? 0;
           {/* Precio */}
           <div className="flex items-baseline gap-3">
             <span className="text-2xl font-bold text-primary dark:text-white">
-              {precioFinal.toFixed(2)} €
+              {precioFinalProducto.toFixed(2)} €
             </span>
-            {producto.precio_descuento && (
+            {precioVariante.tieneOferta && (
               <span className="text-sm line-through text-gray-400 dark:text-white">
-                {producto.precio.toFixed(2)} €
+                {precioVariante.precioOriginalConExtra.toFixed(2)} €
               </span>
             )}
           </div>
@@ -265,14 +269,11 @@ const extraTamano = extraTamanoVariante?.precio_extra ?? 0;
                   onChange={(e) => setTamanoSeleccionado(e.target.value || null)}
                 >
                   <option value="">Selecciona tamaño</option>
-                  {tamañosUnicos.map((tamano, idx) => {
-                    const varianteTamano = variantes.find((v) => v.tamano === tamano);
-                    return (
-                      <option key={`${tamano}-${idx}`} value={tamano}>
-                        {tamano} {varianteTamano?.precio_extra ? `(+${varianteTamano.precio_extra}€)` : ""}
-                      </option>
-                    );
-                  })}
+                  {tamañosUnicos.map((tamano, idx) => (
+                    <option key={`${tamano}-${idx}`} value={tamano}>
+                      {tamano}
+                    </option>
+                  ))}
                 </select>
               </div>
             )}

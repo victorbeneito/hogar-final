@@ -45,7 +45,7 @@ model atributovalor {
   id               Int                @id @default(autoincrement())
   valor            String
   colorHex         String?
-  imagen           String?
+  imagen           String?            @db.LongText
   orden            Int                @default(0)
   atributoId       Int
   atributo         atributo           @relation(fields: [atributoId], references: [id], onDelete: Cascade, map: "AtributoValor_atributoId_fkey")

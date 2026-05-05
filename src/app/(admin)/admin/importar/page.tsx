@@ -1,5 +1,7 @@
 "use client";
 
+export const dynamic = "force-dynamic";
+
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Papa from "papaparse";
@@ -72,12 +74,13 @@ const TYPES: Record<ImportType, TypeConfig> = {
   },
   atributos: {
     label: "Atributos",
-    description: "Crea atributos como Tamaño, Color o Tirador.",
-    fields: ["accion", "nombre", "orden"],
+    description: "Crea atributos como Tamaño, Color o Tirador y define su modo visual.",
+    fields: ["accion", "nombre", "tipo", "orden"],
     requiredFields: ["nombre"],
-    hint: "Usa accion con upsert o delete. Después importa sus valores con el tipo de atributo valores.",
+    hint: "Usa accion con upsert o delete. Puedes enviar tipo, group_type o is_color_group para dejar preparado el modo visual del atributo. Después importa sus valores con el tipo de atributo valores.",
     sampleRows: [
-      { accion: "upsert", nombre: "Tamaño", orden: "1" },
+      { accion: "upsert", nombre: "Tamaño", tipo: "desplegable", orden: "1" },
+      { accion: "upsert", nombre: "Color", tipo: "miniatura_imagen_color", orden: "2" },
       { accion: "delete", nombre: "Tirador" },
     ],
   },
@@ -94,10 +97,10 @@ const TYPES: Record<ImportType, TypeConfig> = {
   },
   clientes: {
     label: "Clientes",
-    description: "Importa cuentas de cliente.",
-    fields: ["accion", "nombre", "apellidos", "email", "password", "telefono", "empresa", "nif", "direccion", "codigoPostal", "ciudad", "provincia", "pais", "role"],
+    description: "Importa cuentas de cliente y su dirección principal.",
+    fields: ["accion", "nombre", "apellidos", "email", "password", "telefono", "empresa", "nif", "direccion", "direccionComplementaria", "codigoPostal", "ciudad", "provincia", "pais", "activo", "aceptaMarketing", "role"],
     requiredFields: ["nombre", "apellidos", "email"],
-    hint: "Usa accion con upsert o delete. Si no envías password, se usará 123456.",
+    hint: "Usa accion con upsert o delete. Con este import basta el CSV de clientes: si envías direccion, también se creará o actualizará la dirección principal. Si no envías password, se usará 123456. Si el password viene ya hasheado en bcrypt (por ejemplo, desde PrestaShop `passwd`), se guardará tal cual.",
     sampleRows: [
       {
         accion: "upsert",
@@ -109,10 +112,13 @@ const TYPES: Record<ImportType, TypeConfig> = {
         empresa: "Demo S.L.",
         nif: "12345678A",
         direccion: "Calle Principal 1",
+        direccionComplementaria: "Piso 3",
         codigoPostal: "46000",
         ciudad: "Valencia",
         provincia: "Valencia",
         pais: "España",
+        activo: "1",
+        aceptaMarketing: "0",
         role: "cliente",
       },
       { accion: "delete", email: "cliente-a-borrar@demo.com" },
@@ -232,6 +238,27 @@ export default function AdminImportarPage() {
   const config = TYPES[tipo];
   const templatePreview = TYPES[templatePreviewType];
 
+  const fieldAliases: Record<string, string[]> = {
+    nombre: ["firstname", "name", "nombre"],
+    apellidos: ["lastname", "surname", "apellidos"],
+    email: ["email", "mail", "correo"],
+    password: ["password", "passwd", "passwordhash", "hashedpassword"],
+    telefono: ["telefono", "phone", "mobile"],
+    empresa: ["empresa", "company"],
+    nif: ["nif", "vatnumber", "vat_number", "dni"],
+    direccion: ["direccion", "address1", "address"],
+    direccionComplementaria: ["direccioncomplementaria", "address2", "address_2", "complemento"],
+    codigoPostal: ["codigopostal", "postcode", "zip", "zipcode"],
+    ciudad: ["ciudad", "city"],
+    provincia: ["provincia", "state", "region"],
+    pais: ["pais", "country"],
+    activo: ["activo", "active"],
+    aceptaMarketing: ["aceptamarketing", "newsletter", "optin"],
+    role: ["role"],
+    tipo: ["tipo", "group_type", "grouptype"],
+    orden: ["orden", "position"],
+  };
+
   const previewRows = useMemo(() => rows.slice(0, 10), [rows]);
   const mappedRows = useMemo(() => {
     if (!rows.length) return [];
@@ -310,7 +337,14 @@ export default function AdminImportarPage() {
     targetFields.forEach((field) => {
       const normalizedField = normalizeHeader(field);
       const exact = normalizedSource.find((item) => item.norm === normalizedField);
-      if (exact) map[field] = exact.raw;
+      if (exact) {
+        map[field] = exact.raw;
+        return;
+      }
+
+      const aliases = fieldAliases[field] ?? [];
+      const aliasMatch = normalizedSource.find((item) => aliases.includes(item.norm));
+      if (aliasMatch) map[field] = aliasMatch.raw;
     });
 
     return map;
@@ -418,9 +452,12 @@ export default function AdminImportarPage() {
   function downloadErrorReport() {
     if (!result?.errors?.length) return;
 
-    const rowsForExport = result.errors.map((item: { sourceRow?: Record<string, any> }) => {
+    const rowsForExport = result.errors.map((item: { row: number; error: string; sourceRow?: Record<string, any> }) => {
       const exportRow: Record<string, any> = {};
       const sourceRow = item.sourceRow ?? {};
+
+      exportRow.fila = item.row;
+      exportRow.error = item.error;
 
       headers.forEach((header) => {
         exportRow[header] = sourceRow[header] ?? "";

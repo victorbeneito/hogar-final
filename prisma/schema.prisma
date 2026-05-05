@@ -1,6 +1,6 @@
 generator client {
   provider = "prisma-client"
-  output   = "C:/Users/liber/.gemini/tmp/ac0a26ec8609e19e2b8f8c0d0066d110f320a21677e64bf235d4d5778f658a7e/generated/prisma"
+  output   = "../generated/prisma"
 }
 
 datasource db {
@@ -23,6 +23,7 @@ model admin {
 model atributo {
   id            Int             @id @default(autoincrement())
   nombre        String          @unique(map: "Atributo_nombre_key")
+  tipo          String          @default("desplegable")
   orden         Int             @default(0)
   atributovalor atributovalor[]
 }
@@ -31,7 +32,7 @@ model atributovalor {
   id               Int                @id @default(autoincrement())
   valor            String
   colorHex         String?
-  imagen           String?
+  imagen           String?            @db.LongText
   orden            Int                @default(0)
   atributoId       Int
   atributo         atributo           @relation(fields: [atributoId], references: [id], onDelete: Cascade, map: "AtributoValor_atributoId_fkey")

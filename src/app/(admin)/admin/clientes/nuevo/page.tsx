@@ -2,6 +2,7 @@
 
 import { useState, type ChangeEvent, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import { SPANISH_FISCAL_DOCUMENT_ERROR, isValidSpanishFiscalDocument, normalizeClientNif } from "@/lib/clientNif";
 
 type ClienteForm = {
   nombre: string;
@@ -26,7 +27,7 @@ const campos: Array<{ name: keyof ClienteForm; label: string; type?: string; ful
   { name: "password", label: "Contraseña", type: "password" },
   { name: "telefono", label: "Teléfono" },
   { name: "empresa", label: "Empresa" },
-  { name: "nif", label: "NIF" },
+  { name: "nif", label: "NIF / DNI / CIF" },
   { name: "direccion", label: "Dirección", full: true },
   { name: "direccionComplementaria", label: "Dirección 2", full: true },
   { name: "codigoPostal", label: "Código postal" },
@@ -62,6 +63,18 @@ export default function NuevoClientePage() {
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+
+    const nifFinal = normalizeClientNif(form.nif);
+    if (!nifFinal) {
+      alert("El NIF/CIF es obligatorio");
+      return;
+    }
+
+    if (!isValidSpanishFiscalDocument(nifFinal)) {
+      alert(SPANISH_FISCAL_DOCUMENT_ERROR);
+      return;
+    }
+
     setSaving(true);
 
     try {
@@ -72,7 +85,10 @@ export default function NuevoClientePage() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          ...form,
+          nif: nifFinal,
+        }),
       });
       const data = await res.json();
 
@@ -181,8 +197,12 @@ export default function NuevoClientePage() {
                             value={form[campo.name]}
                             onChange={handleChange}
                             className="w-full rounded-xl border border-gray-300 px-3 py-2.5"
-                            required={campo.name === "nombre" || campo.name === "email" || campo.name === "password"}
+                            required={campo.name === "nombre" || campo.name === "email" || campo.name === "password" || campo.name === "nif"}
+                            placeholder={campo.name === "nif" ? "12345678Z / B12345678" : undefined}
                           />
+                          {campo.name === "nif" && (
+                            <p className="mt-1 text-xs text-gray-500">Se valida DNI/NIE/CIF antes de guardar.</p>
+                          )}
                         </div>
                       ))}
                   </div>

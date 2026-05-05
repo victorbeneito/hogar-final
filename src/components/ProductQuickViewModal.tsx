@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { addToCart } from "@/lib/cartService";
+import { calcularPrecioVariante, ordenarValoresNaturales } from "@/lib/productVariantPricing";
 
 type QuickViewProducto = {
   id: number;
@@ -106,15 +107,15 @@ export default function ProductQuickViewModal({ productId, open, onClose }: Prop
   const imagenesBase = (producto?.imagenes ?? []).filter(Boolean);
 
   const tamañosUnicos = useMemo(
-    () => [...new Set(variantes.filter((v) => Boolean(v.tamano)).map((v) => v.tamano as string))],
+    () => ordenarValoresNaturales(variantes.filter((v) => Boolean(v.tamano)).map((v) => v.tamano)),
     [variantes]
   );
   const tiradoresUnicos = useMemo(
-    () => [...new Set(variantes.filter((v) => Boolean(v.tirador)).map((v) => v.tirador as string))],
+    () => ordenarValoresNaturales(variantes.filter((v) => Boolean(v.tirador)).map((v) => v.tirador)),
     [variantes]
   );
   const coloresUnicos = useMemo(
-    () => [...new Set(variantes.filter((v) => Boolean(v.color)).map((v) => v.color as string))],
+    () => ordenarValoresNaturales(variantes.filter((v) => Boolean(v.color)).map((v) => v.color)),
     [variantes]
   );
 
@@ -154,11 +155,12 @@ export default function ProductQuickViewModal({ productId, open, onClose }: Prop
     if (hasSrc(imagenPrincipal)) setImagenActiva(imagenPrincipal);
   }, [imagenPrincipal]);
 
-  const precioBase = Number(producto?.precio ?? 0);
-  const precioOferta = producto?.precioOferta != null ? Number(producto.precioOferta) : null;
-  const tieneOferta = precioOferta !== null && Number.isFinite(precioOferta) && precioOferta < precioBase;
-  const precioVariante = Number(varianteSeleccionada?.precio_extra ?? 0);
-  const precioActual = (tieneOferta ? precioOferta ?? precioBase : precioBase) + precioVariante;
+  const precioBaseOriginal = Number(producto?.precio ?? 0);
+  const precioCalculado = calcularPrecioVariante({
+    precioOriginal: precioBaseOriginal,
+    precioDescuento: producto?.precioOferta ?? null,
+    precioExtra: varianteSeleccionada?.precio_extra ?? 0,
+  });
 
   const handleAddToCart = () => {
     if (!producto) return;
@@ -166,8 +168,8 @@ export default function ProductQuickViewModal({ productId, open, onClose }: Prop
     addToCart({
       id: producto.id,
       nombre: producto.nombre,
-      precio: precioBase,
-      precioFinal: precioActual,
+      precio: precioBaseOriginal,
+      precioFinal: precioCalculado.precioFinal,
       imagen: imagenActiva || imagenPrincipal,
       cantidad,
       tamanoSeleccionado: tamanoSeleccionado ?? undefined,
@@ -233,10 +235,12 @@ export default function ProductQuickViewModal({ productId, open, onClose }: Prop
             <div>
               <div className="flex items-baseline gap-3">
                 <span className="text-2xl font-bold text-primary dark:text-white">
-                  {precioActual.toFixed(2)} €
+                  {precioCalculado.precioFinal.toFixed(2)} €
                 </span>
-                {tieneOferta && (
-                  <span className="text-sm line-through text-gray-400">{precioBase.toFixed(2)} €</span>
+                {precioCalculado.tieneOferta && (
+                  <span className="text-sm line-through text-gray-400">
+                    {precioCalculado.precioOriginalConExtra.toFixed(2)} €
+                  </span>
                 )}
               </div>
               <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">

@@ -1,4 +1,4 @@
-import { PrismaClient } from 'C:/Users/liber/.gemini/tmp/ac0a26ec8609e19e2b8f8c0d0066d110f320a21677e64bf235d4d5778f658a7e/generated/prisma'
+import { PrismaClient } from '../generated/prisma/client'
 import * as bcrypt from 'bcryptjs'
 
 const prisma = new PrismaClient()
