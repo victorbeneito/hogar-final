@@ -60,7 +60,7 @@ export default function Footer() {
               </Link>
             </li>
             <li className="font-orienta mb-1">
-              <Link href={accountHref("/direcciones")} className="block w-full rounded-md py-0.5 hover:text-hoverFooter transition-colors">
+              <Link href={accountHref("/account/direcciones")} className="block w-full rounded-md py-0.5 hover:text-hoverFooter transition-colors">
                 Direcciones
               </Link>
             </li>

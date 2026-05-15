@@ -129,3 +129,24 @@ npx prisma generate
 - **Solución Docker:** Asegúrate de ejecutar Docker con sudo o añade tu usuario al grupo de docker (sudo usermod -aG docker $USER).
 - **Solución Archivos:** Corrige los permisos de la carpeta del proyecto con sudo chown -R $USER:$USER .
 
+-----
+**📦 Importación histórica de Prestashop**
+
+Para importar clientes, direcciones, pedidos y facturas desde CSV exportados de DBeaver, usa el script `scripts/importar-pedidos-prestashop.ts`.
+
+Ejemplo de uso:
+
+```bash
+npm run import:prestashop -- --inputDir "importacion/Archivos prestashop/pedidos" --since 2021-01-01
+```
+
+No uses `--skip-project` con este importador; hace que `ts-node` coja una combinación de opciones incompatible con este proyecto y aparece el error TS5109.
+
+Archivos esperados en la carpeta de entrada:
+
+- `ps_customer*.csv`
+- `ps_address*.csv`
+- `ps_orders*.csv`
+- `ps_order_detail*.csv` opcional, si quieres también las líneas de pedido
+- `ps_order_state*.csv` y `ps_order_state_lang*.csv` opcionales, para conservar el estado original
+

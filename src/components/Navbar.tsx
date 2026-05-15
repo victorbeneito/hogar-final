@@ -191,7 +191,7 @@ export default function Navbar() {
                     placeholder="Buscar..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-3 pr-8 py-1.5 rounded-full bg-gray-100 dark:bg-gray-700 border-none focus:ring-2 focus:ring-primary text-sm w-48 lg:w-64 transition-all"
+                    className="pl-3 pr-8 py-1.5 rounded-full bg-gray-100 dark:bg-gray-700 border-none focus:ring-2 focus:ring-primary text-sm w-48 lg:w-64 transition-all text-gray-700 dark:text-gray-200 placeholder:text-gray-400"
                 />
                 <FaSearch className="absolute right-3 top-2.5 text-gray-400 text-xs" />
             </div>

@@ -23,24 +23,50 @@ function InfoForm() {
   const rawRedirect = searchParams.get("redirect");
   const redirectTarget = rawRedirect ? decodeURIComponent(rawRedirect) : null;
 
-  // Cargar datos del cliente
+  // Cargar datos del cliente + dirección predeterminada desde la API
   useEffect(() => {
-    if (cliente) {
-      setFormData({
-        nombre: cliente.nombre || "",
-        apellidos: cliente.apellidos || "",
-        empresa: cliente.empresa || "",
-        direccion: cliente.direccion || "",
-        direccionComplementaria: cliente.direccionComplementaria || "",
-        codigoPostal: cliente.codigoPostal || "",
-        ciudad: cliente.ciudad || "",
-        provincia: cliente.provincia || "",
-        pais: cliente.pais || "España",
-        nif: cliente.nif || "",
-        telefono: cliente.telefono || "",
-      });
-    }
-  }, [cliente]);
+    if (!cliente || !token) return;
+
+    const cargarDatos = async () => {
+      try {
+        const res = await fetch("/api/clientes/direccion", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await res.json();
+        const dir = data.ok ? data.direccion : null;
+
+        setFormData({
+          nombre: cliente.nombre || "",
+          apellidos: cliente.apellidos || "",
+          empresa: cliente.empresa || dir?.empresa || "",
+          nif: cliente.nif || dir?.nif || "",
+          telefono: cliente.telefono || dir?.telefono || "",
+          direccion: dir?.direccion || cliente.direccion || "",
+          direccionComplementaria: dir?.direccionComplementaria || cliente.direccionComplementaria || "",
+          codigoPostal: dir?.codigoPostal || cliente.codigoPostal || "",
+          ciudad: dir?.ciudad || cliente.ciudad || "",
+          provincia: dir?.provincia || cliente.provincia || "",
+          pais: dir?.pais || cliente.pais || "España",
+        });
+      } catch {
+        setFormData({
+          nombre: cliente.nombre || "",
+          apellidos: cliente.apellidos || "",
+          empresa: cliente.empresa || "",
+          direccion: cliente.direccion || "",
+          direccionComplementaria: cliente.direccionComplementaria || "",
+          codigoPostal: cliente.codigoPostal || "",
+          ciudad: cliente.ciudad || "",
+          provincia: cliente.provincia || "",
+          pais: cliente.pais || "España",
+          nif: cliente.nif || "",
+          telefono: cliente.telefono || "",
+        });
+      }
+    };
+
+    cargarDatos();
+  }, [cliente, token]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });

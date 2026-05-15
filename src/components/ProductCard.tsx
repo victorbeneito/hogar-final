@@ -138,6 +138,19 @@ export default function ProductCard({ producto }: ProductCardProps) {
           </div>
         </Link>
 
+        {/* REVI Widget */}
+        {producto.prestashopProductId && (
+          <div className="w-full px-2 py-2">
+            <div
+              className="revi-widget-KyG01X4Rv5"
+              data-revi-widget-lazy=""
+              data-id-product={String(producto.prestashopProductId)}
+              data-lang="es"
+              style={{ minHeight: '50px' }}
+            />
+          </div>
+        )}
+
         <div className="p-3 w-full">
           <button
             type="button"

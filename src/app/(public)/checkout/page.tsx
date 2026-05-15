@@ -28,7 +28,7 @@ export default function CheckoutPage() {
       // Validación básica de dirección
       if (!cliente.direccion || !cliente.ciudad || !cliente.codigoPostal) {
         toast("Por favor, completa tu dirección de envío", { icon: "🚚" });
-        router.push("/direcciones?next=/checkout"); // Redirige y vuelve aquí
+        router.push("/account/direcciones?next=/checkout"); // Redirige y vuelve aquí
         return;
       }
 
@@ -206,7 +206,7 @@ export default function CheckoutPage() {
                  <h2 className="text-lg font-bold text-gray-800 dark:text-white flex items-center gap-2">
                     📍 Dirección de Envío
                  </h2>
-                 <button type="button" onClick={() => router.push("/direcciones?next=/checkout")} className="text-sm text-primary underline">Cambiar</button>
+                 <button type="button" onClick={() => router.push("/account/direcciones?next=/checkout")} className="text-sm text-primary underline">Cambiar</button>
             </div>
 
             <div className="bg-gray-50 dark:bg-gray-800/50 p-4 rounded-lg border border-gray-200 dark:border-gray-700 mb-8">

@@ -31,6 +31,7 @@ import {
   Menu,
   X,
   UsersRound,
+  Star,
 } from "lucide-react";
 
 const navigation = [
@@ -46,6 +47,12 @@ const navigation = [
       { name: "Pedidos",   href: "/admin/pedidos",  icon: ShoppingCart },
       { name: "Facturas",  href: "/admin/facturas", icon: FileText },
       { name: "Carritos",  href: "/admin/carritos", icon: Archive },
+    ],
+  },
+  {
+    label: "PRESTASHOP",
+    items: [
+      { name: "Archivo", href: "/admin/prestashop", icon: Archive },
     ],
   },
   {

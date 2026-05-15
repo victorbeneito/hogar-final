@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
-import jwt from "jsonwebtoken"; 
-import { SPANISH_FISCAL_DOCUMENT_ERROR, isValidSpanishFiscalDocument, normalizeClientNif } from "@/lib/clientNif";
+import jwt from "jsonwebtoken";
+import { normalizeClientNif } from "@/lib/clientNif";
+import { sendTemplateEmail } from "@/lib/emailService";
 
 export async function POST(req: Request) {
   try {
@@ -34,21 +35,7 @@ export async function POST(req: Request) {
     const hashedPassword = await bcrypt.hash(password, 10);
     const cpFinal = codigoPostal || cp || "";
     const nifInput = body?.nif ?? body?.nifCliente ?? body?.documento;
-    const nifFinal = normalizeClientNif(nifInput);
-
-    if (!nifFinal) {
-      return NextResponse.json(
-        { ok: false, message: "El NIF/CIF es obligatorio" },
-        { status: 400 }
-      );
-    }
-
-    if (!isValidSpanishFiscalDocument(nifFinal)) {
-      return NextResponse.json(
-        { ok: false, message: SPANISH_FISCAL_DOCUMENT_ERROR },
-        { status: 400 }
-      );
-    }
+    const nifFinal = normalizeClientNif(nifInput) || null;
 
     const nuevoCliente = await prisma.cliente.create({
       data: {
@@ -56,14 +43,14 @@ export async function POST(req: Request) {
         apellidos: apellidos || "",
         email,
         password: hashedPassword,
-        telefono: telefono || null,
-        empresa: empresa || null,
-        nif: nifFinal,
-        direccion: direccion || null,
-        ciudad: ciudad || null,
-        codigoPostal: cpFinal,
-        provincia: provincia || null,
-        pais: pais || null,
+        ...(telefono ? { telefono } : {}),
+        ...(empresa ? { empresa } : {}),
+        ...(nifFinal ? { nif: nifFinal } : {}),
+        ...(direccion ? { direccion } : {}),
+        ...(ciudad ? { ciudad } : {}),
+        ...(cpFinal ? { codigoPostal: cpFinal } : {}),
+        ...(provincia ? { provincia } : {}),
+        pais: pais || "España",
         role: "client",
         updatedAt: new Date()
       },
@@ -89,9 +76,18 @@ export async function POST(req: Request) {
       },
     });
 
-    const { password: _, ...clienteSinPassword } = nuevoCliente;
+    // 4. Email de bienvenida (no bloquea el registro si falla)
+    sendTemplateEmail({
+      to: nuevoCliente.email,
+      templateSlug: "account-created",
+      variables: {
+        nombre: nuevoCliente.nombre,
+        email: nuevoCliente.email,
+        loginUrl: `${process.env.APP_URL || "https://www.elhogardetsuenos.com"}/auth`,
+      },
+    }).catch((err) => console.error("❌ Email bienvenida:", err?.message));
 
-    // 4. 🔥 GENERAR TOKEN CORREGIDO 🔥
+    // 5. 🔥 GENERAR TOKEN CORREGIDO 🔥
     // AHORA USAMOS 'SECRETO_JWT_CLIENTE' IGUAL QUE EN EL LOGIN
     const token = jwt.sign(
       { 
@@ -107,8 +103,8 @@ export async function POST(req: Request) {
       {
         ok: true,
         message: "Usuario registrado con éxito",
-        user: clienteSinPassword,
-        cliente: clienteSinPassword,
+        user: nuevoCliente,
+        cliente: nuevoCliente,
         token: token 
       },
       { status: 201 }

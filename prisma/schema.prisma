@@ -102,14 +102,14 @@ model cliente {
   apellidos               String
   email                   String             @unique(map: "Cliente_email_key")
   password                String
-  telefono                String
+  telefono                String?
   empresa                 String?
-  nif                     String             @unique(map: "Cliente_nif_key")
-  direccion               String
+  nif                     String?            @unique(map: "Cliente_nif_key")
+  direccion               String?
   direccionComplementaria String?
-  codigoPostal            String
-  ciudad                  String
-  provincia               String
+  codigoPostal            String?
+  ciudad                  String?
+  provincia               String?
   pais                    String             @default("España")
   activo                  Boolean            @default(true)
   aceptaMarketing         Boolean            @default(false)
@@ -367,11 +367,12 @@ model producto {
   marcaId              Int?
   createdAt            DateTime            @default(now())
   updatedAt            DateTime
-  referencia           String              @unique(map: "Producto_referencia_key")
+  referencia           String?             @unique(map: "Producto_referencia_key")
   slug                 String?             @unique(map: "Producto_slug_key")
   caracteristica       caracteristica[]
   pedidoproducto       pedidoproducto[]
   precioespecifico     precioespecifico[]
+  mapeoProductoPs      mapeo_producto_ps[]
   marca                marca?              @relation(fields: [marcaId], references: [id], map: "Producto_marcaId_fkey")
   reglaimpuesto        reglaimpuesto?      @relation(fields: [reglaImpuestoId], references: [id], map: "Producto_reglaImpuestoId_fkey")
   productocategoria    productocategoria[]
@@ -489,11 +490,48 @@ enum pedido_estadoPago {
   REEMBOLSADO
 }
 
+model estadopedido {
+  id                 Int      @id @default(autoincrement())
+  clave              String   @unique
+  nombre             String
+  color              String   @default("#6b7280")
+  icono              String?
+  orden              Int      @default(0)
+  activo             Boolean  @default(true)
+  enviarEmail        Boolean  @default(false)
+  plantillaEmail     String?
+  esEntrega          Boolean  @default(false)
+  esFactura          Boolean  @default(false)
+  considerarValidado Boolean  @default(false)
+  permitirFacturaPDF Boolean  @default(false)
+  ocultarEstado      Boolean  @default(false)
+  adjuntarFacturaPDF Boolean  @default(false)
+  adjuntarAlbaranPDF Boolean  @default(false)
+  establecerEnviado  Boolean  @default(false)
+  establecerPagado   Boolean  @default(false)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime
+}
+
 enum pedido_estado {
   PENDIENTE
   PROCESANDO
   ENVIADO
   ENTREGADO
+  CUESTIONARIO
   CANCELADO
   DEVUELTO
+}
+
+model mapeo_producto_ps {
+  id           Int      @id @default(autoincrement())
+  idPrestashop Int      @unique
+  referencia   String
+  productoId   Int?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime
+  producto     producto? @relation(fields: [productoId], references: [id], onDelete: SetNull, map: "MapeoProductoPS_productoId_fkey")
+
+  @@index([referencia], map: "MapeoProductoPS_referencia_idx")
+  @@index([productoId], map: "MapeoProductoPS_productoId_idx")
 }

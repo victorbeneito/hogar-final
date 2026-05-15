@@ -142,6 +142,20 @@ export default function TabBasicos({ producto, categorias, marcas, onChange, dat
           <p className="text-xs text-gray-400">La primera imagen es la portada. Pulsa "Portada" para cambiarla.</p>
         </div>
 
+        {/* Referencia */}
+        <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
+          <h3 className="text-sm font-semibold text-gray-700 mb-3">
+            Referencia <span className="text-red-500">*</span>
+          </h3>
+          <input
+            type="text"
+            value={data.referencia ?? ""}
+            onChange={(e) => onChange("referencia", e.target.value)}
+            placeholder="Ej: W-V-80853"
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+
         {/* Categoría */}
         <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
           <h3 className="text-sm font-semibold text-gray-700 mb-3">Categoría</h3>

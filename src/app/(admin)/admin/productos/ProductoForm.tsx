@@ -34,6 +34,7 @@ export default function ProductoForm({ producto, categorias, marcas, reglasImpue
 
   const [formData, setFormData] = useState({
     // Básicos
+    referencia:       producto?.referencia       ?? "",
     nombre:           producto?.nombre           ?? "",
     resumen:          producto?.resumen          ?? "",
     descripcion:      producto?.descripcion      ?? "",

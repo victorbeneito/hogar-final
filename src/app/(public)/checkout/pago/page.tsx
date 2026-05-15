@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useClienteAuth } from "@/context/ClienteAuthContext";
-import { getCart, CartItem, clearCart, getCartSessionId, syncCartSnapshot } from "@/lib/cartService"; // Añadido clearCart
+import { getCart, CartItem, clearCart, getCartSessionId, syncCartSnapshot } from "@/lib/cartService";
 import { toast } from "react-hot-toast";
 import { DEFAULT_PAYMENT_CONFIG, normalizePaymentConfig, type PaymentCheckoutConfig, calculateContrareembolso } from "@/lib/paymentSettings";
 
@@ -36,13 +36,18 @@ export default function PagoPage() {
   const [showPaypal, setShowPaypal] = useState(false);
   
   const [pedidoTempId, setPedidoTempId] = useState("");
-  const [procesando, setProcesando] = useState(false); // Para deshabilitar botón al guardar
+  const [procesando, setProcesando] = useState(false);
+  const procesandoRef = useRef(false); // Guard síncrono contra doble envío
+
+ useEffect(() => {
+    toast.dismiss();
+  }, []);
 
  useEffect(() => {
     if (!loading) {
-        if (!cliente) { 
-            router.push("/auth?redirect=/checkout/pago"); 
-            return; 
+        if (!cliente) {
+            router.push("/auth?redirect=/checkout/pago");
+            return;
         }
         
         const cart = getCart();
@@ -100,14 +105,17 @@ export default function PagoPage() {
 
   // 👇 AQUÍ ESTÁ LA MAGIA: Guardamos antes de seguir
   const handlePagarClick = async () => {
-    if (!metodoPago) { 
-        toast.error("Por favor, selecciona cómo quieres pagar"); 
-        return; 
+    if (!metodoPago) {
+        toast.error("Por favor, selecciona cómo quieres pagar");
+        return;
     }
 
     if (!cliente) return;
 
-    setProcesando(true); // Bloqueamos botón
+    // Guard síncrono: el ref se actualiza inmediatamente, el estado tarda un ciclo de render
+    if (procesandoRef.current) return;
+    procesandoRef.current = true;
+    setProcesando(true);
     const toastId = toast.loading("Registrando pedido...");
 
     // 1. Preparamos los datos para la BD
@@ -163,11 +171,33 @@ export default function PagoPage() {
             // clearCart(); 
             // window.dispatchEvent(new Event("storage"));
 
-            // 3. --- ENRUTAMIENTO ORIGINAL (RESTAURO TU LÓGICA) ---
+            // 3. --- ENRUTAMIENTO ---
             if (metodoPago === 'tarjeta') {
-                setShowRedsys(true); // Abre tu popup original
+                setShowRedsys(true);
             } else if (metodoPago === 'paypal') {
-                setShowPaypal(true); // Abre tu popup original
+                // Redirección directa a PayPal — sin modal intermedio
+                const toastPaypal = toast.loading("Conectando con PayPal...");
+                try {
+                    const ppRes = await fetch("/api/paypal/crear-orden", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            pedidoId: realId,
+                            total: datosPedido.totalFinal,
+                            currency: "EUR",
+                        }),
+                    });
+                    const ppData = await ppRes.json();
+                    toast.dismiss(toastPaypal);
+                    if (!ppRes.ok || !ppData.approvalUrl) {
+                        toast.error(ppData.error || "Error al conectar con PayPal");
+                    } else {
+                        window.location.href = ppData.approvalUrl;
+                    }
+                } catch {
+                    toast.dismiss(toastPaypal);
+                    toast.error("Error al conectar con PayPal");
+                }
             } else if (metodoPago === 'contrareembolso') {
                router.push(`/checkout/pago/contrareembolso?id=${realId}&total=${datosPedido.totalFinal}`);
             } else if (metodoPago === 'transferencia') {
@@ -184,6 +214,7 @@ export default function PagoPage() {
         console.error(error);
         toast.error("Error de conexión");
     } finally {
+        procesandoRef.current = false;
         setProcesando(false);
     }
   };

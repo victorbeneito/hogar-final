@@ -57,6 +57,14 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ ok: true, result, adminEmail: admin.email });
   } catch (error: any) {
-    return NextResponse.json({ ok: false, error: error.message || "Error de envío" }, { status: 500 });
+    console.error("❌ [correos/enviar] Error:", error);
+    return NextResponse.json({
+      ok: false,
+      error: error.message || "Error de envío",
+      code: error.code,
+      command: error.command,
+      responseCode: error.responseCode,
+      response: error.response,
+    }, { status: 500 });
   }
 }

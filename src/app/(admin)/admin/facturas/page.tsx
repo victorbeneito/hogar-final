@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowRight, RefreshCw, Search, Settings } from "lucide-react";
 
 type InvoiceRow = {
@@ -26,12 +26,21 @@ type InvoiceRow = {
   };
 };
 
+type SourceFilter = "actuales" | "prestashop" | "todos";
+
+function normalizeSourceFilter(value: string | null): SourceFilter {
+  return value === "prestashop" || value === "todos" ? value : "actuales";
+}
+
 export default function AdminFacturasPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const origenInicial = normalizeSourceFilter(searchParams.get("origen"));
   const [facturas, setFacturas] = useState<InvoiceRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [filters, setFilters] = useState({
+    origen: origenInicial,
     numero: "",
     cliente: "",
     fechaDesde: "",
@@ -47,6 +56,10 @@ export default function AdminFacturasPage() {
     });
     return params.toString();
   }, [filters]);
+
+  useEffect(() => {
+    setFilters((prev) => (prev.origen === origenInicial ? prev : { ...prev, origen: origenInicial }));
+  }, [origenInicial]);
 
   useEffect(() => {
     fetchFacturas();
@@ -78,7 +91,10 @@ export default function AdminFacturasPage() {
         <div className="mb-6 flex flex-col gap-3">
           <div>
             <p className="text-sm text-gray-500">Facturas</p>
-            <h1 className="text-3xl md:text-4xl font-bold text-[#4A4A4A]">Gestión de facturas</h1>
+            <h1 className="text-3xl md:text-4xl font-bold text-[#4A4A4A]">Gestión de facturas nuevas</h1>
+            <p className="mt-2 text-sm text-gray-500 max-w-2xl">
+              Las facturas importadas de Prestashop quedan en el archivo histórico; aquí se prioriza el flujo operativo.
+            </p>
           </div>
 
           <div className="flex flex-wrap gap-2">
@@ -95,6 +111,12 @@ export default function AdminFacturasPage() {
             >
               <RefreshCw className="w-4 h-4" />
               {refreshing ? "Actualizando..." : "Actualizar"}
+            </button>
+            <button
+              onClick={() => router.push("/admin/prestashop")}
+              className="inline-flex items-center gap-2 rounded-xl border border-[#6BAEC9]/30 bg-[#6BAEC9]/5 px-4 py-3 text-sm font-semibold text-[#5FA0B3] hover:bg-[#6BAEC9]/10"
+            >
+              Archivo Prestashop
             </button>
             <button
               onClick={() => router.push("/admin/pedidos")}
@@ -119,6 +141,15 @@ export default function AdminFacturasPage() {
               placeholder="Buscar por cliente"
               className="rounded-xl border border-gray-200 px-3 py-2.5 text-sm"
             />
+            <select
+              value={filters.origen}
+              onChange={(e) => setFilters((prev) => ({ ...prev, origen: e.target.value as SourceFilter }))}
+              className="rounded-xl border border-gray-200 px-3 py-2.5 text-sm bg-white"
+            >
+              <option value="actuales">Fuente: nuevas</option>
+              <option value="prestashop">Fuente: Prestashop</option>
+              <option value="todos">Fuente: todas</option>
+            </select>
             <input
               type="date"
               value={filters.fechaDesde}

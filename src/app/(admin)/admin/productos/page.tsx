@@ -20,6 +20,7 @@ type Producto = {
   precio: number;
   precioOferta: number | null;
   stock: number;
+  numVariantes: number;
   activo: boolean;
   destacado: boolean;
   slug: true,
@@ -174,7 +175,7 @@ export default function ProductosPage() {
   // ── Render: cabecera de columna ordenable ───────────────────────────────────
   const ColHeader = ({ field, label, className = "" }: { field: SortField; label: string; className?: string }) => (
     <th
-      className={`px-3 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider cursor-pointer select-none hover:bg-gray-100 dark:hover:bg-gray-700 whitespace-nowrap \${className}`}
+      className={`px-3 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider cursor-pointer select-none hover:bg-gray-100 dark:hover:bg-gray-700 whitespace-nowrap ${className}`}
       onClick={() => toggleSort(field)}
     >
       <div className="flex items-center gap-1">
@@ -196,7 +197,7 @@ export default function ProductosPage() {
       {/* ── Toast ── */}
       {toast && (
         <div className={`fixed top-4 right-4 z-50 flex items-center gap-2 px-4 py-3 rounded-lg shadow-lg text-white text-sm font-medium transition-all
-          \${toast.tipo === "ok" ? "bg-green-600" : "bg-red-600"}`}>
+          ${toast.tipo === "ok" ? "bg-green-600" : "bg-red-600"}`}>
           {toast.tipo === "ok"
             ? <CheckCircle2 className="w-4 h-4" />
             : <XCircle      className="w-4 h-4" />}
@@ -314,6 +315,7 @@ export default function ProductosPage() {
                 <th className="px-3 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider w-36">Categoría</th>
                 <ColHeader field="precio" label="Precio"   className="w-32" />
                 <ColHeader field="stock"  label="Cantidad" className="w-24" />
+                <th className="px-3 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider w-24">Variantes</th>
                 <ColHeader field="activo" label="Estado"   className="w-24" />
                 <th className="px-3 py-3 text-center text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider w-32">Acciones</th>
               </tr>
@@ -367,6 +369,8 @@ export default function ProductosPage() {
                       className="w-12 px-1 py-1 text-xs border border-gray-200 dark:border-gray-600 rounded bg-gray-50 dark:bg-gray-800 dark:text-white" />
                   </div>
                 </td>
+                {/* Variantes (sin filtro) */}
+                <td />
                 {/* Estado */}
                 <td className="px-1 py-1.5">
                   <select value={filtros.activo} onChange={e => setFiltro("activo", e.target.value)}
@@ -384,7 +388,7 @@ export default function ProductosPage() {
               {loading ? (
                 Array.from({ length: 5 }).map((_, i) => (
                   <tr key={i} className="animate-pulse">
-                    {Array.from({ length: 10 }).map((_, j) => (
+                    {Array.from({ length: 11 }).map((_, j) => (
                       <td key={j} className="px-3 py-3">
                         <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded" />
                       </td>
@@ -393,7 +397,7 @@ export default function ProductosPage() {
                 ))
               ) : productos.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="text-center py-12 text-gray-400 dark:text-gray-500">
+                  <td colSpan={11} className="text-center py-12 text-gray-400 dark:text-gray-500">
                     No se encontraron productos
                   </td>
                 </tr>
@@ -404,7 +408,7 @@ export default function ProductosPage() {
                     (Array.isArray(p.productoimagen) && p.productoimagen.length > 0 && p.productoimagen[0]?.url) ||
                     null;
                   return (
-                    <tr key={p.id} className={`hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors \${seleccionados.includes(p.id) ? "bg-blue-50 dark:bg-blue-900/10" : ""}`}>
+                    <tr key={p.id} className={`hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors ${seleccionados.includes(p.id) ? "bg-blue-50 dark:bg-blue-900/10" : ""}`}>
                       <td className="px-3 py-2.5">
                         <input type="checkbox" checked={seleccionados.includes(p.id)} onChange={() => toggleSeleccion(p.id)}
                           className="rounded border-gray-300 text-blue-500" />
@@ -447,8 +451,17 @@ export default function ProductosPage() {
                       </td>
                       {/* Stock */}
                       <td className="px-3 py-2.5 text-center">
-                        <span className={`font-semibold text-sm \${p.stock === 0 ? "text-red-500" : p.stock < 5 ? "text-orange-500" : "text-gray-700 dark:text-gray-200"}`}>
+                        <span className={`font-semibold text-sm ${p.stock === 0 ? "text-red-500" : p.stock < 5 ? "text-orange-500" : "text-gray-700 dark:text-gray-200"}`}>
                           {p.stock}
+                        </span>
+                      </td>
+                      {/* Variantes */}
+                      <td className="px-3 py-2.5 text-center">
+                        <span className={`inline-flex items-center justify-center min-w-[2rem] px-2 py-0.5 rounded-full text-xs font-semibold
+                          ${p.numVariantes === 0
+                            ? "bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400"
+                            : "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"}`}>
+                          {p.numVariantes}
                         </span>
                       </td>
                       {/* Estado */}
@@ -495,11 +508,11 @@ export default function ProductosPage() {
           </p>
           <div className="flex items-center gap-1">
             <button onClick={() => setPagina(1)} disabled={pagina === 1}
-              className="px-2 py-1.5 text-xs rounded-md border border-gray-200 dark:border-gray-600 disabled:opacity-40 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+              className="px-2 py-1.5 text-xs rounded-md border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-200 disabled:opacity-40 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
               «
             </button>
             <button onClick={() => setPagina(p => Math.max(1, p - 1))} disabled={pagina === 1}
-              className="px-2 py-1.5 rounded-md border border-gray-200 dark:border-gray-600 disabled:opacity-40 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+              className="px-2 py-1.5 rounded-md border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-200 disabled:opacity-40 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
               <ChevronLeft className="w-4 h-4" />
             </button>
             {/* Números de página */}
@@ -510,7 +523,7 @@ export default function ProductosPage() {
               return (
                 <button key={num} onClick={() => setPagina(num)}
                   className={`w-8 h-8 text-xs rounded-md border transition-colors
-                    \${pagina === num
+                    ${pagina === num
                       ? "bg-[#3498db] border-[#3498db] text-white font-semibold"
                       : "border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200"
                     }`}>
@@ -519,11 +532,11 @@ export default function ProductosPage() {
               );
             })}
             <button onClick={() => setPagina(p => Math.min(totalPaginas, p + 1))} disabled={pagina === totalPaginas}
-              className="px-2 py-1.5 rounded-md border border-gray-200 dark:border-gray-600 disabled:opacity-40 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+              className="px-2 py-1.5 rounded-md border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-200 disabled:opacity-40 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
               <ChevronRight className="w-4 h-4" />
             </button>
             <button onClick={() => setPagina(totalPaginas)} disabled={pagina === totalPaginas}
-              className="px-2 py-1.5 text-xs rounded-md border border-gray-200 dark:border-gray-600 disabled:opacity-40 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+              className="px-2 py-1.5 text-xs rounded-md border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-200 disabled:opacity-40 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
               »
             </button>
           </div>

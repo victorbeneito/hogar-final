@@ -72,21 +72,21 @@ export default function AdminLayout({
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-gray-100 flex">
       <AdminSidebar />
 
       <div className="flex-1 min-w-0 flex flex-col">
-        <header className="bg-white shadow p-4 flex justify-between items-center sticky top-0 z-50">
-          <h1 className="text-xl font-semibold text-gray-800">
+        <header className="bg-white dark:bg-gray-800 shadow p-4 flex justify-between items-center sticky top-0 z-50">
+          <h1 className="text-xl font-semibold text-gray-800 dark:text-white">
             Panel de Administración
           </h1>
           {adminEmail && (
             <div className="flex items-center gap-4">
-              <span className="text-gray-600 text-sm hidden sm:block">{adminEmail}</span>
+              <span className="text-gray-600 dark:text-gray-300 text-sm hidden sm:block">{adminEmail}</span>
               <button
                 onClick={() => {
                   localStorage.removeItem("adminToken");
-                  router.replace("/admin-login"); // ✅ CORREGIDO
+                  router.replace("/admin-login");
                 }}
                 className="text-red-600 hover:text-red-800 font-bold text-sm border border-red-200 px-3 py-1 rounded hover:bg-red-50 transition"
               >

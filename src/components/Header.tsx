@@ -46,17 +46,14 @@ export default function Header() {
               />
             </div>
 
-            {/* Banner Revi (Claro/Oscuro) */}
-            <div className="flex-shrink-0 transform hover:scale-105 transition-transform duration-300">
-              <img
-                src="/img/banner-revi-claro.jpg"
-                alt="Banner Revi Claro"
-                className="h-16 lg:h-24 w-auto object-contain block dark:hidden"
-              />
-              <img
-                src="/img/banner-revi.jpg"
-                alt="Banner Revi Oscuro"
-                className="h-16 lg:h-24 w-auto object-contain hidden dark:block"
+            {/* REVI: Widget de sello/badge de valoraciones */}
+            <div className="flex-shrink-0">
+              <div
+                className="revi-widget-X6RbBk4RDL"
+                data-revi-widget-lazy=""
+                data-id-product=""
+                data-lang="es"
+                style={{ minHeight: '60px', minWidth: '120px' }}
               />
             </div>
 

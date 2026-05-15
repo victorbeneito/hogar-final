@@ -195,8 +195,12 @@ export async function PUT(req: NextRequest) {
   } catch (error: any) {
     console.error("❌ Error PUT Dirección:", error.message);
 
-    if (error.message === "invalid signature" || error.message === "jwt malformed") {
-      return NextResponse.json({ ok: false, error: "Error de seguridad: Tu sesión no es válida. Por favor, cierra sesión y entra de nuevo." }, { status: 401 });
+    if (
+      error.message === "jwt expired" ||
+      error.message === "invalid signature" ||
+      error.message === "jwt malformed"
+    ) {
+      return NextResponse.json({ ok: false, error: "Tu sesión ha expirado. Por favor, cierra sesión y entra de nuevo." }, { status: 401 });
     }
 
     return NextResponse.json({ ok: false, error: error.message }, { status: 500 });

@@ -8,7 +8,7 @@ export type ModuleDefinition = {
   route: string;
   icon: string;
   defaults: Record<string, any>;
-  fields: Array<{ key: string; label: string; type: "text" | "number" | "boolean" | "select"; options?: string[] }>;
+  fields: Array<{ key: string; label: string; type: "text" | "number" | "boolean" | "select" | "multiselect"; options?: string[] }>;
 };
 
 export const MODULES: ModuleDefinition[] = [
@@ -74,12 +74,22 @@ export const MODULES: ModuleDefinition[] = [
       apiKey: "",
       shopId: "",
       autoInvite: true,
+      triggerStates: ["CUESTIONARIO"],
+      excludedStates: ["CANCELADO", "DEVUELTO"],
+      showOnProduct: true,
+      showOnListings: true,
+      showOnEmpty: true,
     },
     fields: [
       { key: "activa", label: "Activo", type: "boolean" },
       { key: "apiKey", label: "API key", type: "text" },
       { key: "shopId", label: "Shop ID", type: "text" },
       { key: "autoInvite", label: "Invitación automática", type: "boolean" },
+      { key: "triggerStates", label: "Estados que disparan", type: "multiselect", options: ["CUESTIONARIO"] },
+      { key: "excludedStates", label: "Estados excluidos", type: "multiselect", options: ["CANCELADO", "DEVUELTO"] },
+      { key: "showOnProduct", label: "Mostrar en ficha de producto", type: "boolean" },
+      { key: "showOnListings", label: "Mostrar en listados", type: "boolean" },
+      { key: "showOnEmpty", label: "Mostrar en productos sin reseñas", type: "boolean" },
     ],
   },
   {

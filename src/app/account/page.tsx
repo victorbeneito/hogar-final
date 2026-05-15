@@ -41,7 +41,7 @@ export default function AccountPage() {
     {
       title: "Mis Direcciones",
       desc: "Gestiona tus direcciones de envío.",
-      href: "/direcciones",
+      href: "/account/direcciones",
       icon: "📍",
       color: "bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400",
     },

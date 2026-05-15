@@ -2,10 +2,10 @@
 
 export const dynamic = "force-dynamic";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Papa from "papaparse";
-import { Upload, FileText, CheckCircle2, AlertTriangle, RefreshCw } from "lucide-react";
+import { Upload, FileText, CheckCircle2, AlertTriangle, RefreshCw, History, ChevronDown, ChevronUp, Clock } from "lucide-react";
 
 type ImportType =
   | "categorias"
@@ -221,6 +221,7 @@ const IMPORT_ORDER: ImportType[] = [
 ];
 
 export default function AdminImportarPage() {
+  const JOB_STORAGE_KEY = "importaciones:lastJobId";
   const router = useRouter();
   const [tipo, setTipo] = useState<ImportType>("productos");
   const [templatePreviewType, setTemplatePreviewType] = useState<ImportType>("productos");
@@ -229,11 +230,18 @@ export default function AdminImportarPage() {
   const [columnMap, setColumnMap] = useState<Record<string, string>>({});
   const [fileName, setFileName] = useState<string>("");
   const [loading, setLoading] = useState(false);
+  const [jobAction, setJobAction] = useState<"import" | "validate" | null>(null);
+  const [importJob, setImportJob] = useState<any>(null);
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState<string>("");
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [mappingStatus, setMappingStatus] = useState<string>("");
   const [mappingOwner, setMappingOwner] = useState<{ adminId: number | null; adminEmail: string | null }>({ adminId: null, adminEmail: null });
+  const [presetName, setPresetName] = useState<string>("");
+  const [savedPresets, setSavedPresets] = useState<string[]>([]);
+  const [historial, setHistorial] = useState<any[]>([]);
+  const [historialLoading, setHistorialLoading] = useState(false);
+  const [historialExpandido, setHistorialExpandido] = useState<Record<string, boolean>>({});
 
   const config = TYPES[tipo];
   const templatePreview = TYPES[templatePreviewType];
@@ -267,7 +275,11 @@ export default function AdminImportarPage() {
       const mapped: Record<string, string> = {};
       for (const field of config.fields) {
         const sourceHeader = columnMap[field] || "";
-        mapped[field] = sourceHeader ? String(row[sourceHeader] ?? "").trim() : "";
+        if (sourceHeader) {
+          mapped[field] = String(row[sourceHeader] ?? "").trim();
+        }
+        // Fields without a source header (sin usar) are omitted entirely
+        // so existing DB values are preserved on update
       }
       return mapped;
     });
@@ -276,6 +288,26 @@ export default function AdminImportarPage() {
   const rowValidation = useMemo(() => validateRows(mappedRows, config.requiredFields, tipo), [mappedRows, config.requiredFields, tipo]);
 
   const canImport = mappedRows.length > 0 && rowValidation.errors.length === 0;
+
+  function formatProgressDuration(seconds: number) {
+    const safeSeconds = Math.max(0, Math.floor(seconds));
+    const hours = Math.floor(safeSeconds / 3600);
+    const minutes = Math.floor((safeSeconds % 3600) / 60);
+    const secs = safeSeconds % 60;
+
+    if (hours > 0) {
+      return `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+    }
+
+    return `${minutes.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+  }
+
+  function formatImportJobTime(job: any) {
+    if (!job?.updatedAt) return "--:--";
+    return formatProgressDuration(job.stalledSeconds ?? 0);
+  }
+
+  const isValidationJob = importJob?.mode === "validate";
 
   useEffect(() => {
     let cancelled = false;
@@ -304,6 +336,10 @@ export default function AdminImportarPage() {
           setMappingOwner({ adminId: data.adminId ?? null, adminEmail: data.adminEmail ?? null });
           setMappingStatus("Sin mapeo guardado para este tipo");
         }
+
+        if (Array.isArray(data.presets)) {
+          setSavedPresets(data.presets as string[]);
+        }
       } catch {
         if (!cancelled) setMappingStatus("No se pudo cargar el mapeo guardado");
       }
@@ -317,9 +353,67 @@ export default function AdminImportarPage() {
   }, [headers, tipo]);
 
   useEffect(() => {
+    setSavedPresets([]);
+    setPresetName("");
+  }, [tipo]);
+
+  useEffect(() => {
     if (!headers.length) return;
     setValidationErrors(rowValidation.errors.slice(0, 20));
   }, [rowValidation.errors, headers.length]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function restoreLastJob() {
+      const lastJobId = localStorage.getItem(JOB_STORAGE_KEY);
+      if (!lastJobId) return;
+
+      try {
+        const res = await fetch(`/api/importaciones?jobId=${encodeURIComponent(lastJobId)}`, {
+          cache: "no-store",
+        });
+        const data = await res.json();
+
+        if (!res.ok || !data.ok || cancelled) {
+          if (res.status === 404) {
+            localStorage.removeItem(JOB_STORAGE_KEY);
+          }
+          return;
+        }
+
+        setImportJob(data.job ?? null);
+        if (data.job?.status === "completed") {
+          setResult(data.job.result ?? null);
+        } else if (data.job?.status === "running" || data.job?.status === "queued") {
+          void monitorImportJob(lastJobId);
+        }
+      } catch {
+        if (!cancelled) return;
+      }
+    }
+
+    restoreLastJob();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const cargarHistorial = useCallback(async () => {
+    setHistorialLoading(true);
+    try {
+      const res = await fetch("/api/importaciones", { cache: "no-store" });
+      const data = await res.json();
+      if (data.ok) setHistorial(data.jobs ?? []);
+    } catch {
+      // silencio
+    } finally {
+      setHistorialLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { cargarHistorial(); }, [cargarHistorial]);
 
   function normalizeHeader(header: string) {
     return header
@@ -450,9 +544,10 @@ export default function AdminImportarPage() {
   }
 
   function downloadErrorReport() {
-    if (!result?.errors?.length) return;
+    const jobErrors = Array.isArray(result?.errors) && result.errors.length > 0 ? result.errors : Array.isArray(importJob?.errors) ? importJob.errors : [];
+    if (!jobErrors.length) return;
 
-    const rowsForExport = result.errors.map((item: { row: number; error: string; sourceRow?: Record<string, any> }) => {
+    const rowsForExport = jobErrors.map((item: { row: number; error: string; sourceRow?: Record<string, any> }) => {
       const exportRow: Record<string, any> = {};
       const sourceRow = item.sourceRow ?? {};
 
@@ -474,6 +569,78 @@ export default function AdminImportarPage() {
     link.download = `informe-errores-${tipo}.csv`;
     link.click();
     URL.revokeObjectURL(url);
+  }
+
+  async function monitorImportJob(jobId: string) {
+    let keepPolling = true;
+
+    while (keepPolling) {
+      const statusRes = await fetch(`/api/importaciones?jobId=${encodeURIComponent(jobId)}`, {
+        cache: "no-store",
+      });
+      const statusData = await statusRes.json();
+
+      if (!statusRes.ok || !statusData.ok) {
+        throw new Error(statusData.error ?? "No se pudo consultar el progreso");
+      }
+
+      setImportJob(statusData.job ?? null);
+
+      if (statusData.job?.status === "completed") {
+        setResult(statusData.job.result ?? null);
+        setValidationErrors([]);
+        keepPolling = false;
+      } else if (statusData.job?.status === "failed") {
+        throw new Error(statusData.job.error ?? "La importación se ha detenido con error");
+      } else if (statusData.job?.status === "paused") {
+        keepPolling = false;
+      } else {
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+      }
+    }
+  }
+
+  async function sendJobAction(action: "cancel" | "resume") {
+    if (!importJob?.id) return;
+
+    const res = await fetch("/api/importaciones", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ jobId: importJob.id, action }),
+    });
+
+    const data = await res.json();
+    if (!res.ok || !data.ok) {
+      throw new Error(data.error ?? `No se pudo ${action === "cancel" ? "pausar" : "reanudar"} la importación`);
+    }
+
+    setImportJob(data.job ?? null);
+    localStorage.setItem(JOB_STORAGE_KEY, importJob.id);
+
+    if (action === "resume") {
+      await monitorImportJob(importJob.id);
+    }
+  }
+
+  async function cancelImportJob() {
+    setError("");
+    try {
+      await sendJobAction("cancel");
+    } catch (e: any) {
+      setError(e.message);
+    }
+  }
+
+  async function resumeImportJob() {
+    setError("");
+    setLoading(true);
+    try {
+      await sendJobAction("resume");
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
   }
 
   function reset() {
@@ -546,7 +713,7 @@ export default function AdminImportarPage() {
     }
   }
 
-  async function runImport() {
+  async function startBackgroundJob(mode: "import" | "validate") {
     if (!rows.length) {
       setError("Sube primero un CSV con filas válidas.");
       return;
@@ -557,14 +724,16 @@ export default function AdminImportarPage() {
       return;
     }
 
-    if (rowValidation.errors.length > 0) {
+    if (mode === "import" && rowValidation.errors.length > 0) {
       setError("Hay filas con campos obligatorios incompletos. Corrige la validación antes de importar.");
       return;
     }
 
     setLoading(true);
+    setJobAction(mode);
     setError("");
     setResult(null);
+    setImportJob(null);
 
     try {
       const res = await fetch("/api/importaciones", {
@@ -575,22 +744,33 @@ export default function AdminImportarPage() {
           rows: mappedRows,
           sourceRows: rows,
           sourceHeaders: headers,
+          mode,
         }),
       });
 
       const data = await res.json();
-      if (!res.ok || !data.ok) {
+      if (!res.ok || !data.ok || !data.jobId) {
         setResult(data);
-        throw new Error(data.error ?? "Error ejecutando importación");
+        throw new Error(data.error ?? "No se pudo iniciar la importación");
       }
 
-      setResult(data);
-      setValidationErrors([]);
+      setImportJob(data.job ?? null);
+      localStorage.setItem(JOB_STORAGE_KEY, data.jobId);
+      await monitorImportJob(data.jobId);
     } catch (e: any) {
       setError(e.message);
     } finally {
       setLoading(false);
+      setJobAction(null);
     }
+  }
+
+  async function runImport() {
+    await startBackgroundJob("import");
+  }
+
+  async function runPrevalidation() {
+    await startBackgroundJob("validate");
   }
 
   return (
@@ -614,6 +794,95 @@ export default function AdminImportarPage() {
 
         <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.28fr)_minmax(320px,0.72fr)] gap-6 xl:gap-8">
           <div className="min-w-0 bg-white rounded-2xl shadow-lg border border-[#6BAEC9]/10 p-6 space-y-6">
+            {importJob && (
+              <div className={`rounded-2xl border p-4 ${importJob.status === "failed" ? "border-red-200 bg-red-50 text-red-800" : importJob.status === "completed" ? "border-green-200 bg-green-50 text-green-800" : "border-[#6BAEC9]/20 bg-[#6BAEC9]/5 text-[#2c3e50]"}`}>
+                <div className="flex items-start justify-between gap-4 flex-wrap">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.24em] font-semibold text-gray-500">Progreso de importación</p>
+                    <h2 className="mt-1 text-lg font-bold">
+                      {importJob.status === "paused" ? "Pausado" : importJob.phase || "Procesando"}
+                    </h2>
+                    <p className="mt-1 text-sm text-gray-600">{importJob.currentLabel || "Preparando importación"}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xl font-extrabold">{importJob.current || 0}/{importJob.total || 0}</p>
+                    <p className="text-xs text-gray-500">{importJob.progress ?? 0}%</p>
+                  </div>
+                </div>
+
+                <div className="mt-4 h-3 overflow-hidden rounded-full bg-white/70 border border-white/60">
+                  <div
+                    className={`h-full rounded-full transition-all ${importJob.status === "failed" ? "bg-red-500" : importJob.status === "completed" ? "bg-green-500" : "bg-[#6BAEC9]"}`}
+                    style={{ width: `${Math.max(0, Math.min(100, importJob.progress ?? 0))}%` }}
+                  />
+                </div>
+
+                <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-gray-600">
+                  <span>Creados: {importJob.counts?.created ?? 0}</span>
+                  <span>Actualizados: {importJob.counts?.updated ?? 0}</span>
+                  <span>Eliminados: {importJob.counts?.deleted ?? 0}</span>
+                  <span>Omitidos: {importJob.counts?.skipped ?? 0}</span>
+                  <span>Errores: {importJob.counts?.failed ?? 0}</span>
+                  <span>Inactividad: {formatImportJobTime(importJob)}</span>
+                  {importJob.stalled && <span className="font-semibold text-red-600">Sin avance detectado</span>}
+                </div>
+
+                {importJob.status === "failed" && importJob.error && (
+                  <div className="mt-4 rounded-xl border border-red-200 bg-white/80 p-3 text-sm text-red-800">
+                    <p className="font-semibold">Causa del fallo</p>
+                    <p className="mt-1 break-words">{importJob.error}</p>
+                  </div>
+                )}
+
+                {(Array.isArray(importJob.errors) && importJob.errors.length > 0) && (
+                  <div className="mt-4 rounded-xl border border-amber-200 bg-white/80 p-3 text-xs text-amber-900">
+                    <div className="flex items-center justify-between gap-3 mb-2">
+                      <p className="font-semibold">Filas con error</p>
+                      <button
+                        type="button"
+                        onClick={downloadErrorReport}
+                        className="inline-flex items-center gap-2 rounded-lg border border-amber-300 bg-white px-3 py-1.5 font-semibold text-amber-900 hover:bg-amber-50 transition"
+                      >
+                        <FileText className="w-3.5 h-3.5" /> Descargar CSV
+                      </button>
+                    </div>
+                    <ul className="space-y-1 list-disc pl-5 max-h-44 overflow-auto">
+                      {(Array.isArray(result?.errors) && result.errors.length > 0 ? result.errors : importJob.errors).map((item: { row: number; error: string }) => (
+                        <li key={`${item.row}-${item.error}`}>
+                          Fila {item.row}: {item.error}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {importJob.status === "running" && (
+                    <button
+                      type="button"
+                      onClick={cancelImportJob}
+                      className="inline-flex items-center gap-2 rounded-xl border border-red-200 bg-white px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-50"
+                    >
+                      Pausar importación
+                    </button>
+                  )}
+                  {importJob.status === "paused" && (
+                    <button
+                      type="button"
+                      onClick={resumeImportJob}
+                      className="inline-flex items-center gap-2 rounded-xl border border-green-200 bg-white px-4 py-2 text-sm font-semibold text-green-700 hover:bg-green-50"
+                    >
+                      Reanudar importación
+                    </button>
+                  )}
+                </div>
+
+                <div className="mt-2 text-xs text-gray-500 break-all">
+                  Trabajo {importJob.id}
+                </div>
+              </div>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-600 mb-1">Tipo de importación</label>
@@ -673,33 +942,6 @@ export default function AdminImportarPage() {
               </button>
               <button
                 type="button"
-                onClick={async () => {
-                  try {
-                    const res = await fetch("/api/importaciones/mapeo", {
-                      method: "POST",
-                      credentials: "include",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ tipo, mapping: columnMap }),
-                    });
-
-                    const data = await res.json();
-                    if (!res.ok || !data.ok) {
-                      throw new Error(data.error ?? "No se pudo guardar el mapeo");
-                    }
-
-                    setMappingOwner({ adminId: data.adminId ?? null, adminEmail: data.adminEmail ?? null });
-                    setMappingStatus(data.adminEmail ? `Mapeo guardado para ${data.adminEmail}` : "Mapeo guardado en backend");
-                  } catch (saveError: any) {
-                    setMappingStatus(saveError.message);
-                  }
-                }}
-                disabled={!headers.length}
-                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-gray-200 text-gray-700 bg-white hover:bg-gray-50 text-sm font-semibold transition disabled:opacity-50"
-              >
-                <CheckCircle2 className="w-4 h-4" /> Guardar mapeo
-              </button>
-              <button
-                type="button"
                 onClick={() => {
                   setColumnMap(buildAutoMap(headers, config.fields));
                   setMappingStatus("Mapeo restablecido");
@@ -712,6 +954,128 @@ export default function AdminImportarPage() {
               <p className="text-xs text-gray-500">
                 La plantilla sale con las columnas que espera la importación seleccionada.
               </p>
+            </div>
+
+            {/* Preset save/load area */}
+            <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4 space-y-3">
+              <p className="text-sm font-semibold text-gray-700">Presets de mapeo</p>
+
+              {/* Save preset */}
+              <div className="flex flex-wrap items-center gap-2">
+                <input
+                  type="text"
+                  value={presetName}
+                  onChange={(e) => setPresetName(e.target.value)}
+                  placeholder="Nombre del preset (ej: solo categorias)"
+                  className="flex-1 min-w-[200px] px-3 py-2 rounded-xl border border-gray-200 bg-white text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#6BAEC9]/40"
+                />
+                <button
+                  type="button"
+                  disabled={!headers.length || !presetName.trim()}
+                  onClick={async () => {
+                    try {
+                      const res = await fetch("/api/importaciones/mapeo", {
+                        method: "POST",
+                        credentials: "include",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ tipo, mapping: columnMap, nombre: presetName.trim() }),
+                      });
+                      const data = await res.json();
+                      if (!res.ok || !data.ok) throw new Error(data.error ?? "No se pudo guardar el preset");
+                      setSavedPresets(Array.isArray(data.presets) ? data.presets : []);
+                      setMappingStatus(`Preset "${presetName.trim()}" guardado`);
+                      setPresetName("");
+                    } catch (e: any) {
+                      setMappingStatus(e.message);
+                    }
+                  }}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#6BAEC9] hover:bg-[#5a9db8] text-white text-sm font-semibold transition disabled:opacity-40"
+                >
+                  <CheckCircle2 className="w-4 h-4" /> Guardar preset
+                </button>
+                <button
+                  type="button"
+                  disabled={!headers.length}
+                  onClick={async () => {
+                    try {
+                      const res = await fetch("/api/importaciones/mapeo", {
+                        method: "POST",
+                        credentials: "include",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ tipo, mapping: columnMap }),
+                      });
+                      const data = await res.json();
+                      if (!res.ok || !data.ok) throw new Error(data.error ?? "No se pudo guardar el mapeo");
+                      setMappingOwner({ adminId: data.adminId ?? null, adminEmail: data.adminEmail ?? null });
+                      setMappingStatus(data.adminEmail ? `Mapeo por defecto guardado para ${data.adminEmail}` : "Mapeo por defecto guardado");
+                    } catch (e: any) {
+                      setMappingStatus(e.message);
+                    }
+                  }}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-gray-200 text-gray-700 bg-white hover:bg-gray-100 text-sm font-semibold transition disabled:opacity-40"
+                >
+                  <CheckCircle2 className="w-4 h-4" /> Guardar como predeterminado
+                </button>
+              </div>
+
+              {/* Saved presets list */}
+              {savedPresets.length > 0 && (
+                <div className="space-y-1">
+                  <p className="text-xs text-gray-500">Presets guardados — haz clic para cargar:</p>
+                  <div className="flex flex-wrap gap-2">
+                    {savedPresets.map((name) => (
+                      <div key={name} className="inline-flex items-center gap-1 rounded-xl border border-gray-200 bg-white text-sm overflow-hidden">
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            try {
+                              const res = await fetch(
+                                `/api/importaciones/mapeo?tipo=${encodeURIComponent(tipo)}&preset=${encodeURIComponent(name)}`,
+                                { credentials: "include" }
+                              );
+                              const data = await res.json();
+                              if (!res.ok || !data.ok) throw new Error(data.error ?? "No se pudo cargar el preset");
+                              if (!data.found) throw new Error(`Preset "${name}" no encontrado`);
+                              const filtered = Object.fromEntries(
+                                Object.entries(data.mapping as Record<string, string>).filter(([, h]) => headers.includes(h))
+                              );
+                              setColumnMap(dedupeMapping(filtered, config.fields));
+                              setMappingStatus(`Preset "${name}" cargado`);
+                            } catch (e: any) {
+                              setMappingStatus(e.message);
+                            }
+                          }}
+                          className="px-3 py-1.5 text-gray-700 hover:bg-[#f0f8fc] hover:text-[#2c3e50] font-medium transition"
+                        >
+                          {name}
+                        </button>
+                        <button
+                          type="button"
+                          title="Eliminar preset"
+                          onClick={async () => {
+                            if (!confirm(`¿Eliminar el preset "${name}"?`)) return;
+                            try {
+                              const res = await fetch(
+                                `/api/importaciones/mapeo?tipo=${encodeURIComponent(tipo)}&preset=${encodeURIComponent(name)}`,
+                                { method: "DELETE", credentials: "include" }
+                              );
+                              const data = await res.json();
+                              if (!res.ok || !data.ok) throw new Error(data.error ?? "No se pudo eliminar");
+                              setSavedPresets(Array.isArray(data.presets) ? data.presets : []);
+                              setMappingStatus(`Preset "${name}" eliminado`);
+                            } catch (e: any) {
+                              setMappingStatus(e.message);
+                            }
+                          }}
+                          className="px-2 py-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 transition border-l border-gray-200"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             {mappingStatus && (
@@ -806,12 +1170,26 @@ export default function AdminImportarPage() {
             )}
 
             {result && (
-              <div className={`rounded-2xl p-4 text-sm flex items-start gap-3 ${result.failed > 0 ? "border border-amber-200 bg-amber-50 text-amber-800" : "border border-green-200 bg-green-50 text-green-700"}`}>
+              <div className={`rounded-2xl p-4 text-sm flex items-start gap-3 ${(result.failed > 0 || result.skipped > 0) ? "border border-amber-200 bg-amber-50 text-amber-800" : "border border-green-200 bg-green-50 text-green-700"}`}>
                 <CheckCircle2 className="w-5 h-5 mt-0.5" />
                 <div className="space-y-3 w-full">
                   <div>
-                    <p className="font-semibold">{result.failed > 0 ? "Importación completada con avisos" : "Importación completada"}</p>
-                    <p>Procesadas: {result.imported ?? 0} · Fallidas: {result.failed ?? 0}</p>
+                    <p className="font-semibold">
+                      {isValidationJob
+                        ? (result.failed > 0 || result.skipped > 0)
+                          ? "Prevalidación completada con avisos"
+                          : "Prevalidación completada"
+                        : (result.failed > 0 || result.skipped > 0)
+                          ? "Importación completada con avisos"
+                          : "Importación completada"}
+                    </p>
+                    <p>
+                      {isValidationJob ? "Filas verificadas" : "Procesadas"}: {result.imported ?? 0} · Fallidas: {result.failed ?? 0}
+                      {typeof result.skipped === "number" ? ` · Omitidas: ${result.skipped}` : ""}
+                    </p>
+                    {isValidationJob && (result.failed > 0 || result.skipped > 0) && (
+                      <p className="text-xs mt-1 text-amber-700">Corrige estas filas antes de lanzar la importación real.</p>
+                    )}
                   </div>
 
                   {Array.isArray(result.errors) && result.errors.length > 0 && (
@@ -845,15 +1223,27 @@ export default function AdminImportarPage() {
                 <p className="text-xs text-gray-500">Se muestran las primeras 10 filas detectadas del CSV.</p>
               </div>
 
+              <div className="flex items-center gap-3 flex-wrap">
+                <button
+                  type="button"
+                  onClick={runPrevalidation}
+                  disabled={!mappedRows.length || loading || importJob?.status === "running"}
+                  className="inline-flex items-center gap-2 px-5 py-3 rounded-xl border border-[#6BAEC9]/30 bg-white text-[#2c3e50] font-semibold shadow-sm transition disabled:opacity-50 hover:bg-[#6BAEC9]/5"
+                >
+                  <AlertTriangle className="w-4 h-4" />
+                  {loading && jobAction === "validate" ? "Prevalidando..." : "Prevalidar CSV"}
+                </button>
+
                 <button
                   type="button"
                   onClick={runImport}
-                  disabled={!canImport || loading}
+                  disabled={!canImport || loading || importJob?.status === "running"}
                   className="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-[#6BAEC9] hover:bg-[#5FA0B3] text-white font-semibold shadow transition disabled:opacity-50"
                 >
                   <Upload className="w-4 h-4" />
-                  {loading ? "Importando..." : "Ejecutar importación"}
+                  {loading && jobAction === "import" ? "Importando..." : "Ejecutar importación"}
                 </button>
+              </div>
             </div>
 
             <div
@@ -1002,6 +1392,164 @@ export default function AdminImportarPage() {
               </ol>
             </div>
           </div>
+        </div>
+        {/* ── Historial de importaciones ── */}
+        <div className="bg-white rounded-2xl shadow-lg border border-[#6BAEC9]/10 p-6 space-y-4">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-2">
+              <History className="w-5 h-5 text-[#6BAEC9]" />
+              <h2 className="text-lg font-bold text-[#4A4A4A]">Historial de importaciones</h2>
+              <span className="text-xs text-gray-400">({historial.length} registros · últimos 7 días)</span>
+            </div>
+            <button
+              type="button"
+              onClick={cargarHistorial}
+              disabled={historialLoading}
+              className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50 transition disabled:opacity-50"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${historialLoading ? "animate-spin" : ""}`} />
+              Actualizar
+            </button>
+          </div>
+
+          {historial.length === 0 ? (
+            <p className="text-sm text-gray-400 py-4 text-center">
+              {historialLoading ? "Cargando historial…" : "No hay importaciones registradas en los últimos 7 días."}
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {historial.map((job: any) => {
+                const isCompleted = job.status === "completed";
+                const isFailed = job.status === "failed";
+                const isPaused = job.status === "paused";
+                const isRunning = job.status === "running" || job.status === "queued";
+                const isValidate = job.mode === "validate";
+                const errorCount = Array.isArray(job.errors) ? job.errors.length : (job.counts?.failed ?? 0);
+                const expandido = historialExpandido[job.id] ?? false;
+
+                const duracionMs = job.finishedAt && job.startedAt
+                  ? new Date(job.finishedAt).getTime() - new Date(job.startedAt).getTime()
+                  : null;
+                const duracionStr = duracionMs !== null
+                  ? duracionMs < 60000
+                    ? `${Math.round(duracionMs / 1000)}s`
+                    : `${Math.floor(duracionMs / 60000)}m ${Math.round((duracionMs % 60000) / 1000)}s`
+                  : null;
+
+                const fechaStr = new Date(job.createdAt).toLocaleString("es-ES", {
+                  day: "2-digit", month: "2-digit", year: "numeric",
+                  hour: "2-digit", minute: "2-digit",
+                });
+
+                return (
+                  <div
+                    key={job.id}
+                    className={`rounded-xl border p-4 text-sm ${
+                      isFailed ? "border-red-200 bg-red-50" :
+                      isCompleted && errorCount > 0 ? "border-amber-200 bg-amber-50" :
+                      isCompleted ? "border-green-200 bg-green-50" :
+                      isPaused ? "border-yellow-200 bg-yellow-50" :
+                      "border-[#6BAEC9]/20 bg-[#6BAEC9]/5"
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-3 flex-wrap">
+                      <div className="flex items-start gap-3 min-w-0">
+                        {/* Icono estado */}
+                        <div className="mt-0.5 shrink-0">
+                          {isCompleted && errorCount === 0 && <CheckCircle2 className="w-4 h-4 text-green-600" />}
+                          {isCompleted && errorCount > 0 && <AlertTriangle className="w-4 h-4 text-amber-600" />}
+                          {isFailed && <AlertTriangle className="w-4 h-4 text-red-600" />}
+                          {isPaused && <Clock className="w-4 h-4 text-yellow-600" />}
+                          {isRunning && <RefreshCw className="w-4 h-4 text-[#6BAEC9] animate-spin" />}
+                        </div>
+                        <div className="min-w-0">
+                          {/* Tipo + modo + estado */}
+                          <div className="flex flex-wrap items-center gap-2 mb-1">
+                            <span className="font-semibold text-gray-800 capitalize">{job.tipo}</span>
+                            <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${isValidate ? "bg-purple-100 text-purple-700" : "bg-blue-100 text-blue-700"}`}>
+                              {isValidate ? "Prevalidación" : "Importación"}
+                            </span>
+                            <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
+                              isCompleted && errorCount === 0 ? "bg-green-100 text-green-700" :
+                              isCompleted ? "bg-amber-100 text-amber-700" :
+                              isFailed ? "bg-red-100 text-red-700" :
+                              isPaused ? "bg-yellow-100 text-yellow-700" :
+                              "bg-gray-100 text-gray-700"
+                            }`}>
+                              {isCompleted ? (errorCount === 0 ? "Completado" : "Completado con errores") :
+                               isFailed ? "Fallido" :
+                               isPaused ? "Pausado" :
+                               isRunning ? "En curso" : job.status}
+                            </span>
+                          </div>
+                          {/* Fecha + duración */}
+                          <div className="flex flex-wrap items-center gap-3 text-xs text-gray-500 mb-2">
+                            <span>{fechaStr}</span>
+                            {duracionStr && <span>Duración: {duracionStr}</span>}
+                            <span>ID: <span className="font-mono">{job.id.slice(0, 8)}…</span></span>
+                          </div>
+                          {/* Contadores */}
+                          <div className="flex flex-wrap gap-3 text-xs">
+                            <span className="text-green-700">✓ Creados: {job.counts?.created ?? 0}</span>
+                            <span className="text-blue-700">↑ Actualizados: {job.counts?.updated ?? 0}</span>
+                            <span className="text-gray-600">↗ Total: {job.total ?? 0}</span>
+                            {(job.counts?.failed ?? 0) > 0 && (
+                              <span className="text-red-600 font-semibold">✗ Errores: {job.counts?.failed ?? 0}</span>
+                            )}
+                            {(job.counts?.skipped ?? 0) > 0 && (
+                              <span className="text-amber-600">⚠ Omitidos: {job.counts?.skipped ?? 0}</span>
+                            )}
+                          </div>
+                          {/* Error fatal */}
+                          {isFailed && job.error && (
+                            <p className="mt-2 text-xs text-red-700 font-medium break-words">{job.error}</p>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Acciones */}
+                      <div className="flex items-center gap-2 shrink-0">
+                        {errorCount > 0 && Array.isArray(job.errors) && (
+                          <button
+                            type="button"
+                            onClick={() => setHistorialExpandido(prev => ({ ...prev, [job.id]: !prev[job.id] }))}
+                            className="inline-flex items-center gap-1 rounded-lg border border-amber-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-amber-800 hover:bg-amber-50 transition"
+                          >
+                            {expandido ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                            {errorCount} error{errorCount !== 1 ? "es" : ""}
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setTipo(job.tipo as ImportType);
+                            window.scrollTo({ top: 0, behavior: "smooth" });
+                          }}
+                          className="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50 transition"
+                        >
+                          Repetir tipo
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Lista de errores expandida */}
+                    {expandido && Array.isArray(job.errors) && job.errors.length > 0 && (
+                      <div className="mt-3 rounded-lg border border-amber-200 bg-white/80 p-3">
+                        <p className="text-xs font-semibold text-amber-800 mb-2">Filas con error ({job.errors.length})</p>
+                        <ul className="space-y-1 list-disc pl-4 max-h-48 overflow-auto text-xs text-amber-900">
+                          {job.errors.map((item: any, idx: number) => (
+                            <li key={idx}>
+                              <span className="font-medium">Fila {item.row}:</span> {item.error}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
     </div>

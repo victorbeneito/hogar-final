@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { Prisma } from "@prisma/client";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -18,7 +17,8 @@ export async function GET(req: NextRequest) {
   const orderBy = { [fieldMap[sortBy] ?? "id"]: sortDir };
 
   // ── Filtros ────────────────────────────────────────────────────────
-  const where: Prisma.productoWhereInput = {};
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const where: any = {};
 
   const idMin = searchParams.get("idMin");
   const idMax = searchParams.get("idMax");
@@ -67,37 +67,53 @@ export async function GET(req: NextRequest) {
   if (activo !== null && activo !== "") where.activo = activo === "true";
 
   // ── Consulta ──────────────────────────────────────────────────────
-  const [productos, total] = await Promise.all([
-    prisma.producto.findMany({
-      where,
-      orderBy,
-      skip,
-      take: limit,
-      select: {
-        id: true,
-        nombre: true,
-        referencia: true,
-        precio: true,
-        precioOferta: true,
-        stock: true,
-        activo: true,
-        destacado: true,
-        slug: true,
-        // ✅ CORREGIDO: nombres reales de relaciones en minúsculas
-        productoimagen: true,
-        productocategoria: {
-          select: {
-            categoria: { select: { id: true, nombre: true } },
+  try {
+    const [productos, total] = await Promise.all([
+      prisma.producto.findMany({
+        where,
+        orderBy,
+        skip,
+        take: limit,
+        select: {
+          id: true,
+          nombre: true,
+          referencia: true,
+          precio: true,
+          precioOferta: true,
+          stock: true,
+          activo: true,
+          destacado: true,
+          slug: true,
+          productoimagen: true,
+          productocategoria: {
+            select: {
+              categoria: { select: { id: true, nombre: true, parentId: true } },
+            },
           },
-          take: 1,
+          marca: { select: { id: true, nombre: true } },
+          _count: { select: { variante: true } },
         },
-        marca: { select: { id: true, nombre: true } },
-      },
-    }),
-    prisma.producto.count({ where }),
-  ]);
+      }),
+      prisma.producto.count({ where }),
+    ]);
 
-  return NextResponse.json({ productos, total, page, limit });
+    const productosNormalizados = productos.map(({ productocategoria, marca, _count, ...p }) => {
+      // Preferir la categoría más específica (con parentId) sobre la raíz
+      const cats = productocategoria.map(pc => pc.categoria);
+      const hoja = cats.find(c => c.parentId !== null) ?? cats[0] ?? null;
+      return {
+        ...p,
+        Categoria: hoja ? { id: hoja.id, nombre: hoja.nombre } : null,
+        Marca: marca ?? null,
+        numVariantes: _count.variante,
+      };
+    });
+
+    return NextResponse.json({ productos: productosNormalizados, total, page, limit });
+  } catch (error: any) {
+    console.error("❌ GET /api/admin/productos error:", error?.message ?? error);
+    return NextResponse.json({ error: "Error al obtener productos", detalle: error?.message }, { status: 500 });
+  }
 }
 
 export async function POST(req: NextRequest) {

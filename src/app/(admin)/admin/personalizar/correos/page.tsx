@@ -3,12 +3,44 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import toast from "react-hot-toast";
-import { ArrowRight, RefreshCw, Mail, Settings } from "lucide-react";
-import { EMAIL_TEMPLATES, getDefaultEmailSettings, normalizeEmailSettings, type EmailSettingsConfig } from "@/lib/emailConfig";
+import { ArrowRight, RefreshCw, Mail, Settings, Send, Loader2 } from "lucide-react";
+import { EMAIL_TEMPLATES, getDefaultEmailSettings, normalizeEmailSettings, type EmailSettingsConfig, type EmailTemplateSlug } from "@/lib/emailConfig";
+
+const SAMPLE_VARIABLES: Record<EmailTemplateSlug, Record<string, string>> = {
+  "account-created": {
+    nombre: "Cliente Prueba",
+    email: "cliente@ejemplo.com",
+    loginUrl: "#",
+  },
+  "order-placed": {
+    nombre: "Cliente Prueba",
+    numeroPedido: "PED-2026-0001",
+    total: "49.95 €",
+    pedidoUrl: "#",
+  },
+  "order-shipped": {
+    nombre: "Cliente Prueba",
+    numeroPedido: "PED-2026-0001",
+    trackingNumber: "ONT-123456789",
+    trackingUrl: "#",
+  },
+  "order-cancelled": {
+    nombre: "Cliente Prueba",
+    numeroPedido: "PED-2026-0001",
+    motivo: "Solicitud del cliente",
+  },
+  "order-return": {
+    nombre: "Cliente Prueba",
+    numeroPedido: "PED-2026-0001",
+    estado: "Devolución aprobada",
+  },
+};
 
 export default function ConfiguracionCorreosPage() {
   const [config, setConfig] = useState<EmailSettingsConfig>(getDefaultEmailSettings());
   const [loading, setLoading] = useState(true);
+  const [testEmail, setTestEmail] = useState("");
+  const [sendingSlug, setSendingSlug] = useState<EmailTemplateSlug | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -33,6 +65,37 @@ export default function ConfiguracionCorreosPage() {
   }, []);
 
   const enabledCount = useMemo(() => Object.values(config.templates).filter((template) => template.enabled).length, [config]);
+
+  async function sendTest(slug: EmailTemplateSlug) {
+    const email = testEmail.trim();
+    if (!email) {
+      toast.error("Introduce una dirección de correo de prueba");
+      return;
+    }
+    setSendingSlug(slug);
+    try {
+      const res = await fetch("/api/correos/enviar", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          to: email,
+          templateSlug: slug,
+          variables: SAMPLE_VARIABLES[slug] ?? {},
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        const detail = [data.error, data.response, data.code].filter(Boolean).join(" — ");
+        throw new Error(detail || "Error desconocido");
+      }
+      toast.success(`Correo de prueba enviado a ${email}`);
+    } catch (error: any) {
+      toast.error(`Error: ${error.message}`);
+    } finally {
+      setSendingSlug(null);
+    }
+  }
 
   if (loading) {
     return <div className="mx-auto max-w-7xl px-4 py-8 text-gray-500 dark:text-gray-400">Cargando correos...</div>;
@@ -82,27 +145,37 @@ export default function ConfiguracionCorreosPage() {
         </div>
 
         <div className="rounded-3xl border border-dashed border-gray-300 dark:border-gray-700 bg-white dark:bg-darkNavBg p-5 md:p-6">
-          <h2 className="text-lg font-bold text-gray-900 dark:text-white">Formato recomendado</h2>
-          <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-            Te recomiendo usar un diseño limpio con logo, saludo personalizado y enlaces de acceso al pedido o la cuenta.
+          <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-1">Correo de prueba</h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+            Introduce un email y pulsa el botón de prueba en cada plantilla para verificar que se envía correctamente.
           </p>
-          <div className="mt-4 rounded-2xl bg-gray-50 dark:bg-gray-800/50 p-4 text-sm text-gray-600 dark:text-gray-300">
-            <p className="font-semibold text-gray-900 dark:text-white mb-2">Variables disponibles</p>
-            <p>{EMAIL_TEMPLATES.flatMap((template) => template.variables).slice(0, 8).join(" · ")}</p>
-          </div>
+          <label className="block text-sm">
+            <span className="block mb-1 text-gray-500 dark:text-gray-400">Dirección de destino</span>
+            <input
+              type="email"
+              value={testEmail}
+              onChange={(e) => setTestEmail(e.target.value)}
+              placeholder="tu@correo.com"
+              className="w-full rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-950 px-4 py-3 text-sm"
+            />
+          </label>
+          <p className="mt-3 text-xs text-gray-400 dark:text-gray-500">
+            Se enviarán datos de ejemplo (nombre, número de pedido ficticio, etc.)
+          </p>
         </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {EMAIL_TEMPLATES.map((template) => {
           const templateState = config.templates[template.slug];
+          const isSending = sendingSlug === template.slug;
           return (
             <article
               key={template.slug}
               className="rounded-3xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-darkNavBg p-5 md:p-6"
             >
               <div className="flex items-start justify-between gap-3">
-                <div>
+                <div className="flex-1 min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <h3 className="text-lg font-bold text-gray-900 dark:text-white">{template.name}</h3>
                     <span className="rounded-full bg-gray-100 dark:bg-gray-800 px-3 py-1 text-xs font-semibold text-gray-600 dark:text-gray-300">
@@ -122,12 +195,28 @@ export default function ConfiguracionCorreosPage() {
                 </div>
                 <Link
                   href={template.route}
-                  className="inline-flex items-center gap-2 rounded-xl border border-primary px-4 py-2 text-sm font-semibold text-primary"
+                  className="inline-flex items-center gap-2 rounded-xl border border-primary px-4 py-2 text-sm font-semibold text-primary shrink-0"
                 >
                   Configurar <ArrowRight className="w-4 h-4" />
                 </Link>
               </div>
-              <p className="mt-4 text-xs text-gray-400">{templateState.subject}</p>
+
+              <p className="mt-3 text-xs text-gray-400 dark:text-gray-500 truncate">{templateState.subject}</p>
+
+              <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700">
+                <button
+                  onClick={() => sendTest(template.slug)}
+                  disabled={isSending}
+                  className="inline-flex items-center gap-2 rounded-xl bg-green-600 hover:bg-green-700 disabled:opacity-60 px-4 py-2 text-sm font-semibold text-white transition-colors"
+                >
+                  {isSending ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Send className="w-4 h-4" />
+                  )}
+                  {isSending ? "Enviando..." : "Enviar prueba"}
+                </button>
+              </div>
             </article>
           );
         })}

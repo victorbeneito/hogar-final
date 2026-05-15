@@ -3,13 +3,15 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import toast from "react-hot-toast";
-import { ArrowLeft, Save, RefreshCw } from "lucide-react";
+import { ArrowLeft, Save, RefreshCw, Send } from "lucide-react";
 import { getDefaultEmailSettings, normalizeEmailSettings, type EmailSettingsConfig } from "@/lib/emailConfig";
 
 export default function ConfiguracionGeneralCorreosPage() {
   const [config, setConfig] = useState<EmailSettingsConfig>(getDefaultEmailSettings());
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [testEmail, setTestEmail] = useState("");
+  const [sending, setSending] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -53,6 +55,37 @@ export default function ConfiguracionGeneralCorreosPage() {
     }
   }
 
+  async function sendTest() {
+    const email = testEmail.trim();
+    if (!email) {
+      toast.error("Introduce una dirección de correo para la prueba");
+      return;
+    }
+    setSending(true);
+    try {
+      const res = await fetch("/api/correos/enviar", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          to: email,
+          subject: `✅ Correo de prueba — ${config.brandName}`,
+          html: `<p>Este es un correo de prueba enviado desde el panel de administración de <strong>${config.brandName}</strong>.</p><p>Si lo estás leyendo, la configuración SMTP funciona correctamente.</p>`,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        const detail = [data.error, data.response, data.code].filter(Boolean).join(" — ");
+        throw new Error(detail || "Error desconocido");
+      }
+      toast.success(`Email de prueba enviado a ${email}`);
+    } catch (error: any) {
+      toast.error(`Error: ${error.message}`);
+    } finally {
+      setSending(false);
+    }
+  }
+
   if (loading) {
     return <div className="mx-auto max-w-5xl px-4 py-8 text-gray-500 dark:text-gray-400">Cargando configuración...</div>;
   }
@@ -91,6 +124,41 @@ export default function ConfiguracionGeneralCorreosPage() {
           <Field label="Reply-to" value={config.replyToEmail} onChange={(value) => setConfig((prev) => ({ ...prev, replyToEmail: value }))} />
           <Field label="Email soporte" value={config.supportEmail} onChange={(value) => setConfig((prev) => ({ ...prev, supportEmail: value }))} />
           <Field label="Nombre de marca" value={config.brandName} onChange={(value) => setConfig((prev) => ({ ...prev, brandName: value }))} />
+        </div>
+        <div className="border-t border-gray-100 dark:border-gray-700 pt-4">
+          <p className="text-xs text-gray-400 dark:text-gray-500 mb-3">Notificaciones internas</p>
+          <Field
+            label="Email del administrador (recibe aviso de cada nuevo pedido)"
+            value={config.adminEmail}
+            onChange={(value) => setConfig((prev) => ({ ...prev, adminEmail: value }))}
+          />
+        </div>
+      </div>
+
+      <div className="rounded-3xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-darkNavBg p-5 md:p-6">
+        <h2 className="text-base font-semibold text-gray-900 dark:text-white mb-1">Enviar correo de prueba</h2>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+          Verifica que el servidor SMTP está bien configurado enviando un correo de prueba.
+        </p>
+        <div className="flex gap-3 items-end">
+          <label className="block text-sm flex-1">
+            <span className="block mb-1 text-gray-500">Dirección de destino</span>
+            <input
+              type="email"
+              value={testEmail}
+              onChange={(e) => setTestEmail(e.target.value)}
+              placeholder="tu@correo.com"
+              className="w-full rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-950 px-4 py-3"
+            />
+          </label>
+          <button
+            onClick={sendTest}
+            disabled={sending}
+            className="rounded-lg bg-green-600 hover:bg-green-700 px-4 py-3 text-sm font-semibold text-white inline-flex items-center gap-2 disabled:opacity-60 shrink-0"
+          >
+            <Send className="w-4 h-4" />
+            {sending ? "Enviando..." : "Enviar prueba"}
+          </button>
         </div>
       </div>
     </div>

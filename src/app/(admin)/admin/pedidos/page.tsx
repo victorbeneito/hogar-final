@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 
 import { useMemo, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 
 
 interface Pedido {
@@ -34,13 +35,22 @@ interface Pedido {
   createdAt?: string;
 }
 
+type SourceFilter = "actuales" | "prestashop" | "todos";
+
+function normalizeSourceFilter(value: string | null): SourceFilter {
+  return value === "prestashop" || value === "todos" ? value : "actuales";
+}
+
 
 export default function AdminPedidos() {
+  const searchParams = useSearchParams();
+  const origenInicial = normalizeSourceFilter(searchParams.get("origen"));
   const [pedidos, setPedidos] = useState<Pedido[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const router = useRouter();
   const [filters, setFilters] = useState({
+    origen: origenInicial,
     id: "",
     referencia: "",
     cliente: "",
@@ -54,9 +64,8 @@ export default function AdminPedidos() {
   const normalize = (value?: string) => String(value || "").toLowerCase();
 
   useEffect(() => {
-    fetchPedidos();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    setFilters((prev) => (prev.origen === origenInicial ? prev : { ...prev, origen: origenInicial }));
+  }, [origenInicial]);
 
   const queryString = useMemo(() => {
     const params = new URLSearchParams();
@@ -65,6 +74,10 @@ export default function AdminPedidos() {
     });
     return params.toString();
   }, [filters]);
+
+  useEffect(() => {
+    fetchPedidos();
+  }, [queryString]);
 
   const fetchPedidos = async (query = queryString) => {
     try {
@@ -132,9 +145,10 @@ export default function AdminPedidos() {
         <div className="mb-6 flex flex-col gap-3">
           <div>
             <p className="text-sm text-gray-500">Pedidos</p>
-            <h1 className="text-3xl md:text-4xl font-bold text-[#4A4A4A]">
-              📋 Gestión de Pedidos
-            </h1>
+            <h1 className="text-3xl md:text-4xl font-bold text-[#4A4A4A]">📋 Gestión de pedidos nuevos</h1>
+            <p className="mt-2 text-sm text-gray-500 max-w-2xl">
+              Los pedidos importados de Prestashop se consultan en el archivo histórico; aquí se prioriza la gestión diaria.
+            </p>
           </div>
 
           <div className="flex flex-wrap gap-2">
@@ -155,6 +169,12 @@ export default function AdminPedidos() {
               className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-gray-700 hover:bg-gray-50"
             >
               {refreshing ? "Actualizando..." : "Actualizar"}
+            </button>
+            <button
+              onClick={() => router.push("/admin/prestashop")}
+              className="inline-flex items-center gap-2 rounded-xl border border-[#6BAEC9]/30 bg-[#6BAEC9]/5 px-4 py-3 text-sm font-semibold text-[#5FA0B3] hover:bg-[#6BAEC9]/10"
+            >
+              Archivo Prestashop
             </button>
             <button
               onClick={() => router.push("/admin")}
@@ -185,6 +205,15 @@ export default function AdminPedidos() {
               placeholder="Buscar por cliente"
               className="rounded-xl border border-gray-200 px-3 py-2.5 text-sm"
             />
+            <select
+              value={filters.origen}
+              onChange={(e) => setFilters((prev) => ({ ...prev, origen: e.target.value as SourceFilter }))}
+              className="rounded-xl border border-gray-200 px-3 py-2.5 text-sm bg-white"
+            >
+              <option value="actuales">Fuente: nuevos</option>
+              <option value="prestashop">Fuente: Prestashop</option>
+              <option value="todos">Fuente: todos</option>
+            </select>
             <div className="grid grid-cols-2 gap-2">
               <select
                 value={filters.estado}

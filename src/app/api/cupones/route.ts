@@ -95,6 +95,54 @@ export async function POST(req: Request) {
   }
 }
 
+// ============================================================================
+// PUT: Actualizar Cupón
+// ============================================================================
+export async function PUT(req: Request) {
+  try {
+    const body = await req.json();
+    const id = Number(body.id);
+    if (!id) return NextResponse.json({ error: "ID requerido" }, { status: 400 });
+
+    const codigoRaw = body.codigo || body.code || "";
+    const valor = parseFloat(body.valor_descuento || body.valorDescuento || body.valor || 0);
+    const total = parseInt(body.cantidad_total || body.cantidadTotal || body.total || "100");
+    const limite = parseInt(body.limite_usuario || body.limitePorUsuario || body.limite || "1");
+
+    let tipoFinal: any = 'FIJO';
+    const tipoRecibido = String(body.tipo_descuento || body.tipoDescuento || "").toLowerCase();
+    if (tipoRecibido.includes('porcent')) tipoFinal = 'PORCENTAJE';
+
+    let fInicio = new Date();
+    if (body.fecha_inicio && body.fecha_inicio !== "") fInicio = new Date(body.fecha_inicio);
+    else if (body.fechaInicio && body.fechaInicio !== "") fInicio = new Date(body.fechaInicio);
+
+    let fFin = new Date();
+    fFin.setFullYear(fFin.getFullYear() + 1);
+    if (body.fecha_fin && body.fecha_fin !== "") fFin = new Date(body.fecha_fin);
+    else if (body.fechaFin && body.fechaFin !== "") fFin = new Date(body.fechaFin);
+
+    const cuponActualizado = await prisma.cupon.update({
+      where: { id },
+      data: {
+        codigo: codigoRaw.toUpperCase(),
+        tipoDescuento: tipoFinal,
+        valorDescuento: valor,
+        cantidadTotal: total,
+        limitePorUsuario: limite,
+        fechaInicio: fInicio,
+        fechaFin: fFin,
+        updatedAt: new Date(),
+      }
+    });
+
+    return NextResponse.json(cuponActualizado);
+  } catch (error: any) {
+    console.error("❌ ERROR ACTUALIZANDO CUPÓN:", error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}
+
 // DELETE: Borrar
 export async function DELETE(req: Request) {
   try {

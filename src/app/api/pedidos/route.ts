@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
+import { sendTemplateEmail, sendRawEmail, buildAdminOrderEmail, loadEmailSettings } from "@/lib/emailService";
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +31,7 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const clienteId = searchParams.get("clienteId");
     const id = searchParams.get("id");
+    const origen = searchParams.get("origen")?.trim();
     const referencia = searchParams.get("referencia")?.trim();
     const cliente = searchParams.get("cliente")?.trim();
     const estado = searchParams.get("estado")?.trim();
@@ -38,6 +40,7 @@ export async function GET(req: Request) {
     const fechaHasta = searchParams.get("fechaHasta");
     const sortBy = searchParams.get("sortBy") || "fechaPedido";
     const sortDir = searchParams.get("sortDir") === "asc" ? "asc" : "desc";
+    const prestashopImportMarker = "[Importado de Prestashop]";
 
     console.log(`🔍 [GET Pedidos] Buscando para ClienteID: ${clienteId || "TODOS"}`);
 
@@ -78,6 +81,21 @@ export async function GET(req: Request) {
       if (fechaHasta) whereClause.fechaPedido.lte = new Date(fechaHasta);
     }
 
+    const appendAndFilter = (condition: any) => {
+      whereClause.AND = [...(whereClause.AND || []), condition];
+    };
+
+    if (origen === "prestashop") {
+      appendAndFilter({ notas: { contains: prestashopImportMarker } });
+    } else if (origen === "actuales") {
+      appendAndFilter({
+        OR: [
+          { notas: null },
+          { NOT: { notas: { contains: prestashopImportMarker } } },
+        ],
+      });
+    }
+
     const orderMap: Record<string, any> = {
       id: { id: sortDir },
       numeroPedido: { numeroPedido: sortDir },
@@ -89,35 +107,64 @@ export async function GET(req: Request) {
 
     const pedidosRaw = await prisma.pedido.findMany({
       where: whereClause,
-      include: { 
-        PedidoProducto: true, 
-        Cliente: {
+      select: {
+        id: true,
+        numeroPedido: true,
+        clienteId: true,
+        nombre: true,
+        apellidos: true,
+        email: true,
+        telefono: true,
+        nif: true,
+        direccion: true,
+        ciudad: true,
+        provincia: true,
+        cp: true,
+        pais: true,
+        envioMetodo: true,
+        envioCoste: true,
+        pagoMetodo: true,
+        pagoRecargo: true,
+        estadoPago: true,
+        subtotal: true,
+        descuento: true,
+        totalFinal: true,
+        estado: true,
+        cuponCodigo: true,
+        cuponDescuento: true,
+        notas: true,
+        fechaPedido: true,
+        updatedAt: true,
+        cliente: {
           select: {
             id: true,
             nombre: true,
             apellidos: true,
             email: true,
             telefono: true,
+            empresa: true,
+            nif: true,
             direccion: true,
+            direccionComplementaria: true,
+            codigoPostal: true,
             ciudad: true,
             provincia: true,
-            codigoPostal: true,
             pais: true,
           },
         },
-        mensajes: {
+        pedidoproducto: {
           select: {
             id: true,
-            autor: true,
-            autorNombre: true,
-            mensaje: true,
-            privado: true,
-            createdAt: true,
-            updatedAt: true,
+            productoIdRef: true,
+            varianteIdRef: true,
+            nombre: true,
+            varianteInfo: true,
+            cantidad: true,
+            precioUnitario: true,
+            subtotal: true,
           },
-          orderBy: { createdAt: "asc" },
         },
-      }, 
+      },
       orderBy: orderMap[sortBy] || { fechaPedido: "desc" },
     });
 
@@ -134,20 +181,20 @@ export async function GET(req: Request) {
       trackingUrl: p.trackingUrl,
       totalFinal: parseFloat(p.totalFinal),
       estado: p.estado,
-      fecha: p.fechaPedido ? p.fechaPedido.toISOString() : p.createdAt.toISOString(),
+      fecha: p.fechaPedido ? p.fechaPedido.toISOString() : null,
       fechaPedido: p.fechaPedido ? p.fechaPedido.toISOString() : null,
       
       // Datos cliente
-      nombre: `${p.nombre || p.Cliente?.nombre || ""} ${p.apellidos || p.Cliente?.apellidos || ""}`.trim(),
+      nombre: `${p.nombre || p.cliente?.nombre || ""} ${p.apellidos || p.cliente?.apellidos || ""}`.trim(),
       cliente: {
-        id: p.Cliente?.id,
-        nombre: `${p.nombre || p.Cliente?.nombre || ""} ${p.apellidos || p.Cliente?.apellidos || ""}`.trim() || "Cliente Visitante",
-        email: p.email || p.Cliente?.email || "Sin email"
+        id: p.cliente?.id,
+        nombre: `${p.nombre || p.cliente?.nombre || ""} ${p.apellidos || p.cliente?.apellidos || ""}`.trim() || "Cliente Visitante",
+        email: p.email || p.cliente?.email || "Sin email"
       },
       direccionEntrega: {
-        nombre: p.nombre || p.Cliente?.nombre || "",
-        apellidos: p.apellidos || p.Cliente?.apellidos || "",
-        empresa: p.Cliente?.empresa || "",
+        nombre: p.nombre || p.cliente?.nombre || "",
+        apellidos: p.apellidos || p.cliente?.apellidos || "",
+        empresa: p.cliente?.empresa || "",
         nif: p.nif || "",
         telefono: p.telefono || "",
         direccion: p.direccion || "",
@@ -172,7 +219,7 @@ export async function GET(req: Request) {
       },
       
       // Productos
-      productos: p.PedidoProducto.map((prod: any) => ({
+      productos: p.pedidoproducto.map((prod: any) => ({
         id: prod.id,
         nombre: prod.nombreProducto || prod.nombre,
         cantidad: prod.cantidad,
@@ -196,7 +243,7 @@ export async function GET(req: Request) {
 // ======================================================================
 export async function POST(req: Request) {
   console.log("🚨 --- INICIO PROCESO DE PEDIDO ---");
-  
+
   try {
     const body = await req.json();
     console.log("📦 Body recibido:", JSON.stringify(body, null, 2));
@@ -204,6 +251,12 @@ export async function POST(req: Request) {
 
     let clienteId: number | null = null;
     const datosCliente = body.cliente || {};
+
+    // Validar que tenemos los datos mínimos
+    if (!datosCliente.email && !body.clienteId) {
+      console.error("❌ ERROR: No hay email ni clienteId proporcionados");
+      return NextResponse.json({ error: "Datos de cliente incompletos" }, { status: 400 });
+    }
 
     // 1. Intentar vincular cliente
     if (datosCliente.email) {
@@ -214,9 +267,11 @@ export async function POST(req: Request) {
       if (c) {
           clienteId = c.id;
           console.log("✅ Cliente encontrado por email:", c.email, "ID:", c.id);
+      } else {
+          console.warn("⚠️ No existe cliente con email:", datosCliente.email);
       }
     }
-    
+
     if (!clienteId && body.clienteId) {
         clienteId = parseInt(body.clienteId);
         console.log("✅ Cliente encontrado por ID directo:", clienteId);
@@ -255,18 +310,15 @@ export async function POST(req: Request) {
         })
       : null;
 
-    // Fallback de seguridad (SOLO PARA PRUEBAS, QUITAR EN PRODUCCIÓN)
+    // VALIDACIÓN CRÍTICA: Si aún no hay clienteId, devolver error en lugar de usar fallback
     if (!clienteId) {
-        console.warn("⚠️ NO SE ENCONTRÓ CLIENTE. Asignando al primer cliente de la BD (Fallback).");
-        const firstClient = await prisma.cliente.findFirst({
-          select: { id: true },
-        });
-        if (firstClient) clienteId = firstClient.id;
-        else {
-             console.error("❌ ERROR CRÍTICO: No hay ningún cliente en la base de datos.");
-             return NextResponse.json({ error: "No hay clientes en la BD" }, { status: 400 });
-        }
+        console.error("❌ ERROR CRÍTICO: No se pudo identificar el cliente después de todos los intentos");
+        console.error("   - Email enviado:", datosCliente.email);
+        console.error("   - ID enviado:", body.clienteId);
+        return NextResponse.json({ error: "No se pudo identificar el cliente. Por favor, inicia sesión." }, { status: 400 });
     }
+
+    console.log("📌 Creando pedido para clienteId:", clienteId);
 
     // 2. Preparar productos
     const listaItems = body.carrito || body.productos || body.items || [];
@@ -307,57 +359,108 @@ export async function POST(req: Request) {
       console.log("🔢 Número de pedido generado:", numeroGenerado);
 
       // Crear
-      const pedido = await tx.pedido.create({
-        data: {
-          numeroPedido: numeroGenerado,
-          clienteId: clienteId!,
-          nombre: datosCliente.nombre || "Cliente Sin Nombre",
-          apellidos: datosCliente.apellidos || null,
-          email: datosCliente.email,
-          telefono: datosCliente.telefono,
-          nif: datosCliente.nif || null,
-          direccion: datosCliente.direccion,
-          direccionComplementaria: datosCliente.direccionComplementaria || null,
-          ciudad: datosCliente.ciudad,
-          provincia: datosCliente.provincia || null,
-          cp: datosCliente.cp || datosCliente.codigoPostal || null,
-          pais: datosCliente.pais || "España",
-          ...buildBillingSnapshot(datosCliente),
-          carritoId: carritoExistente?.id ?? undefined,
-          
-          envioMetodo: String(body.metodoEnvio?.metodo || body.envioMetodo?.metodo || "estándar"),
-          envioCoste: parseFloat(String(body.metodoEnvio?.coste || body.envioMetodo?.coste || 0)),
-          transportistaNombre: body.metodoEnvio?.carrierName || body.metodoEnvio?.label || null,
-          numeroSeguimiento: body.numeroSeguimiento || null,
-          trackingUrl: body.trackingUrl || null,
-          fechaEnvio: body.fechaEnvio ? new Date(body.fechaEnvio) : null,
-          fechaEntrega: body.fechaEntrega ? new Date(body.fechaEntrega) : null,
-          pagoMetodo: String(body.metodoPago?.metodo || body.pagoMetodo?.metodo || "tarjeta"),
-          pagoRecargo: parseFloat(String(body.pagoRecargo || 0)),
-          estadoPago: body.estadoPago || "PENDIENTE",
-          
-          subtotal: parseFloat(body.subtotal || 0),
-          descuento: parseFloat(body.descuento || body.descuentoAplicado || body.cuponDescuento || 0),
-          totalFinal: parseFloat(body.totalFinal || 0),
-          estado: "PENDIENTE",
-          cuponCodigo: body.cuponCodigo || body.cupon?.codigo || null,
-          cuponDescuento: body.cuponDescuento || body.descuentoAplicado || body.cupon?.descuento || null,
-          notas: body.notas || null,
-          
-          fechaPedido: new Date(), 
-          updatedAt: new Date(), // 🔥 Importante para que no salga null
-          
-          PedidoProducto: {
-            create: productosParaInsertar
-          }
-        },
-        include: { PedidoProducto: true, mensajes: true }
-      });
+        const pedido = await tx.pedido.create({
+          data: {
+            numeroPedido: numeroGenerado,
+            clienteId: clienteId!,
+            nombre: datosCliente.nombre || "Cliente Sin Nombre",
+            apellidos: datosCliente.apellidos || null,
+            email: datosCliente.email,
+            telefono: datosCliente.telefono,
+            nif: datosCliente.nif || null,
+            direccion: datosCliente.direccion,
+            ciudad: datosCliente.ciudad,
+            provincia: datosCliente.provincia || null,
+            cp: datosCliente.cp || datosCliente.codigoPostal || null,
+            pais: datosCliente.pais || "España",
+            envioMetodo: String(body.metodoEnvio?.metodo || body.envioMetodo?.metodo || "estándar"),
+            envioCoste: parseFloat(String(body.metodoEnvio?.coste || body.envioMetodo?.coste || 0)),
+            pagoMetodo: String(body.metodoPago?.metodo || body.pagoMetodo?.metodo || "tarjeta"),
+            pagoRecargo: parseFloat(String(body.pagoRecargo || 0)),
+            estadoPago: body.estadoPago || "PENDIENTE",
+            subtotal: parseFloat(body.subtotal || 0),
+            descuento: parseFloat(body.descuento || body.descuentoAplicado || body.cuponDescuento || 0),
+            totalFinal: parseFloat(body.totalFinal || 0),
+            estado: "PENDIENTE",
+            cuponCodigo: body.cuponCodigo || body.cupon?.codigo || null,
+            cuponDescuento: body.cuponDescuento || body.descuentoAplicado || body.cupon?.descuento || null,
+            notas: body.notas || null,
+            fechaPedido: new Date(),
+            updatedAt: new Date(),
+            pedidoproducto: {
+              create: productosParaInsertar,
+            },
+          },
+          select: {
+            id: true,
+            numeroPedido: true,
+            clienteId: true,
+            nombre: true,
+            apellidos: true,
+            email: true,
+            telefono: true,
+            nif: true,
+            direccion: true,
+            ciudad: true,
+            provincia: true,
+            cp: true,
+            pais: true,
+            envioMetodo: true,
+            envioCoste: true,
+            pagoMetodo: true,
+            pagoRecargo: true,
+            estadoPago: true,
+            subtotal: true,
+            descuento: true,
+            totalFinal: true,
+            estado: true,
+            cuponCodigo: true,
+            cuponDescuento: true,
+            notas: true,
+            fechaPedido: true,
+            updatedAt: true,
+            pedidoproducto: true,
+          },
+        });
 
       return pedido;
     });
 
-    console.log("✨ ¡ÉXITO! Pedido guardado con ID:", result.id);
+    console.log("✨ ¡ÉXITO! Pedido guardado");
+    console.log("   - ID:", result.id);
+    console.log("   - Número:", result.numeroPedido);
+    console.log("   - Cliente ID:", result.clienteId);
+    console.log("   - Total:", result.totalFinal);
+    console.log("   - Estado Pago:", result.estadoPago);
+
+    const appUrl = process.env.APP_URL || "https://www.elhogardetsuenos.com";
+
+    // Email de confirmación al cliente
+    if (result.email) {
+      sendTemplateEmail({
+        to: result.email,
+        templateSlug: "order-placed",
+        variables: {
+          nombre: result.nombre || "Cliente",
+          numeroPedido: result.numeroPedido,
+          total: `${Number(result.totalFinal).toFixed(2)} €`,
+          pedidoUrl: `${appUrl}/account/orders`,
+        },
+      }).catch((err) => console.error("❌ Email confirmación pedido:", err?.message));
+    }
+
+    // Email de notificación al administrador
+    loadEmailSettings().then((emailSettings) => {
+      if (!emailSettings.adminEmail) return;
+      const htmlAdmin = buildAdminOrderEmail(result, datosCliente, { brandName: emailSettings.brandName, appUrl });
+      const nombreCliente = `${result.nombre || ""} ${result.apellidos || ""}`.trim() || "Cliente";
+      return sendRawEmail({
+        to: emailSettings.adminEmail,
+        subject: `[${emailSettings.brandName}] Nuevo pedido: ${result.numeroPedido} — ${nombreCliente}`,
+        html: htmlAdmin,
+      });
+    }).catch((err) => console.error("❌ Email notificación admin:", err?.message));
+
     return NextResponse.json({ ok: true, pedido: result });
 
   } catch (error: any) {

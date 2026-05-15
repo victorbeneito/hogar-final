@@ -33,6 +33,7 @@ interface Producto {
   imagenes?: string[];
   variantes?: Variante[];
   categoria?: CategoriaProducto;
+  prestashopProductId?: number | null; // REVI
 }
 
 export default function ProductDetail({ producto }: { producto: Producto }) {
@@ -359,6 +360,34 @@ export default function ProductDetail({ producto }: { producto: Producto }) {
               Añadir al carrito
             </button>
           </div>
+
+          {/* Widget REVI - Opiniones */}
+          {producto.prestashopProductId && (
+            <div className="mt-4">
+              <div
+                className="revi-widget-KyG01X4Rv5"
+                data-revi-widget-lazy=""
+                data-id-product={String(producto.prestashopProductId)}
+                data-lang="es"
+              />
+            </div>
+          )}
+
+          {/* Sección de iconos informativos */}
+          <div className="space-y-3 mt-4">
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">✓</span>
+              <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Cambios o Devoluciones</p>
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">🚚</span>
+              <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Envíos</p>
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">↔️</span>
+              <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Pago 100% Seguro - Visa, Master Card o Paypal</p>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -427,11 +456,19 @@ export default function ProductDetail({ producto }: { producto: Producto }) {
 
           {tabActiva === "opiniones" && (
             <div className="mt-4">
-              <img 
-                src="/img/opiniones01.JPG" 
-                alt="Opiniones de clientes satisfechos" 
-                className="w-full max-w-3xl mx-auto rounded-lg shadow-md border border-gray-200"
-              />
+              {/* REVI: Widget de reseñas del producto */}
+              {producto.prestashopProductId ? (
+                <div
+                  className="revi-widget-pzdMBVvAoX"
+                  data-revi-widget-lazy=""
+                  data-id-product={String(producto.prestashopProductId)}
+                  data-lang="es"
+                />
+              ) : (
+                <div className="bg-yellow-50 p-4 rounded border border-yellow-200 text-sm text-yellow-900">
+                  ⚠ Producto sin mapeo a Prestashop. Configura el mapeo en /admin/revi para mostrar reseñas.
+                </div>
+              )}
             </div>
           )}
         </div>

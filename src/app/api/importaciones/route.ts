@@ -3,6 +3,18 @@ import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { buildFallbackNif, isPlausibleClientNif, normalizeClientNif } from "@/lib/clientNif";
 import { resolveAtributoTipo } from "@/lib/atributoTipo";
+import {
+  appendImportJobError,
+  completeImportJob,
+  createImportJob,
+  failImportJob,
+  getImportJob,
+  getImportJobPayload,
+  listImportJobs,
+  markImportJobPaused,
+  serializeImportJob,
+  updateImportJob,
+} from "@/lib/importacion-progress";
 
 export const dynamic = "force-dynamic";
 
@@ -26,6 +38,59 @@ type ImportErrorItem = {
 };
 
 type ImportAction = "upsert" | "delete";
+
+function describeImportRow(tipo: ImportType, row: ImportRow, index: number) {
+  const action = normalizeAction(row.accion);
+
+  if (tipo === "productos") {
+    const reference = normalizeText(row.referencia) || `fila ${index + 1}`;
+    return action === "delete" ? `Eliminar producto ${reference}` : `Producto ${reference}`;
+  }
+
+  if (tipo === "combinaciones") {
+    const product = normalizeText(row.productoReferencia) || `fila ${index + 1}`;
+    const reference = normalizeText(row.referencia) || "sin referencia";
+    return action === "delete" ? `Eliminar combinación ${product} / ${reference}` : `Combinación ${product} / ${reference}`;
+  }
+
+  if (tipo === "clientes") {
+    return normalizeText(row.email) ? `Cliente ${normalizeText(row.email)}` : `Cliente fila ${index + 1}`;
+  }
+
+  if (tipo === "direcciones") {
+    const owner = normalizeText(row.clienteEmail) || normalizeText(row.clienteId) || `fila ${index + 1}`;
+    const alias = normalizeText(row.alias) || "sin alias";
+    return action === "delete" ? `Eliminar dirección ${owner} / ${alias}` : `Dirección ${owner} / ${alias}`;
+  }
+
+  if (tipo === "atributovalores") {
+    const atributo = normalizeText(row.atributo) || normalizeText(row.atributoId) || `fila ${index + 1}`;
+    const valor = normalizeText(row.valor) || "sin valor";
+    return action === "delete" ? `Eliminar valor ${atributo} / ${valor}` : `Valor ${atributo} / ${valor}`;
+  }
+
+  if (tipo === "atributos") {
+    const nombre = normalizeText(row.nombre) || `fila ${index + 1}`;
+    return action === "delete" ? `Eliminar atributo ${nombre}` : `Atributo ${nombre}`;
+  }
+
+  if (tipo === "categorias") {
+    const nombre = normalizeText(row.nombre) || `fila ${index + 1}`;
+    return action === "delete" ? `Eliminar categoría ${nombre}` : `Categoría ${nombre}`;
+  }
+
+  if (tipo === "marcas") {
+    const nombre = normalizeText(row.nombre) || `fila ${index + 1}`;
+    return action === "delete" ? `Eliminar marca ${nombre}` : `Marca ${nombre}`;
+  }
+
+  if (tipo === "proveedores") {
+    const nombre = normalizeText(row.nombre) || `fila ${index + 1}`;
+    return action === "delete" ? `Eliminar proveedor ${nombre}` : `Proveedor ${nombre}`;
+  }
+
+  return `Fila ${index + 1}`;
+}
 
 function normalizeText(value: any) {
   return String(value ?? "").trim();
@@ -52,11 +117,19 @@ function splitList(value: any) {
 
 function getCombinationTokens(row: ImportRow) {
   const explicit = splitList(row.atributos || row.attributeValues || row.atributoValores);
-  if (explicit.length) return explicit;
+  const source = explicit.length ? explicit : [row.color, row.tamano, row.tirador].map((value) => normalizeText(value)).filter(Boolean);
+  const unique: string[] = [];
+  const seen = new Set<string>();
 
-  return [row.color, row.tamano, row.tirador]
-    .map((value) => normalizeText(value))
-    .filter(Boolean);
+  for (const token of source) {
+    const clean = normalizeText(token);
+    const key = clean.toLowerCase();
+    if (!clean || seen.has(key)) continue;
+    seen.add(key);
+    unique.push(clean);
+  }
+
+  return unique;
 }
 
 function toSlug(texto: string) {
@@ -312,6 +385,15 @@ async function validateImportRow(tipo: ImportType, row: ImportRow, accion: Impor
   }
 
   return errors;
+}
+
+function isMissingProductCombinationWarning(tipo: ImportType, accion: ImportAction, validationErrors: string[]) {
+  return (
+    tipo === "combinaciones" &&
+    accion !== "delete" &&
+    validationErrors.length === 1 &&
+    validationErrors[0].startsWith("No existe el producto:")
+  );
 }
 
 async function upsertCategoria(row: ImportRow) {
@@ -829,104 +911,151 @@ async function upsertProducto(row: ImportRow) {
       })
     : null;
 
-  const marca = row.marca ? await prisma.marca.findFirst({ where: { nombre: normalizeText(row.marca) } }) : null;
-  const reglaImpuestoPorId = row.reglaImpuestoId !== undefined && row.reglaImpuestoId !== ""
+  const marca = "marca" in row && row.marca
+    ? await prisma.marca.findFirst({ where: { nombre: normalizeText(row.marca) } })
+    : null;
+
+  const needsImpuesto = "reglaImpuestoId" in row || "reglaImpuesto" in row;
+  const reglaImpuestoPorId = needsImpuesto && "reglaImpuestoId" in row && row.reglaImpuestoId !== ""
     ? await prisma.reglaimpuesto.findUnique({ where: { id: Number(row.reglaImpuestoId) } })
     : null;
-  const reglaImpuestoPorNombre = !reglaImpuestoPorId && row.reglaImpuesto
+  const reglaImpuestoPorNombre = needsImpuesto && !reglaImpuestoPorId && "reglaImpuesto" in row && row.reglaImpuesto
     ? await prisma.reglaimpuesto.findFirst({ where: { nombre: normalizeText(row.reglaImpuesto) } })
     : null;
   const reglaImpuestoDefault = await prisma.reglaimpuesto.findFirst({
-    where: {
-      OR: [
-        { nombre: "IVA GENERAL" },
-        { porcentaje: 21 },
-      ],
-    },
+    where: { OR: [{ nombre: "IVA GENERAL" }, { porcentaje: 21 }] },
   });
-  const reglaImpuesto = reglaImpuestoPorId ?? reglaImpuestoPorNombre ?? reglaImpuestoDefault;
-  const descuento = row.descuento !== undefined && row.descuento !== "" ? parseNumber(row.descuento, NaN) : NaN;
-  const precioBase = parseNumber(row.precio, 0);
+  const reglaImpuesto = reglaImpuestoPorId ?? reglaImpuestoPorNombre ?? (needsImpuesto ? reglaImpuestoDefault : null);
+
+  const descuento = "descuento" in row && row.descuento !== "" ? parseNumber(row.descuento, NaN) : NaN;
+  const precioBase = "precio" in row ? parseNumber(row.precio, 0) : 0;
   const precioOfertaDesdeDescuento = Number.isFinite(descuento) && descuento >= 0 && descuento < 100
     ? precioBase * (1 - descuento / 100)
     : null;
-  const precioOferta =
-    row.precioOferta !== undefined && row.precioOferta !== ""
-      ? parseNumber(row.precioOferta, 0)
-      : precioOfertaDesdeDescuento;
+  const precioOferta = "precioOferta" in row && row.precioOferta !== ""
+    ? parseNumber(row.precioOferta, 0)
+    : precioOfertaDesdeDescuento;
+
   const slugBase = normalizeText(row.slug) || slugActual?.slug || referencia || nombre;
   const slug = await getUniqueProductSlug(slugBase, productoExistente?.id);
 
-  const data = {
+  // Core fields always included in both create and update
+  const coreData = {
     nombre,
     referencia,
     slug,
-    resumen: row.resumen ?? null,
-    descripcion: row.descripcion ?? null,
-    descripcion_html: row.descripcion_html ?? null,
-    precio: precioBase,
-    precioOferta,
-    precioCoste: row.precioCoste !== undefined && row.precioCoste !== "" ? parseNumber(row.precioCoste, 0) : null,
-    stock: parseNumber(row.stock, 0),
-    stockMinimo: parseNumber(row.stockMinimo, 0),
-    activo: row.activo !== undefined ? parseBool(row.activo, true) : true,
-    destacado: row.destacado !== undefined ? parseBool(row.destacado, false) : false,
-    enOferta: row.enOferta !== undefined ? parseBool(row.enOferta, false) : false,
-    visibilidad: normalizeText(row.visibilidad) || "tienda",
-    disponiblePedidos: row.disponiblePedidos !== undefined ? parseBool(row.disponiblePedidos, true) : true,
-    soloWeb: row.soloWeb !== undefined ? parseBool(row.soloWeb, false) : false,
-    condicion: normalizeText(row.condicion) || "nuevo",
-    mostrarCondicion: row.mostrarCondicion !== undefined ? parseBool(row.mostrarCondicion, false) : false,
-    etiquetas: row.etiquetas ?? null,
-    ean13: row.ean13 ?? null,
-    upc: row.upc ?? null,
-    isbn: row.isbn ?? null,
-    anchura: row.anchura !== undefined && row.anchura !== "" ? parseNumber(row.anchura, 0) : null,
-    altura: row.altura !== undefined && row.altura !== "" ? parseNumber(row.altura, 0) : null,
-    profundidad: row.profundidad !== undefined && row.profundidad !== "" ? parseNumber(row.profundidad, 0) : null,
-    peso: row.peso !== undefined && row.peso !== "" ? parseNumber(row.peso, 0) : null,
-    plazoEntregaStock: row.plazoEntregaStock ?? null,
-    plazoEntregaSinStock: row.plazoEntregaSinStock ?? null,
-    gastosEnvioExtra: row.gastosEnvioExtra !== undefined && row.gastosEnvioExtra !== "" ? parseNumber(row.gastosEnvioExtra, 0) : 0,
-    metaTitulo: row.metaTitulo ?? null,
-    metaDescripcion: row.metaDescripcion ?? null,
-    marcaId: marca?.id ?? null,
-    reglaImpuestoId: reglaImpuesto?.id ?? null,
     updatedAt: new Date(),
+  };
+
+  // Optional fields: only included if the field was mapped (present in row)
+  const optional: Record<string, any> = {};
+  if ("resumen" in row) optional.resumen = row.resumen ?? null;
+  if ("descripcion" in row) optional.descripcion = row.descripcion ?? null;
+  if ("descripcion_html" in row) optional.descripcion_html = row.descripcion_html ?? null;
+  if ("precio" in row) optional.precio = precioBase;
+  if ("precioOferta" in row || "descuento" in row) optional.precioOferta = precioOferta;
+  if ("precioCoste" in row) optional.precioCoste = row.precioCoste !== "" ? parseNumber(row.precioCoste, 0) : null;
+  if ("stock" in row) optional.stock = parseNumber(row.stock, 0);
+  if ("stockMinimo" in row) optional.stockMinimo = parseNumber(row.stockMinimo, 0);
+  if ("activo" in row) optional.activo = parseBool(row.activo, true);
+  if ("destacado" in row) optional.destacado = parseBool(row.destacado, false);
+  if ("enOferta" in row) optional.enOferta = parseBool(row.enOferta, false);
+  if ("visibilidad" in row) optional.visibilidad = normalizeText(row.visibilidad) || "tienda";
+  if ("disponiblePedidos" in row) optional.disponiblePedidos = parseBool(row.disponiblePedidos, true);
+  if ("soloWeb" in row) optional.soloWeb = parseBool(row.soloWeb, false);
+  if ("condicion" in row) optional.condicion = normalizeText(row.condicion) || "nuevo";
+  if ("mostrarCondicion" in row) optional.mostrarCondicion = parseBool(row.mostrarCondicion, false);
+  if ("etiquetas" in row) optional.etiquetas = row.etiquetas ?? null;
+  if ("ean13" in row) optional.ean13 = row.ean13 ?? null;
+  if ("upc" in row) optional.upc = row.upc ?? null;
+  if ("isbn" in row) optional.isbn = row.isbn ?? null;
+  if ("anchura" in row) optional.anchura = row.anchura !== "" ? parseNumber(row.anchura, 0) : null;
+  if ("altura" in row) optional.altura = row.altura !== "" ? parseNumber(row.altura, 0) : null;
+  if ("profundidad" in row) optional.profundidad = row.profundidad !== "" ? parseNumber(row.profundidad, 0) : null;
+  if ("peso" in row) optional.peso = row.peso !== "" ? parseNumber(row.peso, 0) : null;
+  if ("plazoEntregaStock" in row) optional.plazoEntregaStock = row.plazoEntregaStock ?? null;
+  if ("plazoEntregaSinStock" in row) optional.plazoEntregaSinStock = row.plazoEntregaSinStock ?? null;
+  if ("gastosEnvioExtra" in row) optional.gastosEnvioExtra = row.gastosEnvioExtra !== "" ? parseNumber(row.gastosEnvioExtra, 0) : 0;
+  if ("metaTitulo" in row) optional.metaTitulo = row.metaTitulo ?? null;
+  if ("metaDescripcion" in row) optional.metaDescripcion = row.metaDescripcion ?? null;
+  if ("marca" in row) optional.marcaId = marca?.id ?? null;
+  if (needsImpuesto) optional.reglaImpuestoId = reglaImpuesto?.id ?? null;
+
+  // Defaults for fields not provided on create
+  const createDefaults = {
+    resumen: null,
+    descripcion: null,
+    descripcion_html: null,
+    precio: 0,
+    precioOferta: null,
+    precioCoste: null,
+    stock: 0,
+    stockMinimo: 0,
+    activo: true,
+    destacado: false,
+    enOferta: false,
+    visibilidad: "tienda",
+    disponiblePedidos: true,
+    soloWeb: false,
+    condicion: "nuevo",
+    mostrarCondicion: false,
+    etiquetas: null,
+    ean13: null,
+    upc: null,
+    isbn: null,
+    anchura: null,
+    altura: null,
+    profundidad: null,
+    peso: null,
+    plazoEntregaStock: null,
+    plazoEntregaSinStock: null,
+    gastosEnvioExtra: 0,
+    metaTitulo: null,
+    metaDescripcion: null,
+    marcaId: null,
+    reglaImpuestoId: reglaImpuestoDefault?.id ?? null,
   };
 
   let producto;
   if (productoExistente) {
-    producto = await prisma.producto.update({ where: { id: productoExistente.id }, data });
+    // Update: only apply fields that were actually mapped (present in row)
+    producto = await prisma.producto.update({
+      where: { id: productoExistente.id },
+      data: { ...coreData, ...optional },
+    });
   } else {
-    producto = await prisma.producto.create({ data: { ...data, createdAt: new Date() } });
+    // Create: apply defaults for any unmapped optional fields
+    producto = await prisma.producto.create({
+      data: { ...createDefaults, ...coreData, ...optional, createdAt: new Date() },
+    });
   }
 
-  const categorias = splitList(row.categorias || row.categoria || row.category);
-  if (categorias.length) {
-    await prisma.productocategoria.deleteMany({ where: { productoId: producto.id } });
-    for (let index = 0; index < categorias.length; index += 1) {
-      const categoriaNombre = categorias[index];
-      const categoria = await prisma.categoria.findFirst({ where: { nombre: categoriaNombre } });
-      if (!categoria) continue;
-      await prisma.productocategoria.create({
-        data: { productoId: producto.id, categoriaId: categoria.id, esPrincipal: index === 0 },
-      });
+  // Categories: only update if any category field was mapped
+  if ("categorias" in row || "categoria" in row || "category" in row) {
+    const categorias = splitList(row.categorias || row.categoria || row.category);
+    if (categorias.length) {
+      await prisma.productocategoria.deleteMany({ where: { productoId: producto.id } });
+      for (let index = 0; index < categorias.length; index += 1) {
+        const categoriaNombre = categorias[index];
+        const categoria = await prisma.categoria.findFirst({ where: { nombre: categoriaNombre } });
+        if (!categoria) continue;
+        await prisma.productocategoria.create({
+          data: { productoId: producto.id, categoriaId: categoria.id, esPrincipal: index === 0 },
+        });
+      }
     }
   }
 
-  const imagenes = splitList(row.imagenes || row.imagen || row.urlsImagenes);
-  if (imagenes.length) {
-    await prisma.productoimagen.deleteMany({ where: { productoId: producto.id } });
-    for (let index = 0; index < imagenes.length; index += 1) {
-      await prisma.productoimagen.create({
-        data: {
-          productoId: producto.id,
-          url: imagenes[index],
-          orden: index,
-          esPortada: index === 0,
-        },
-      });
+  // Images: only update if any image field was mapped
+  if ("imagenes" in row || "imagen" in row || "urlsImagenes" in row) {
+    const imagenes = splitList(row.imagenes || row.imagen || row.urlsImagenes);
+    if (imagenes.length) {
+      await prisma.productoimagen.deleteMany({ where: { productoId: producto.id } });
+      for (let index = 0; index < imagenes.length; index += 1) {
+        await prisma.productoimagen.create({
+          data: { productoId: producto.id, url: imagenes[index], orden: index, esPortada: index === 0 },
+        });
+      }
     }
   }
 
@@ -960,18 +1089,25 @@ async function upsertCombinacion(row: ImportRow) {
     ? await prisma.variante.findFirst({ where: { productoId: producto.id, referencia } })
     : null;
 
-  const varianteData = {
-    productoId: producto.id,
-    referencia,
-    stock: parseNumber(row.stock, 0),
-    imagen: row.imagen ? normalizeText(row.imagen) : null,
-    color: row.color ? normalizeText(row.color) : null,
-    imagenMuestra: row.imagenMuestra ? normalizeText(row.imagenMuestra) : null,
-    imagenesVariante: row.imagenesVariante ? normalizeText(row.imagenesVariante) : null,
-    precio_extra: row.precio_extra !== undefined && row.precio_extra !== "" ? parseNumber(row.precio_extra, 0) : 0,
-    tamano: row.tamano ? normalizeText(row.tamano) : null,
-    tirador: row.tirador ? normalizeText(row.tirador) : null,
-  };
+  // Core fields always included
+  const varianteCoreData = { productoId: producto.id, referencia };
+
+  // Optional fields: only included if mapped (present in row)
+  const varianteOptional: Record<string, any> = {};
+  if ("stock" in row) varianteOptional.stock = parseNumber(row.stock, 0);
+  if ("imagen" in row) varianteOptional.imagen = row.imagen ? normalizeText(row.imagen) : null;
+  if ("color" in row) varianteOptional.color = row.color ? normalizeText(row.color) : null;
+  if ("imagenMuestra" in row) varianteOptional.imagenMuestra = row.imagenMuestra ? normalizeText(row.imagenMuestra) : null;
+  if ("imagenesVariante" in row) varianteOptional.imagenesVariante = row.imagenesVariante ? normalizeText(row.imagenesVariante) : null;
+  if ("precio_extra" in row) varianteOptional.precio_extra = row.precio_extra !== "" ? parseNumber(row.precio_extra, 0) : 0;
+  if ("tamano" in row) varianteOptional.tamano = row.tamano ? normalizeText(row.tamano) : null;
+  if ("tirador" in row) varianteOptional.tirador = row.tirador ? normalizeText(row.tirador) : null;
+
+  const varianteCreateDefaults = { stock: 0, imagen: null, color: null, imagenMuestra: null, imagenesVariante: null, precio_extra: 0, tamano: null, tirador: null };
+
+  const varianteData = existing
+    ? { ...varianteCoreData, ...varianteOptional }
+    : { ...varianteCreateDefaults, ...varianteCoreData, ...varianteOptional };
 
   const variante = existing
     ? await prisma.variante.update({ where: { id: existing.id }, data: varianteData })
@@ -980,17 +1116,23 @@ async function upsertCombinacion(row: ImportRow) {
   const atributos = getCombinationTokens(row);
   if (atributos.length) {
     await prisma.varianteatributo.deleteMany({ where: { varianteId: variante.id } });
+    const uniqueAttributeValueIds = new Set<number>();
+
     for (const token of atributos) {
       const atributoValorId = Number(token);
       if (Number.isInteger(atributoValorId)) {
-        await prisma.varianteatributo.create({ data: { varianteId: variante.id, atributoValorId } });
+        uniqueAttributeValueIds.add(atributoValorId);
         continue;
       }
 
       const encontrado = await prisma.atributovalor.findFirst({ where: { valor: token } });
       if (encontrado) {
-        await prisma.varianteatributo.create({ data: { varianteId: variante.id, atributoValorId: encontrado.id } });
+        uniqueAttributeValueIds.add(encontrado.id);
       }
+    }
+
+    for (const atributoValorId of uniqueAttributeValueIds) {
+      await prisma.varianteatributo.create({ data: { varianteId: variante.id, atributoValorId } });
     }
   }
 
@@ -1020,31 +1162,102 @@ async function deleteCombinacion(row: ImportRow) {
   await prisma.variante.delete({ where: { id: variante.id } });
 }
 
-export async function POST(req: NextRequest) {
+async function runImportJob(jobId: string) {
   try {
-    const body = await req.json();
-    const tipo = String(body.tipo ?? "").trim() as ImportType;
-    const rows = Array.isArray(body.rows) ? body.rows : [];
-    const sourceRows = Array.isArray(body.sourceRows) ? body.sourceRows : [];
+    const job = getImportJob(jobId);
+    const payload = getImportJobPayload(jobId);
 
-    if (!tipo) return NextResponse.json({ ok: false, error: "Falta el tipo de importación" }, { status: 400 });
-    if (!rows.length) return NextResponse.json({ ok: false, error: "No hay filas para importar" }, { status: 400 });
+    if (!job) throw new Error("No se encontró el trabajo de importación");
+    if (!payload) throw new Error("No se encontró el payload de importación");
 
-    const errors: ImportErrorItem[] = [];
-    let created = 0;
-    let updated = 0;
-    let deleted = 0;
+    const { tipo, rows, sourceRows } = payload;
+    const mode = payload.mode === "validate" ? "validate" : "import";
+    const operationLabel = mode === "validate" ? "Prevalidación" : "Importación";
+    const startIndex = Math.max(0, Math.min(job.current || 0, rows.length));
+
+    if (!tipo) throw new Error("Falta el tipo de importación");
+    if (!rows.length) throw new Error("No hay filas para importar");
+
+    updateImportJob(jobId, {
+      status: "running",
+      phase: `${mode === "validate" ? "Prevalidando" : "Importando"} ${tipo}`,
+      current: startIndex,
+      total: rows.length,
+      currentLabel: "",
+      message: `${operationLabel} iniciada`,
+    });
+
+    let created = job.counts.created;
+    let updated = job.counts.updated;
+    let deleted = job.counts.deleted;
+    let skipped = job.counts.skipped;
+    let failed = job.counts.failed;
     const clienteNifCache = new Map<string, string>();
 
-    for (let i = 0; i < rows.length; i += 1) {
+    for (let i = startIndex; i < rows.length; i += 1) {
+      const liveJob = getImportJob(jobId);
+      if (!liveJob || liveJob.status === "paused") {
+        markImportJobPaused(jobId);
+        return { paused: true, current: i };
+      }
+
       const row = rows[i] as ImportRow;
       const sourceRow = (sourceRows[i] as ImportRow | undefined) ?? row;
       const accion = normalizeAction(row.accion);
+      const currentLabel = describeImportRow(tipo, row, i);
+
+      updateImportJob(jobId, {
+        phase: `${mode === "validate" ? "Prevalidando" : "Importando"} ${tipo}`,
+        current: i + 1,
+        currentLabel,
+        message: `${mode === "validate" ? "Verificando" : "Fila"} ${i + 1}/${rows.length}`,
+        counts: {
+          created,
+          updated,
+          deleted,
+          skipped,
+          failed,
+        },
+      });
 
       try {
         const validationErrors = await validateImportRow(tipo, row, accion);
         if (validationErrors.length > 0) {
-          errors.push({ row: i + 1, error: validationErrors.join(" · "), data: sanitizeRowForReport(row), sourceRow: sanitizeRowForReport(sourceRow) });
+          const skippedCombination = isMissingProductCombinationWarning(tipo, accion, validationErrors);
+          appendImportJobError(jobId, {
+            row: i + 1,
+            error: validationErrors.join(" · "),
+            data: sanitizeRowForReport(row),
+            sourceRow: sanitizeRowForReport(sourceRow),
+          });
+          if (skippedCombination) {
+            skipped += 1;
+          } else {
+            failed += 1;
+          }
+          updateImportJob(jobId, {
+            counts: {
+              created,
+              updated,
+              deleted,
+              skipped,
+              failed,
+            },
+            message: `Validación fallida ${i + 1}/${rows.length}`,
+          });
+          continue;
+        }
+
+        if (mode === "validate") {
+          updateImportJob(jobId, {
+            counts: {
+              created,
+              updated,
+              deleted,
+              failed,
+            },
+            message: `Verificadas ${i + 1}/${rows.length}`,
+          });
           continue;
         }
 
@@ -1099,19 +1312,138 @@ export async function POST(req: NextRequest) {
           }
         }
       } catch (error: any) {
-        errors.push({ row: i + 1, error: error.message, data: sanitizeRowForReport(row), sourceRow: sanitizeRowForReport(sourceRow) });
+        appendImportJobError(jobId, {
+          row: i + 1,
+          error: error.message,
+          data: sanitizeRowForReport(row),
+          sourceRow: sanitizeRowForReport(sourceRow),
+        });
+        failed += 1;
       }
+
+      updateImportJob(jobId, {
+        counts: {
+          created,
+          updated,
+          deleted,
+          skipped,
+          failed,
+        },
+        message: `Procesadas ${i + 1}/${rows.length}`,
+      });
     }
 
-    return NextResponse.json({
-      ok: errors.length === 0,
-      imported: created + updated + deleted,
+    const result = {
+      ok: failed === 0,
+      imported: mode === "validate" ? rows.length : created + updated + deleted,
       updated,
       deleted,
-      failed: errors.length,
-      errors,
-    });
+      skipped,
+      failed,
+    };
+
+    completeImportJob(jobId, result);
+    return result;
   } catch (error: any) {
-    return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+    failImportJob(jobId, error.message || "Error de servidor");
+    throw error;
+  }
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const body = await req.json();
+    const tipo = String(body.tipo ?? "").trim() as ImportType;
+    const rows = Array.isArray(body.rows) ? body.rows : [];
+    const sourceRows = Array.isArray(body.sourceRows) ? body.sourceRows : [];
+    const mode = String(body.mode ?? "import").trim().toLowerCase() === "validate" ? "validate" : "import";
+
+    if (!tipo) {
+      return NextResponse.json({ ok: false, error: "Falta el tipo de importación" }, { status: 400 });
+    }
+
+    if (!rows.length) {
+      return NextResponse.json({ ok: false, error: "No hay filas para importar" }, { status: 400 });
+    }
+
+    const job = createImportJob(tipo, rows.length, { tipo, rows, sourceRows, mode });
+    updateImportJob(job.id, {
+      phase: `${mode === "validate" ? "Prevalidando" : "Importando"} ${tipo}`,
+      message: mode === "validate" ? "Trabajo de prevalidación en cola" : "Trabajo en cola",
+    });
+
+    void runImportJob(job.id).catch((error: any) => {
+      failImportJob(job.id, error?.message || "Error de servidor");
+    });
+
+    return NextResponse.json({ ok: true, jobId: job.id, job: serializeImportJob(job) }, { status: 202 });
+  } catch (error: any) {
+    return NextResponse.json({ ok: false, error: error.message || "Error de servidor" }, { status: 500 });
+  }
+}
+
+export async function GET(req: NextRequest) {
+  const { searchParams } = new URL(req.url);
+  const jobId = searchParams.get("jobId")?.trim();
+
+  if (!jobId) {
+    const jobs = listImportJobs();
+    return NextResponse.json({ ok: true, jobs: jobs.map(serializeImportJob) });
+  }
+
+  const job = getImportJob(jobId);
+  if (!job) {
+    return NextResponse.json({ ok: false, error: "No se encontró el trabajo de importación" }, { status: 404 });
+  }
+
+  return NextResponse.json({ ok: true, job: serializeImportJob(job) });
+}
+
+export async function PATCH(req: NextRequest) {
+  try {
+    const body = await req.json();
+    const jobId = String(body.jobId ?? "").trim();
+    const action = String(body.action ?? "").trim().toLowerCase();
+
+    if (!jobId) {
+      return NextResponse.json({ ok: false, error: "Falta jobId" }, { status: 400 });
+    }
+
+    const job = getImportJob(jobId);
+    if (!job) {
+      return NextResponse.json({ ok: false, error: "No se encontró el trabajo de importación" }, { status: 404 });
+    }
+
+    if (action === "cancel") {
+      if (job.status !== "running" && job.status !== "queued") {
+        return NextResponse.json({ ok: true, job: serializeImportJob(job) });
+      }
+
+      const paused = markImportJobPaused(jobId);
+      return NextResponse.json({ ok: true, job: serializeImportJob(paused ?? job) });
+    }
+
+    if (action === "resume") {
+      if (job.status !== "paused") {
+        return NextResponse.json({ ok: false, error: "Solo se puede reanudar un trabajo pausado" }, { status: 400 });
+      }
+
+      updateImportJob(jobId, {
+        status: "queued",
+        phase: `Reanudando ${job.tipo}`,
+        message: "Reanudando trabajo",
+      });
+
+      void runImportJob(jobId).catch((error: any) => {
+        failImportJob(jobId, error?.message || "Error de servidor");
+      });
+
+      const refreshed = getImportJob(jobId);
+      return NextResponse.json({ ok: true, job: serializeImportJob(refreshed ?? job) });
+    }
+
+    return NextResponse.json({ ok: false, error: "Acción no soportada" }, { status: 400 });
+  } catch (error: any) {
+    return NextResponse.json({ ok: false, error: error.message || "Error de servidor" }, { status: 500 });
   }
 }

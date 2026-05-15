@@ -5,6 +5,7 @@ export type CmsPageSlug =
   | "politica-de-cookies"
   | "politica-privacidad"
   | "formulario-desistimiento"
+  | "quienes-somos"
   | "contacto";
 
 export type CmsPageDefinition = {
@@ -67,8 +68,15 @@ export const CMS_PAGE_DEFINITIONS: CmsPageDefinition[] = [
     defaultExcerpt: "Respuestas a las dudas más habituales.",
     defaultMetaTitle: "Preguntas frecuentes | El Hogar de tus Sueños",
     defaultMetaDescription: "Resolvemos las preguntas más frecuentes de la tienda.",
-    defaultContentHtml:
-      "<p>Completa aquí las preguntas frecuentes. Puedes estructurarlas con títulos, párrafos y listas.</p>",
+    defaultContentHtml: `<h2>Preguntas frecuentes</h2>
+<h3 id="cambios-devoluciones">¿Y si no me gusta ¿hay posibilidad de realizar un cambio o devolverlo?</h3>
+<p>Puedes devolver o cambiar tu compra en un plazo de 14 días desde la recepción del pedido. Para más información, consulta nuestras <a href="/cms/formulario-desistimiento">condiciones de devolución</a>.</p>
+
+<h3 id="formas-pago">¿En el pago con tarjeta o PayPal saldrá que es lo que compro?</h3>
+<p>Sí, en tu extracto bancario aparecerá el concepto de compra de El Hogar de tus Sueños. En PayPal verás el desglose del pedido con el nombre de nuestra tienda.</p>
+
+<h3 id="envios">¿Cuál es el importe de los portes?</h3>
+<p>El importe de los gastos de envío depende del peso del pedido y la zona de envío. Se calcula automáticamente durante el proceso de compra antes de confirmar tu pedido.</p>`,
   },
   {
     slug: "politica-de-cookies",
@@ -105,6 +113,18 @@ export const CMS_PAGE_DEFINITIONS: CmsPageDefinition[] = [
     defaultMetaDescription: "Consulta el formulario de desistimiento de la tienda.",
     defaultContentHtml:
       "<p>Completa aquí el formulario o las instrucciones de desistimiento.</p>",
+  },
+  {
+    slug: "quienes-somos",
+    label: "Quiénes somos",
+    route: "/cms/quienes-somos",
+    description: "Página sobre la empresa, historia, valores y equipo.",
+    defaultTitle: "Quiénes somos",
+    defaultExcerpt: "Conoce la historia y valores de El Hogar de tus Sueños.",
+    defaultMetaTitle: "Quiénes somos | El Hogar de tus Sueños",
+    defaultMetaDescription: "Descubre quiénes somos y nuestra historia.",
+    defaultContentHtml:
+      "<p>Completa aquí la información sobre la empresa, historia, misión y valores.</p>",
   },
   {
     slug: "contacto",

@@ -18,7 +18,7 @@ interface DireccionForm {
 }
 
 export default function DireccionesPage() {
-  const { cliente, token, loading, setCliente } = useClienteAuth();
+  const { cliente, token, loading, setCliente, logout } = useClienteAuth();
 
   const router = useRouter();
   const [form, setForm] = useState<DireccionForm>({
@@ -120,19 +120,22 @@ export default function DireccionesPage() {
       });
 
       const data = await res.json();
+      if (res.status === 401) {
+        logout();
+        router.push("/auth?expired=1");
+        return;
+      }
       if (!data.ok) throw new Error(data.error || "Error al guardar la dirección");
 
       setMensaje("Dirección guardada correctamente");
 
-      // Actualizar contexto
-      if (cliente) {
-        setCliente({
-          ...cliente,
-          direccion: form.direccion,
-          ciudad: form.ciudad,
-          codigoPostal: form.codigoPostal,
-          telefono: form.telefono,
-        });
+      // Actualizar contexto con datos completos del servidor
+      if (data.cliente) {
+        const clienteActualizado = { ...data.cliente, id: Number(data.cliente.id) };
+        setCliente(clienteActualizado);
+        localStorage.setItem("cliente_datos", JSON.stringify(clienteActualizado));
+      } else if (cliente) {
+        setCliente({ ...cliente, ...form, nif: nifFinal });
       }
 
       // Redirección inteligente

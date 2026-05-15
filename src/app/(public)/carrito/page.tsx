@@ -89,7 +89,7 @@ export default function CarritoPage() {
 
     if (!cliente.direccion || !cliente.codigoPostal || !cliente.ciudad) {
       toast("Completa tu dirección de envío 🏠");
-      router.push("/direcciones?next=/checkout/envio");
+      router.push("/account/direcciones?next=/checkout/envio");
       return;
     }
 

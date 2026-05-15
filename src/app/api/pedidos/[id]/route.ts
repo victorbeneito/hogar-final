@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { sendTemplateEmail } from "@/lib/emailService";
+import { sendReviOrder } from "@/lib/reviService";
 
 export const dynamic = "force-dynamic";
 
@@ -29,8 +31,8 @@ function mapPedido(pedidoRaw: any) {
     referencia: pedidoRaw.referencia || pedidoRaw.numeroPedido,
     numeroPedido: pedidoRaw.numeroPedido,
     clienteId: pedidoRaw.clienteId,
-    nombre: `${pedidoRaw.nombre || pedidoRaw.Cliente?.nombre || ""} ${pedidoRaw.apellidos || pedidoRaw.Cliente?.apellidos || ""}`.trim(),
-    apellidos: pedidoRaw.apellidos || pedidoRaw.Cliente?.apellidos || "",
+    nombre: `${pedidoRaw.nombre || pedidoRaw.cliente?.nombre || ""} ${pedidoRaw.apellidos || pedidoRaw.cliente?.apellidos || ""}`.trim(),
+    apellidos: pedidoRaw.apellidos || pedidoRaw.cliente?.apellidos || "",
     email: pedidoRaw.email,
     telefono: pedidoRaw.telefono || "",
     nif: pedidoRaw.nif || "",
@@ -41,17 +43,17 @@ function mapPedido(pedidoRaw: any) {
     cp: pedidoRaw.cp || "",
     pais: pedidoRaw.pais || "España",
     direccionEntrega: {
-      nombre: pedidoRaw.nombre || pedidoRaw.Cliente?.nombre || "",
-      apellidos: pedidoRaw.apellidos || pedidoRaw.Cliente?.apellidos || "",
-      empresa: pedidoRaw.Cliente?.empresa || "",
+      nombre: pedidoRaw.nombre || pedidoRaw.cliente?.nombre || "",
+      apellidos: pedidoRaw.apellidos || pedidoRaw.cliente?.apellidos || "",
+      empresa: pedidoRaw.cliente?.empresa || "",
       nif: pedidoRaw.nif || "",
       telefono: pedidoRaw.telefono || "",
       direccion: pedidoRaw.direccion || "",
       direccionComplementaria: pedidoRaw.direccionComplementaria || "",
-      codigoPostal: pedidoRaw.cp || pedidoRaw.Cliente?.codigoPostal || "",
-      ciudad: pedidoRaw.ciudad || pedidoRaw.Cliente?.ciudad || "",
-      provincia: pedidoRaw.provincia || pedidoRaw.Cliente?.provincia || "",
-      pais: pedidoRaw.pais || pedidoRaw.Cliente?.pais || "España",
+      codigoPostal: pedidoRaw.cp || pedidoRaw.cliente?.codigoPostal || "",
+      ciudad: pedidoRaw.ciudad || pedidoRaw.cliente?.ciudad || "",
+      provincia: pedidoRaw.provincia || pedidoRaw.cliente?.provincia || "",
+      pais: pedidoRaw.pais || pedidoRaw.cliente?.pais || "España",
     },
     direccionFacturacion: toAddress(pedidoRaw, "facturacion"),
     envioMetodo: pedidoRaw.envioMetodo,
@@ -72,20 +74,20 @@ function mapPedido(pedidoRaw: any) {
     estado: pedidoRaw.estado,
     notas: pedidoRaw.notas || "",
     fechaPedido: pedidoRaw.fechaPedido ? pedidoRaw.fechaPedido.toISOString() : null,
-    createdAt: pedidoRaw.createdAt ? pedidoRaw.createdAt.toISOString() : null,
+    createdAt: pedidoRaw.fechaPedido ? pedidoRaw.fechaPedido.toISOString() : null,
     updatedAt: pedidoRaw.updatedAt ? pedidoRaw.updatedAt.toISOString() : null,
-    cliente: pedidoRaw.Cliente
+    cliente: pedidoRaw.cliente
       ? {
-          id: pedidoRaw.Cliente.id,
-          nombre: `${pedidoRaw.Cliente.nombre || ""} ${pedidoRaw.Cliente.apellidos || ""}`.trim(),
-          email: pedidoRaw.Cliente.email,
-          telefono: pedidoRaw.Cliente.telefono || "",
-          empresa: pedidoRaw.Cliente.empresa || "",
-          nif: pedidoRaw.Cliente.nif || "",
+          id: pedidoRaw.cliente.id,
+          nombre: `${pedidoRaw.cliente.nombre || ""} ${pedidoRaw.cliente.apellidos || ""}`.trim(),
+          email: pedidoRaw.cliente.email,
+          telefono: pedidoRaw.cliente.telefono || "",
+          empresa: pedidoRaw.cliente.empresa || "",
+          nif: pedidoRaw.cliente.nif || "",
         }
       : null,
     factura: pedidoRaw.factura || null,
-    productos: (pedidoRaw.PedidoProducto || []).map((prod: any) => ({
+    productos: (pedidoRaw.pedidoproducto || []).map((prod: any) => ({
       id: prod.id,
       productoId: prod.productoIdRef || null,
       varianteId: prod.varianteIdRef || null,
@@ -115,8 +117,35 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 
     const pedidoRaw = await prisma.pedido.findUnique({
       where: { id },
-      include: {
-        Cliente: {
+      select: {
+        id: true,
+        numeroPedido: true,
+        clienteId: true,
+        nombre: true,
+        apellidos: true,
+        email: true,
+        telefono: true,
+        nif: true,
+        direccion: true,
+        ciudad: true,
+        provincia: true,
+        cp: true,
+        pais: true,
+        envioMetodo: true,
+        envioCoste: true,
+        pagoMetodo: true,
+        pagoRecargo: true,
+        estadoPago: true,
+        subtotal: true,
+        descuento: true,
+        totalFinal: true,
+        estado: true,
+        cuponCodigo: true,
+        cuponDescuento: true,
+        notas: true,
+        fechaPedido: true,
+        updatedAt: true,
+        cliente: {
           select: {
             id: true,
             nombre: true,
@@ -134,8 +163,16 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
           },
         },
         factura: true,
-        PedidoProducto: {
-          include: {
+        pedidoproducto: {
+          select: {
+            id: true,
+            productoIdRef: true,
+            varianteIdRef: true,
+            nombre: true,
+            varianteInfo: true,
+            cantidad: true,
+            precioUnitario: true,
+            subtotal: true,
             producto: {
               select: { id: true, nombre: true, referencia: true, slug: true },
             },
@@ -144,9 +181,6 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
             },
           },
           orderBy: { id: "asc" },
-        },
-        mensajes: {
-          orderBy: { createdAt: "asc" },
         },
       },
     });
@@ -172,6 +206,22 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
 
     const body = await req.json();
 
+    // Leer estado anterior para detectar cambios y enviar email si procede
+    const pedidoAnterior = body.estado
+      ? await prisma.pedido.findUnique({
+          where: { id },
+          select: {
+            estado: true,
+            email: true,
+            nombre: true,
+            numeroPedido: true,
+            numeroSeguimiento: true,
+            trackingUrl: true,
+            totalFinal: true,
+          },
+        })
+      : null;
+
     const result = await prisma.$transaction(async (tx) => {
       const pedidoActualizado = await tx.pedido.update({
         where: { id },
@@ -181,11 +231,6 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
           notas: body.notas,
           envioMetodo: body.envioMetodo,
           envioCoste: body.envioCoste !== undefined ? Number(body.envioCoste) : undefined,
-          transportistaNombre: body.transportistaNombre,
-          numeroSeguimiento: body.numeroSeguimiento,
-          trackingUrl: body.trackingUrl,
-          fechaEnvio: body.fechaEnvio ? new Date(body.fechaEnvio) : undefined,
-          fechaEntrega: body.fechaEntrega ? new Date(body.fechaEntrega) : undefined,
           pagoMetodo: body.pagoMetodo,
           pagoRecargo: body.pagoRecargo !== undefined ? Number(body.pagoRecargo) : undefined,
           subtotal: body.subtotal !== undefined ? Number(body.subtotal) : undefined,
@@ -199,30 +244,21 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
           telefono: body.telefono,
           nif: body.nif,
           direccion: body.direccion,
-          direccionComplementaria: body.direccionComplementaria,
           ciudad: body.ciudad,
           provincia: body.provincia,
           cp: body.cp,
           pais: body.pais,
-          facturacionNombre: body.facturacionNombre,
-          facturacionApellidos: body.facturacionApellidos,
-          facturacionEmpresa: body.facturacionEmpresa,
-          facturacionNif: body.facturacionNif,
-          facturacionTelefono: body.facturacionTelefono,
-          facturacionDireccion: body.facturacionDireccion,
-          facturacionDireccionComplementaria: body.facturacionDireccionComplementaria,
-          facturacionCodigoPostal: body.facturacionCodigoPostal,
-          facturacionCiudad: body.facturacionCiudad,
-          facturacionProvincia: body.facturacionProvincia,
-          facturacionPais: body.facturacionPais,
           updatedAt: new Date(),
         }),
+        select: {
+          id: true,
+        },
       });
 
       if (Array.isArray(body.productos)) {
         for (const producto of body.productos) {
           if (!producto?.id) continue;
-          await tx.pedidoProducto.update({
+          await tx.pedidoproducto.update({
             where: { id: producto.id },
             data: cleanData({
               cantidad: producto.cantidad !== undefined ? Number(producto.cantidad) : undefined,
@@ -239,8 +275,35 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
 
     const pedidoCompleto = await prisma.pedido.findUnique({
       where: { id: result.id },
-      include: {
-        Cliente: {
+      select: {
+        id: true,
+        numeroPedido: true,
+        clienteId: true,
+        nombre: true,
+        apellidos: true,
+        email: true,
+        telefono: true,
+        nif: true,
+        direccion: true,
+        ciudad: true,
+        provincia: true,
+        cp: true,
+        pais: true,
+        envioMetodo: true,
+        envioCoste: true,
+        pagoMetodo: true,
+        pagoRecargo: true,
+        estadoPago: true,
+        subtotal: true,
+        descuento: true,
+        totalFinal: true,
+        estado: true,
+        cuponCodigo: true,
+        cuponDescuento: true,
+        notas: true,
+        fechaPedido: true,
+        updatedAt: true,
+        cliente: {
           select: {
             id: true,
             nombre: true,
@@ -258,8 +321,16 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
           },
         },
         factura: true,
-        PedidoProducto: {
-          include: {
+        pedidoproducto: {
+          select: {
+            id: true,
+            productoIdRef: true,
+            varianteIdRef: true,
+            nombre: true,
+            varianteInfo: true,
+            cantidad: true,
+            precioUnitario: true,
+            subtotal: true,
             producto: {
               select: { id: true, nombre: true, referencia: true, slug: true },
             },
@@ -269,11 +340,41 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
           },
           orderBy: { id: "asc" },
         },
-        mensajes: {
-          orderBy: { createdAt: "asc" },
-        },
       },
     });
+
+    // Emails automáticos al cambiar el estado del pedido
+    if (pedidoAnterior && body.estado && pedidoAnterior.estado !== body.estado && pedidoAnterior.email) {
+      const appUrl = process.env.APP_URL || "https://www.elhogardetsuenos.com";
+      const nombre = pedidoAnterior.nombre || "Cliente";
+      const numeroPedido = pedidoAnterior.numeroPedido;
+
+      if (body.estado === "ENVIADO") {
+        const trackingNumber = body.numeroSeguimiento || pedidoAnterior.numeroSeguimiento || "";
+        const trackingUrl =
+          body.trackingUrl ||
+          pedidoAnterior.trackingUrl ||
+          (trackingNumber
+            ? `https://www.ontime.es/seguimiento/?expedicion=${trackingNumber}`
+            : `${appUrl}/mis-pedidos`);
+        sendTemplateEmail({
+          to: pedidoAnterior.email,
+          templateSlug: "order-shipped",
+          variables: { nombre, numeroPedido, trackingNumber, trackingUrl },
+        }).catch((err) => console.error("❌ Email pedido enviado:", err?.message));
+      } else if (body.estado === "CANCELADO") {
+        const motivo = body.notas ? `Motivo: ${body.notas}` : "";
+        sendTemplateEmail({
+          to: pedidoAnterior.email,
+          templateSlug: "order-cancelled",
+          variables: { nombre, numeroPedido, motivo },
+        }).catch((err) => console.error("❌ Email pedido cancelado:", err?.message));
+      } else if (body.estado === "CUESTIONARIO") {
+        sendReviOrder(pedidoCompleto).catch((err) =>
+          console.error("[REVI] Error enviando pedido a REVI:", err?.message)
+        );
+      }
+    }
 
     return NextResponse.json({ ok: true, pedido: pedidoCompleto ? mapPedido(pedidoCompleto) : result });
   } catch (error: any) {

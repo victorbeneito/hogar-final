@@ -18,7 +18,7 @@ interface DireccionForm {
 }
 
 export default function CheckoutDireccionesPage() {
-  const { cliente, token, loading, setCliente } = useClienteAuth();
+  const { cliente, token, loading, setCliente, logout } = useClienteAuth();
 
   const router = useRouter();
   const [form, setForm] = useState<DireccionForm>({
@@ -111,6 +111,11 @@ export default function CheckoutDireccionesPage() {
       });
 
       const data = await res.json();
+      if (res.status === 401) {
+        logout();
+        router.push("/auth?expired=1");
+        return;
+      }
       if (!data.ok) throw new Error(data.error || "Error al guardar la dirección");
 
       setMensaje("Dirección guardada correctamente");

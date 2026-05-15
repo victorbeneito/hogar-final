@@ -1,4 +1,5 @@
 "use client";
+import { useEffect, useRef, useState } from "react";
 
 type ReglaImpuesto = { id: number; nombre: string; porcentaje: number };
 
@@ -18,34 +19,53 @@ export default function TabPrecio({ data, onChange, reglasImpuesto }: Props) {
 
   // ── Precio oferta (se guarda en BD como excl.) ───────────────────
   const ofertaExcl   = data.precioOferta != null ? parseFloat(data.precioOferta) : null;
-  // FIX 3: mostramos y editamos como INCL al usuario
   const ofertaIncl   = ofertaExcl !== null ? ofertaExcl * (1 + porcentaje / 100) : null;
   const descuentoPct = ofertaExcl !== null && precioExcl > 0
     ? Math.round(((precioExcl - ofertaExcl) / precioExcl) * 100)
     : null;
 
-  // Al editar "precio con IVA" → guarda sin IVA en BD
-  function handlePrecioIncl(val: string) {
+  // Estado local del input de precio para evitar que se resetee mientras el usuario escribe
+  const [precioInclText, setPrecioInclText] = useState(precioIncl > 0 ? precioIncl.toFixed(2) : "");
+  const [ofertaInclText, setOfertaInclText] = useState(ofertaIncl != null && ofertaIncl > 0 ? ofertaIncl.toFixed(2) : "");
+  const precioFocused = useRef(false);
+  const ofertaFocused = useRef(false);
+
+  // Sincronizar texto cuando cambia la regla de IVA (pero no mientras el usuario escribe)
+  useEffect(() => {
+    if (!precioFocused.current) {
+      setPrecioInclText(precioIncl > 0 ? precioIncl.toFixed(2) : "");
+    }
+  }, [data.reglaImpuestoId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!ofertaFocused.current) {
+      setOfertaInclText(ofertaIncl != null && ofertaIncl > 0 ? ofertaIncl.toFixed(2) : "");
+    }
+  }, [data.reglaImpuestoId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function commitPrecioIncl(val: string) {
     if (val === "") { onChange("precio", 0); return; }
-    const inclVal = parseFloat(val) || 0;
+    const inclVal = parseFloat(val.replace(",", ".")) || 0;
     const exclVal = porcentaje > 0 ? inclVal / (1 + porcentaje / 100) : inclVal;
     onChange("precio", Math.round(exclVal * 1000000) / 1000000);
   }
 
-  // FIX 3: el usuario edita precio oferta como INCL → guardamos excl.
-  function handleOfertaIncl(val: string) {
+  function commitOfertaIncl(val: string) {
     if (val === "") { onChange("precioOferta", null); return; }
-    const inclVal = parseFloat(val) || 0;
+    const inclVal = parseFloat(val.replace(",", ".")) || 0;
     const exclVal = porcentaje > 0 ? inclVal / (1 + porcentaje / 100) : inclVal;
     onChange("precioOferta", Math.round(exclVal * 1000000) / 1000000);
   }
 
-  // Al editar el % de descuento → calcula precio oferta excl.
+  // Al editar el % de descuento → calcula precio oferta excl. y sincroniza el input de oferta
   function handleDescuentoPct(val: string) {
-    if (val === "") { onChange("precioOferta", null); return; }
+    if (val === "") { onChange("precioOferta", null); setOfertaInclText(""); return; }
     const pct = parseInt(val, 10);
     if (!isNaN(pct) && pct >= 0 && pct < 100) {
-      onChange("precioOferta", Math.round(precioExcl * (1 - pct / 100) * 1000000) / 1000000);
+      const newExcl = Math.round(precioExcl * (1 - pct / 100) * 1000000) / 1000000;
+      onChange("precioOferta", newExcl);
+      const newIncl = newExcl * (1 + porcentaje / 100);
+      setOfertaInclText(newIncl > 0 ? newIncl.toFixed(2) : "");
     }
   }
 
@@ -70,10 +90,18 @@ export default function TabPrecio({ data, onChange, reglasImpuesto }: Props) {
             </label>
             <div className="flex">
               <input
-                type="number" step="0.01" min="0"
-                value={precioIncl === 0 ? "" : precioIncl.toFixed(2)}
+                type="text" inputMode="decimal"
+                value={precioInclText}
                 placeholder="0.00"
-                onChange={e => handlePrecioIncl(e.target.value)}
+                onFocus={() => { precioFocused.current = true; }}
+                onBlur={() => {
+                  precioFocused.current = false;
+                  commitPrecioIncl(precioInclText);
+                  // reformatear si es un número válido
+                  const v = parseFloat(precioInclText.replace(",", "."));
+                  if (!isNaN(v) && v > 0) setPrecioInclText(v.toFixed(2));
+                }}
+                onChange={e => setPrecioInclText(e.target.value)}
                 className="w-full border border-gray-300 rounded-l px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
               />
               <span className="px-3 py-2 bg-gray-100 border border-l-0 border-gray-300 rounded-r text-sm text-gray-500">€</span>
@@ -156,15 +184,22 @@ export default function TabPrecio({ data, onChange, reglasImpuesto }: Props) {
         <h3 className="text-base font-semibold text-gray-800 mb-4 pb-2 border-b">Precio de oferta</h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
 
-          {/* FIX 3: campo ahora en IMP. INCL. — el usuario ve el precio final con IVA */}
           <div>
             <label className="block text-xs text-gray-500 mb-1">Precio oferta (imp. incl.)</label>
             <div className="flex">
               <input
-                type="number" step="0.01" min="0"
-                value={ofertaIncl === null || ofertaIncl === 0 ? "" : ofertaIncl.toFixed(2)}
-                onChange={e => handleOfertaIncl(e.target.value)}
+                type="text" inputMode="decimal"
+                value={ofertaInclText}
                 placeholder="0.00"
+                onFocus={() => { ofertaFocused.current = true; }}
+                onBlur={() => {
+                  ofertaFocused.current = false;
+                  commitOfertaIncl(ofertaInclText);
+                  const v = parseFloat(ofertaInclText.replace(",", "."));
+                  if (!isNaN(v) && v > 0) setOfertaInclText(v.toFixed(2));
+                  else if (ofertaInclText === "") setOfertaInclText("");
+                }}
+                onChange={e => setOfertaInclText(e.target.value)}
                 className="w-full border border-gray-300 rounded-l px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
               />
               <span className="px-3 py-2 bg-gray-100 border border-l-0 border-gray-300 rounded-r text-sm text-gray-500">€</span>

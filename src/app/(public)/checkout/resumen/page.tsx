@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getCart, CartItem } from "@/lib/cartService";
 import { useClienteAuth } from "@/context/ClienteAuthContext";
@@ -39,6 +39,7 @@ export default function ResumenPage() {
   // Cupón
   const [codigo, setCodigo] = useState("");
   const [descuento, setDescuento] = useState(0);
+  const aplicandoRef = useRef(false);
 
   // 1. Cargar Datos
   useEffect(() => {
@@ -141,6 +142,8 @@ export default function ResumenPage() {
   // 2. Lógica de Cupón
   const aplicarCupon = async () => {
     if (!codigo.trim()) return;
+    if (aplicandoRef.current) return;
+    aplicandoRef.current = true;
     try {
       // Usamos tu endpoint de validación
       const res = await fetch("/api/cupones/validate", {
@@ -172,6 +175,8 @@ export default function ResumenPage() {
     } catch (error) {
       console.error(error);
       toast.error("Error al verificar el cupón");
+    } finally {
+      aplicandoRef.current = false;
     }
   };
 
@@ -380,7 +385,7 @@ export default function ResumenPage() {
                         </div>
 
                         <button
-                            onClick={() => router.push("/checkout/pago")}
+                            onClick={() => { toast.dismiss(); router.push("/checkout/pago"); }}
                             className="w-full bg-primary text-white py-4 rounded-xl font-bold text-lg hover:bg-primaryHover transition-all shadow-lg shadow-yellow-500/20 hover:shadow-xl transform hover:-translate-y-0.5 flex justify-center items-center gap-2"
                         >
                             Ir a Pagar &rarr;

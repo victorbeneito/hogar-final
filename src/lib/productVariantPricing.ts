@@ -3,10 +3,24 @@ const naturalCollator = new Intl.Collator("es", {
   sensitivity: "base",
 });
 
+function parseDim(s: string): [number, number] | null {
+  const m = s.match(/^(\d+(?:[.,]\d+)?)[x×](\d+(?:[.,]\d+)?)/i);
+  if (!m) return null;
+  return [parseFloat(m[1].replace(",", ".")), parseFloat(m[2].replace(",", "."))];
+}
+
 export function ordenarValoresNaturales(values: Array<string | null | undefined>) {
-  return [...new Set(values.filter((value): value is string => Boolean(value)))].sort((a, b) =>
-    naturalCollator.compare(a, b)
-  );
+  return [...new Set(values.filter((value): value is string => Boolean(value)))].sort((a, b) => {
+    const da = parseDim(a);
+    const db = parseDim(b);
+    // If both are NxM dimensions, sort by height (2nd) then width (1st)
+    if (da && db) {
+      if (da[1] !== db[1]) return da[1] - db[1];
+      if (da[0] !== db[0]) return da[0] - db[0];
+      return 0;
+    }
+    return naturalCollator.compare(a, b);
+  });
 }
 
 type CalcularPrecioVarianteInput = {

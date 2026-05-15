@@ -8,10 +8,12 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const numero = searchParams.get("numero")?.trim();
     const cliente = searchParams.get("cliente")?.trim();
+    const origen = searchParams.get("origen")?.trim();
     const fechaDesde = searchParams.get("fechaDesde");
     const fechaHasta = searchParams.get("fechaHasta");
     const sortBy = searchParams.get("sortBy") || "fechaFactura";
     const sortDir = searchParams.get("sortDir") === "asc" ? "asc" : "desc";
+    const prestashopPrefix = "PS-";
 
     const where: any = {};
     if (numero) {
@@ -31,6 +33,16 @@ export async function GET(req: NextRequest) {
       where.fechaFactura = {};
       if (fechaDesde) where.fechaFactura.gte = new Date(fechaDesde);
       if (fechaHasta) where.fechaFactura.lte = new Date(fechaHasta);
+    }
+
+    const appendAndFilter = (condition: any) => {
+      where.AND = [...(where.AND || []), condition];
+    };
+
+    if (origen === "prestashop") {
+      appendAndFilter({ numeroFactura: { startsWith: prestashopPrefix } });
+    } else if (origen === "actuales") {
+      appendAndFilter({ NOT: { numeroFactura: { startsWith: prestashopPrefix } } });
     }
 
     const orderMap: Record<string, any> = {

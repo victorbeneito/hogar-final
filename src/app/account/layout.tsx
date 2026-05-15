@@ -16,7 +16,7 @@ export default function AccountLayout({
     { name: "Panel Principal", href: "/account", icon: "🏠" },
     { name: "Mis Pedidos", href: "/account/orders", icon: "📦" },
     { name: "Información", href: "/account/info", icon: "👤" },
-    { name: "Direcciones", href: "/direcciones", icon: "📍" },
+    { name: "Direcciones", href: "/account/direcciones", icon: "📍" },
     { name: "Cupones", href: "/account/coupons", icon: "🎟️" },
     { name: "Alertas", href: "/account/alerts", icon: "🔔" },
     { name: "Cookies", href: "/account/cookies", icon: "🍪" },

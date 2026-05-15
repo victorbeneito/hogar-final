@@ -11,16 +11,16 @@ services:
       MYSQL_USER: admin
       MYSQL_PASSWORD: password123
     volumes:
-      - mysql_data:/var/lib/mysql  # ← Volumen nombrado, NO ruta absoluta
+      - ./mysql_data:/var/lib/mysql  # ← Volumen nombrado, NO ruta absoluta
+      #./data_tienda:/var/lib/mysql
 
   phpmyadmin:
     image: phpmyadmin/phpmyadmin
     ports:
-      - "8080:80"
+      - "8081:80"
     environment:
       PMA_HOST: mi_tienda
     depends_on:
       - mi_tienda
 
-volumes:
-  mysql_data:  # ← Declarar el volumen aquí
+
