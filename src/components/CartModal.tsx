@@ -42,7 +42,7 @@ export default function CartModal({ isOpen, onClose, productName }: CartModalPro
 
         <p className="dark:text-gray-200 mb-6">¿Qué deseas hacer a continuación?</p>
 
-        <div className="flex justify-center gap-4">F
+        <div className="flex justify-center gap-4">
           <button
             onClick={handleContinueShopping}
             className="px-4 py-2 border border-gray-300 rounded hover:bg-gray-100 dark:bg-gray-700 dark:hover:bg-gray-600"

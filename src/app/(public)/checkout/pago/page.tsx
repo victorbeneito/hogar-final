@@ -173,6 +173,7 @@ export default function PagoPage() {
 
             // 3. --- ENRUTAMIENTO ---
             if (metodoPago === 'tarjeta') {
+                // Abre el overlay que llama a /api/redsys/crear-pago y redirige al TPV real
                 setShowRedsys(true);
             } else if (metodoPago === 'paypal') {
                 // Redirección directa a PayPal — sin modal intermedio

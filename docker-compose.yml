@@ -10,9 +10,14 @@ services:
       MYSQL_DATABASE: mi_tienda
       MYSQL_USER: admin
       MYSQL_PASSWORD: password123
+    command:
+      - "--innodb-use-native-aio=0"
+      - "--innodb-flush-log-at-trx-commit=2"
+      - "--innodb-flush-method=O_DSYNC"
+      - "--sync-binlog=0"
+      - "--skip-name-resolve"
     volumes:
-      - ./mysql_data:/var/lib/mysql  # ← Volumen nombrado, NO ruta absoluta
-      #./data_tienda:/var/lib/mysql
+      - mysql_data:/var/lib/mysql
 
   phpmyadmin:
     image: phpmyadmin/phpmyadmin
@@ -23,4 +28,5 @@ services:
     depends_on:
       - mi_tienda
 
-
+volumes:
+  mysql_data:

@@ -11,7 +11,8 @@ async function main() {
       nombre: 'Administrador',
       email: 'admin@admin.com',
       password: hashedPassword,
-      rol: 'admin'
+      rol: 'admin',
+      updatedAt: new Date()
     }
   })
 

@@ -299,10 +299,15 @@ export default function FormasPagoPage() {
                 <ToggleRow label="Activa" checked={config.gateways.redsys.activa} onChange={(checked) => updateConfig("gateways.redsys.activa", checked)} />
                 <PaymentFields
                   fields={[
-                    ["gateways.redsys.merchantCode", "FUC / código comercio", config.gateways.redsys.merchantCode],
-                    ["gateways.redsys.terminal", "Terminal", config.gateways.redsys.terminal],
+                    ["gateways.redsys.merchantCode", "FUC / Código comercio", config.gateways.redsys.merchantCode],
+                    ["gateways.redsys.terminal", "Número de terminal", config.gateways.redsys.terminal],
+                    ["gateways.redsys.merchantName", "Nombre del comercio", config.gateways.redsys.merchantName],
                   ]}
                   onChange={updateConfig}
+                />
+                <RedsysSecretKeyField
+                  value={config.gateways.redsys.secretKey}
+                  onChange={(val) => updateConfig("gateways.redsys.secretKey", val)}
                 />
                 <label className="block text-sm mt-4">
                   <span className="block mb-1 text-gray-500">Entorno</span>
@@ -311,10 +316,16 @@ export default function FormasPagoPage() {
                     onChange={(e) => updateConfig("gateways.redsys.entorno", e.target.value)}
                     className="w-full rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-950 px-4 py-3"
                   >
-                    <option value="sandbox">Sandbox</option>
-                    <option value="produccion">Producción</option>
+                    <option value="sandbox">Sandbox (pruebas)</option>
+                    <option value="produccion">Producción (real)</option>
                   </select>
                 </label>
+                <div className="mt-4 rounded-xl bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 p-4 text-xs text-blue-700 dark:text-blue-300 space-y-1">
+                  <p className="font-semibold">URLs a configurar en el panel de Redsys / tu banco:</p>
+                  <p><span className="font-medium">Notificación:</span> {typeof window !== "undefined" ? window.location.origin : ""}/api/redsys/notificacion</p>
+                  <p><span className="font-medium">URL OK:</span> {typeof window !== "undefined" ? window.location.origin : ""}/checkout/redsys/ok</p>
+                  <p><span className="font-medium">URL KO:</span> {typeof window !== "undefined" ? window.location.origin : ""}/checkout/redsys/ko</p>
+                </div>
               </SectionCard>
 
               <SectionCard icon={<CreditCard className="w-5 h-5 text-blue-600" />} title="PayPal" subtitle="Integración técnica de la cuenta">
@@ -394,6 +405,41 @@ function ToggleRow({
     <label className="inline-flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">
       <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />
       {label}
+    </label>
+  );
+}
+
+function RedsysSecretKeyField({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (val: string) => void;
+}) {
+  const [show, setShow] = useState(false);
+
+  return (
+    <label className="block text-sm mt-4">
+      <span className="block mb-1 text-gray-500">Clave secreta SHA-256</span>
+      <div className="relative">
+        <input
+          type={show ? "text" : "password"}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="Introduce la clave secreta de Redsys"
+          className="w-full rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-950 px-4 py-3 pr-24 font-mono text-sm"
+        />
+        <button
+          type="button"
+          onClick={() => setShow((v) => !v)}
+          className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 font-semibold px-2 py-1 rounded"
+        >
+          {show ? "Ocultar" : "Mostrar"}
+        </button>
+      </div>
+      <p className="text-xs text-gray-400 mt-1">
+        Esta clave la proporciona tu banco/Redsys. No la compartas nunca.
+      </p>
     </label>
   );
 }

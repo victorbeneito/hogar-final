@@ -435,31 +435,37 @@ export async function POST(req: Request) {
 
     const appUrl = process.env.APP_URL || "https://www.elhogardetsuenos.com";
 
-    // Email de confirmación al cliente
-    if (result.email) {
-      sendTemplateEmail({
-        to: result.email,
-        templateSlug: "order-placed",
-        variables: {
-          nombre: result.nombre || "Cliente",
-          numeroPedido: result.numeroPedido,
-          total: `${Number(result.totalFinal).toFixed(2)} €`,
-          pedidoUrl: `${appUrl}/account/orders`,
-        },
-      }).catch((err) => console.error("❌ Email confirmación pedido:", err?.message));
-    }
+    // Emails diferidos: todos los métodos esperan confirmación del usuario excepto ninguno directo.
+    // tarjeta/paypal: webhook/capture confirma. transferencia/bizum/contrareembolso: usuario confirma en pantalla.
+    const metodoPagoStr = String(body.metodoPago?.metodo || body.pagoMetodo?.metodo || "");
+    const esPasarela = ["tarjeta", "paypal", "transferencia", "bizum", "contrareembolso"].includes(metodoPagoStr);
 
-    // Email de notificación al administrador
-    loadEmailSettings().then((emailSettings) => {
-      if (!emailSettings.adminEmail) return;
-      const htmlAdmin = buildAdminOrderEmail(result, datosCliente, { brandName: emailSettings.brandName, appUrl });
-      const nombreCliente = `${result.nombre || ""} ${result.apellidos || ""}`.trim() || "Cliente";
-      return sendRawEmail({
-        to: emailSettings.adminEmail,
-        subject: `[${emailSettings.brandName}] Nuevo pedido: ${result.numeroPedido} — ${nombreCliente}`,
-        html: htmlAdmin,
-      });
-    }).catch((err) => console.error("❌ Email notificación admin:", err?.message));
+    if (!esPasarela) {
+      // Otros métodos no contemplados: enviar email inmediatamente
+      if (result.email) {
+        sendTemplateEmail({
+          to: result.email,
+          templateSlug: "order-placed",
+          variables: {
+            nombre: result.nombre || "Cliente",
+            numeroPedido: result.numeroPedido,
+            total: `${Number(result.totalFinal).toFixed(2)} €`,
+            pedidoUrl: `${appUrl}/account/orders`,
+          },
+        }).catch((err) => console.error("❌ Email confirmación pedido:", err?.message));
+      }
+
+      loadEmailSettings().then((emailSettings) => {
+        if (!emailSettings.adminEmail) return;
+        const htmlAdmin = buildAdminOrderEmail(result, datosCliente, { brandName: emailSettings.brandName, appUrl });
+        const nombreCliente = `${result.nombre || ""} ${result.apellidos || ""}`.trim() || "Cliente";
+        return sendRawEmail({
+          to: emailSettings.adminEmail,
+          subject: `[${emailSettings.brandName}] Nuevo pedido: ${result.numeroPedido} — ${nombreCliente}`,
+          html: htmlAdmin,
+        });
+      }).catch((err) => console.error("❌ Email notificación admin:", err?.message));
+    }
 
     return NextResponse.json({ ok: true, pedido: result });
 

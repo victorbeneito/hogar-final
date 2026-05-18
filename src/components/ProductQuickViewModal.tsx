@@ -51,6 +51,7 @@ export default function ProductQuickViewModal({ productId, open, onClose }: Prop
   const [producto, setProducto] = useState<QuickViewProducto | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [added, setAdded] = useState(false);
   const [cantidad, setCantidad] = useState(1);
   const [tamanoSeleccionado, setTamanoSeleccionado] = useState<string | null>(null);
   const [tiradorSeleccionado, setTiradorSeleccionado] = useState<string | null>(null);
@@ -95,7 +96,7 @@ export default function ProductQuickViewModal({ productId, open, onClose }: Prop
   }, [open, productId]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) { setAdded(false); return; }
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") onClose();
     };
@@ -177,9 +178,52 @@ export default function ProductQuickViewModal({ productId, open, onClose }: Prop
       colorSeleccionado: colorSeleccionado ?? undefined,
       atributo: varianteSeleccionada?.referencia || "Estándar",
     });
+    setAdded(true);
   };
 
   if (!open) return null;
+
+  // Pantalla de confirmación tras añadir al carrito
+  if (added && producto) {
+    return createPortal(
+      <div className="fixed inset-0 z-[1000] bg-black/55 p-4 flex items-center justify-center" onClick={onClose}>
+        <div
+          className="w-full max-w-sm rounded-xl bg-white dark:bg-darkBg shadow-2xl overflow-hidden"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex items-center justify-between border-b border-gray-200 dark:border-gray-800 px-5 py-3">
+            <p className="text-sm font-semibold text-gray-700 dark:text-white">Producto añadido al carrito</p>
+            <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-700 dark:hover:text-white">✕</button>
+          </div>
+          <div className="p-6 flex flex-col items-center gap-4 text-center">
+            <div className="w-14 h-14 rounded-full bg-green-100 flex items-center justify-center">
+              <svg className="w-7 h-7 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <p className="text-sm text-gray-600 dark:text-gray-300 line-clamp-2">{producto.nombre}</p>
+            <div className="flex flex-col gap-2 w-full mt-2">
+              <Link
+                href="/carrito"
+                onClick={onClose}
+                className="w-full rounded bg-primary py-2.5 text-sm font-semibold text-white text-center hover:bg-primaryHover transition"
+              >
+                Finalizar pedido
+              </Link>
+              <button
+                type="button"
+                onClick={onClose}
+                className="w-full rounded border border-gray-300 dark:border-gray-700 py-2.5 text-sm font-semibold text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition"
+              >
+                Continuar comprando
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>,
+      document.body
+    );
+  }
 
   return createPortal(
     <div className="fixed inset-0 z-[1000] bg-black/55 p-4 flex items-center justify-center" onClick={onClose}>

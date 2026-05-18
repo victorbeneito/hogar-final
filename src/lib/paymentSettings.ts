@@ -31,6 +31,8 @@ export type PaymentCheckoutConfig = {
       activa: boolean;
       merchantCode: string;
       terminal: string;
+      merchantName: string;
+      secretKey: string;
       entorno: "sandbox" | "produccion";
     };
     paypal: {
@@ -65,6 +67,8 @@ export const DEFAULT_PAYMENT_CONFIG: PaymentCheckoutConfig = {
       activa: false,
       merchantCode: "",
       terminal: "",
+      merchantName: "",
+      secretKey: "",
       entorno: "sandbox",
     },
     paypal: {
@@ -101,6 +105,8 @@ export function normalizePaymentConfig(input: any): PaymentCheckoutConfig {
         activa: Boolean(source.gateways?.redsys?.activa ?? DEFAULT_PAYMENT_CONFIG.gateways.redsys.activa),
         merchantCode: String(source.gateways?.redsys?.merchantCode ?? DEFAULT_PAYMENT_CONFIG.gateways.redsys.merchantCode),
         terminal: String(source.gateways?.redsys?.terminal ?? DEFAULT_PAYMENT_CONFIG.gateways.redsys.terminal),
+        merchantName: String(source.gateways?.redsys?.merchantName ?? DEFAULT_PAYMENT_CONFIG.gateways.redsys.merchantName),
+        secretKey: String(source.gateways?.redsys?.secretKey ?? DEFAULT_PAYMENT_CONFIG.gateways.redsys.secretKey),
         entorno: source.gateways?.redsys?.entorno === "produccion" ? "produccion" : "sandbox",
       },
       paypal: {

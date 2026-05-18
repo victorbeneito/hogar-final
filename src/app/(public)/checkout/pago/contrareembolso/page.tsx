@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
+import { clearCart } from "@/lib/cartService";
 import { DEFAULT_PAYMENT_CONFIG, normalizePaymentConfig, inferContrareembolsoBase, type PaymentCheckoutConfig } from "@/lib/paymentSettings";
 
 export default function ContrareembolsoPage() {
@@ -57,15 +58,23 @@ export default function ContrareembolsoPage() {
 
   }, [searchParams, router]);
 
-  const handleConfirmarPedido = () => {
+  const handleConfirmarPedido = async () => {
+    if (!pedidoId) return;
     setLoading(true);
-    
-    // Aquí podrías llamar a una API para marcar el pedido como "Confirmado" si fuera necesario
-    // Como ya se guardó en el paso anterior, solo redirigimos a la página de gracias.
-
-    setTimeout(() => {
-        router.push(`/checkout/confirmacion?pedido=${pedidoId}`);
-    }, 1500);
+    try {
+      await fetch("/api/pedidos/confirmar-contrareembolso", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pedidoId: parseInt(pedidoId, 10) }),
+      });
+    } catch {
+      // No bloqueamos la redirección si falla el email
+    }
+    clearCart();
+    localStorage.removeItem("checkout_descuento");
+    localStorage.removeItem("checkout_envio");
+    window.dispatchEvent(new Event("storage"));
+    router.push(`/checkout/confirmacion?pedido=${pedidoId}`);
   };
 
   return (
