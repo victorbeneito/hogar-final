@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { AlertTriangle, CheckCircle2, Clock, Globe, MapPin, Plus, RefreshCw, Save, Shield, Trash2, Truck } from "lucide-react";
 import {
   createDefaultCarrierConfig,
@@ -383,11 +383,9 @@ export default function AdminTransportesPage() {
                       </select>
                     </Field>
                     <Field label="Importe">
-                      <input
-                        type="number"
-                        step="0.01"
+                      <PriceInput
                         value={carrier.freeShippingAmount}
-                        onChange={(e) => updateCarrier(carrier.id, { freeShippingAmount: Number(e.target.value) || 0 })}
+                        onChange={(v) => updateCarrier(carrier.id, { freeShippingAmount: v })}
                         className="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm focus:ring-2 focus:ring-[#6BAEC9]/40 focus:border-[#6BAEC9]"
                       />
                     </Field>
@@ -424,11 +422,9 @@ export default function AdminTransportesPage() {
                             />
                           </td>
                           <td className="px-4 py-3">
-                            <input
-                              type="number"
-                              step="0.01"
+                            <PriceInput
                               value={zone.price}
-                              onChange={(e) => updateCarrierZone(carrier.id, zone.id, { price: Number(e.target.value) || 0 })}
+                              onChange={(v) => updateCarrierZone(carrier.id, zone.id, { price: v })}
                               className="w-28 rounded-xl border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-[#6BAEC9]/40 focus:border-[#6BAEC9]"
                             />
                           </td>
@@ -507,6 +503,40 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
       <span className="text-sm font-semibold text-gray-700">{label}</span>
       {children}
     </label>
+  );
+}
+
+function PriceInput({ value, onChange, className }: { value: number; onChange: (v: number) => void; className?: string }) {
+  const [str, setStr] = useState(String(value));
+  const externalRef = useRef(value);
+
+  useEffect(() => {
+    if (externalRef.current !== value) {
+      externalRef.current = value;
+      setStr(String(value));
+    }
+  }, [value]);
+
+  return (
+    <input
+      type="text"
+      inputMode="decimal"
+      value={str}
+      onChange={(e) => {
+        const raw = e.target.value;
+        setStr(raw);
+        const n = parseFloat(raw);
+        if (!isNaN(n)) onChange(n);
+      }}
+      onBlur={() => {
+        const n = parseFloat(str) || 0;
+        const formatted = n % 1 === 0 ? String(n) : n.toFixed(2);
+        setStr(formatted);
+        onChange(n);
+        externalRef.current = n;
+      }}
+      className={className}
+    />
   );
 }
 

@@ -78,7 +78,7 @@ type Pedido = {
   fechaPedido: string | null;
   updatedAt: string | null;
   cliente: { id: number; nombre: string; email: string; telefono: string; empresa: string; nif: string } | null;
-  factura?: { numeroFactura: string; total: number; fechaFactura: string } | null;
+  factura?: { id: number; numeroFactura: string; total: number; fechaFactura: string } | null;
   productos: OrderProduct[];
   mensajes: OrderMessage[];
 };
@@ -216,6 +216,7 @@ export default function PedidoDetallePage({ params }: { params: Promise<{ id: st
   const [pedido, setPedido] = useState<Pedido | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [generandoFactura, setGenerandoFactura] = useState(false);
   const [activeTab, setActiveTab] = useState<TabKey>("pedido");
   const [estado, setEstado] = useState("");
   const [estadoPago, setEstadoPago] = useState("");
@@ -225,20 +226,30 @@ export default function PedidoDetallePage({ params }: { params: Promise<{ id: st
   const [trackingUrl, setTrackingUrl] = useState("");
   const [fechaEnvio, setFechaEnvio] = useState("");
   const [fechaEntrega, setFechaEntrega] = useState("");
+  const [envioCoste, setEnvioCoste] = useState(0);
   const [facturacion, setFacturacion] = useState<Address>(emptyAddress());
   const [entrega, setEntrega] = useState<Address>(emptyAddress());
   const [productos, setProductos] = useState<OrderProduct[]>([]);
   const [mensajeNuevo, setMensajeNuevo] = useState("");
   const [mensajePrivado, setMensajePrivado] = useState(false);
   const [mensajes, setMensajes] = useState<OrderMessage[]>([]);
+  const [estadosPedido, setEstadosPedido] = useState<{ clave: string; nombre: string; color: string }[]>([]);
 
   useEffect(() => {
     const loadPedido = async () => {
       try {
-        const res = await fetch(`/api/pedidos/${id}`);
-        const data = await res.json();
+        const [pedidoRes, estadosRes] = await Promise.all([
+          fetch(`/api/pedidos/${id}`),
+          fetch("/api/admin/pedidos/estados"),
+        ]);
+        const data = await pedidoRes.json();
         if (!data.ok || !data.pedido) {
           throw new Error(data.error || "Pedido no encontrado");
+        }
+
+        const estadosData = await estadosRes.json();
+        if (estadosData.estados) {
+          setEstadosPedido(estadosData.estados.filter((e: any) => e.activo));
         }
 
         const current: Pedido = data.pedido;
@@ -251,6 +262,7 @@ export default function PedidoDetallePage({ params }: { params: Promise<{ id: st
         setTrackingUrl(current.trackingUrl || "");
         setFechaEnvio(current.fechaEnvio ? current.fechaEnvio.slice(0, 16) : "");
         setFechaEntrega(current.fechaEntrega ? current.fechaEntrega.slice(0, 16) : "");
+        setEnvioCoste(Number(current.envioCoste || 0));
         setFacturacion(mapAddress(current.direccionFacturacion, current.direccionEntrega));
         setEntrega(mapAddress(current.direccionEntrega));
         setProductos(current.productos || []);
@@ -267,12 +279,12 @@ export default function PedidoDetallePage({ params }: { params: Promise<{ id: st
 
   const totals = useMemo(() => {
     const subtotal = productos.reduce((acc, item) => acc + Number(item.subtotal || item.cantidad * item.precioUnitario), 0);
-    const envio = pedido ? Number(pedido.envioCoste || 0) : 0;
+    const envio = envioCoste;
     const descuento = pedido ? Number(pedido.descuento || 0) : 0;
     const recargo = pedido ? Number(pedido.pagoRecargo || 0) : 0;
     const total = Math.max(0, subtotal + envio + recargo - descuento);
     return { subtotal, envio, descuento, recargo, total };
-  }, [pedido, productos]);
+  }, [pedido, productos, envioCoste]);
 
   const updateProduct = (index: number, field: keyof OrderProduct, value: string) => {
     setProductos((prev) =>
@@ -290,6 +302,29 @@ export default function PedidoDetallePage({ params }: { params: Promise<{ id: st
         return next;
       })
     );
+  };
+
+  const generarFactura = async () => {
+    if (!pedido) return;
+    setGenerandoFactura(true);
+    try {
+      const res = await fetch("/api/facturas/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pedidoId: pedido.id }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Error generando factura");
+      // Reload pedido to get updated factura
+      const reloadRes = await fetch(`/api/pedidos/${id}`);
+      const reloadData = await reloadRes.json();
+      if (reloadData.ok && reloadData.pedido) setPedido(reloadData.pedido);
+      alert(`Factura generada: ${data.numeroFactura}`);
+    } catch (e: any) {
+      alert("Error: " + e.message);
+    } finally {
+      setGenerandoFactura(false);
+    }
   };
 
   const savePedido = async () => {
@@ -314,7 +349,7 @@ export default function PedidoDetallePage({ params }: { params: Promise<{ id: st
           totalFinal: totals.total,
           pagoRecargo: pedido.pagoRecargo,
           envioMetodo: pedido.envioMetodo,
-          envioCoste: pedido.envioCoste,
+          envioCoste: envioCoste,
           nombre: entrega.nombre,
           apellidos: entrega.apellidos,
           telefono: entrega.telefono,
@@ -355,6 +390,7 @@ export default function PedidoDetallePage({ params }: { params: Promise<{ id: st
       setMensajes(data.pedido.mensajes || mensajes);
       setEntrega(data.pedido.direccionEntrega || entrega);
       setFacturacion(data.pedido.direccionFacturacion || facturacion);
+      setEnvioCoste(Number(data.pedido.envioCoste ?? envioCoste));
       setTransportistaNombre(data.pedido.transportistaNombre || transportistaNombre);
       setNumeroSeguimiento(data.pedido.numeroSeguimiento || numeroSeguimiento);
       setTrackingUrl(data.pedido.trackingUrl || trackingUrl);
@@ -464,12 +500,23 @@ export default function PedidoDetallePage({ params }: { params: Promise<{ id: st
                             onChange={(e) => setEstado(e.target.value)}
                             className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm"
                           >
-                            <option value="PENDIENTE">PENDIENTE</option>
-                            <option value="PROCESANDO">PROCESANDO</option>
-                            <option value="ENVIADO">ENVIADO</option>
-                            <option value="ENTREGADO">ENTREGADO</option>
-                            <option value="CANCELADO">CANCELADO</option>
-                            <option value="DEVUELTO">DEVUELTO</option>
+                            {estadosPedido.length > 0
+                              ? estadosPedido.map((e) => (
+                                  <option key={e.clave} value={e.clave}>
+                                    {e.nombre}
+                                  </option>
+                                ))
+                              : (
+                                <>
+                                  <option value="PENDIENTE">PENDIENTE</option>
+                                  <option value="PROCESANDO">PROCESANDO</option>
+                                  <option value="ENVIADO">ENVIADO</option>
+                                  <option value="ENTREGADO">ENTREGADO</option>
+                                  <option value="CANCELADO">CANCELADO</option>
+                                  <option value="DEVUELTO">DEVUELTO</option>
+                                </>
+                              )
+                            }
                           </select>
                         </label>
                         <label className="min-w-[180px]">
@@ -603,11 +650,24 @@ export default function PedidoDetallePage({ params }: { params: Promise<{ id: st
                   <Field label="Fecha de envío" type="datetime-local" value={fechaEnvio} onChange={setFechaEnvio} />
                   <Field label="Fecha de entrega" type="datetime-local" value={fechaEntrega} onChange={setFechaEntrega} />
                 </div>
-                <div className="rounded-2xl border border-gray-100 p-5">
-                  <h2 className="text-lg font-bold text-[#4A4A4A] mb-4">Estado del transporte</h2>
-                  <div className="space-y-3 text-sm text-gray-600">
+                <div className="rounded-2xl border border-gray-100 p-5 space-y-4">
+                  <h2 className="text-lg font-bold text-[#4A4A4A]">Coste de envío</h2>
+                  <label className="block">
+                    <span className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">Importe envío (IVA incluido)</span>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={envioCoste}
+                        onChange={(e) => setEnvioCoste(Number(e.target.value))}
+                        className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#6BAEC9]"
+                      />
+                      <span className="text-sm font-semibold text-gray-600 whitespace-nowrap">€</span>
+                    </div>
+                  </label>
+                  <div className="space-y-2 text-sm text-gray-600">
                     <p><span className="font-semibold">Método:</span> {pedido.envioMetodo}</p>
-                    <p><span className="font-semibold">Coste:</span> {formatMoney(pedido.envioCoste)} €</p>
                     <p><span className="font-semibold">Transportista:</span> {transportistaNombre || "Sin asignar"}</p>
                     <p><span className="font-semibold">Seguimiento:</span> {numeroSeguimiento || "Pendiente"}</p>
                   </div>
@@ -782,6 +842,24 @@ export default function PedidoDetallePage({ params }: { params: Promise<{ id: st
                     >
                       {saving ? "Guardando..." : "Guardar cambios"}
                     </button>
+                    {pedido.factura ? (
+                      <a
+                        href={`/api/facturas/${pedido.factura.id}/pdf`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="w-full rounded-xl border border-green-300 bg-green-50 px-4 py-3 text-sm font-semibold text-green-700 hover:bg-green-100 flex items-center justify-center gap-2"
+                      >
+                        Descargar factura PDF
+                      </a>
+                    ) : (
+                      <button
+                        onClick={generarFactura}
+                        disabled={generandoFactura}
+                        className="w-full rounded-xl border border-blue-300 bg-blue-50 px-4 py-3 text-sm font-semibold text-blue-700 hover:bg-blue-100 disabled:opacity-60"
+                      >
+                        {generandoFactura ? "Generando..." : "Generar factura"}
+                      </button>
+                    )}
                     <button
                       onClick={() => router.push("/admin/pedidos")}
                       className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm font-semibold text-gray-700 hover:bg-gray-50"

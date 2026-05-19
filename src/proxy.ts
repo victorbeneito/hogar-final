@@ -1,39 +1,48 @@
 import { NextResponse } from "next/server";
-import jwt from "jsonwebtoken";
 import type { NextRequest } from "next/server";
+
+// Generados por: node scripts/import-ps-seo.cjs
+import psCatMap from "./data/ps-cat-map.json";
+import psProductMap from "./data/ps-product-map.json";
+
+// /es/36-paisajes  →  /categorias/{nextjsId}
+const CAT_REGEX = /^\/es\/(\d+)-[^/]+\/?$/;
+
+// /es/inicio/1555-178343-product-slug.html  →  /productos/{slug}
+const PROD_REGEX = /^\/es\/[^/]+\/(\d+)-\d+-[^/]+\.html/;
 
 export function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  // ❌ No proteger la página de login de admin
+  // ── Redirecciones 301 desde URLs de PrestaShop ─────────────────────────────
+
+  const catMatch = pathname.match(CAT_REGEX);
+  if (catMatch) {
+    const nextPath = (psCatMap as Record<string, string>)[catMatch[1]];
+    return NextResponse.redirect(
+      new URL(nextPath ?? "/productos", req.url),
+      { status: 301 }
+    );
+  }
+
+  const prodMatch = pathname.match(PROD_REGEX);
+  if (prodMatch) {
+    const nextPath = (psProductMap as Record<string, string>)[prodMatch[1]];
+    return NextResponse.redirect(
+      new URL(nextPath ?? "/productos", req.url),
+      { status: 301 }
+    );
+  }
+
+  // ── Protección panel admin (desactivada, solo login excluido) ──────────────
+
   if (pathname.startsWith("/admin/login")) {
     return NextResponse.next();
   }
-
-  // ✅ Aplicar protección solo al panel y APIs internas
-  // if (pathname.startsWith("/admin") || pathname.startsWith("/api/admin")) {
-  //   const header = req.headers.get("authorization");
-  //   const token = header?.split(" ")[1];
-
-  //   if (!token) {
-  //     // Redirigir al login especial del admin, no al de cliente
-  //     return NextResponse.redirect(new URL("/admin/login", req.url));
-  //   }
-
-  //   try {
-  //     const decoded: any = jwt.verify(token, process.env.SECRETO_JWT_ADMIN!);
-
-  //     if (!decoded || decoded.rol !== "admin") {
-  //       return NextResponse.redirect(new URL("/admin/login", req.url));
-  //     }
-  //   } catch (e) {
-  //     return NextResponse.redirect(new URL("/admin/login", req.url));
-  //   }
-  // }
 
   return NextResponse.next();
 }
 
 export const config = {
-  matcher: ["/admin/:path*", "/api/admin/:path*"],
+  matcher: ["/es/:path*", "/admin/:path*", "/api/admin/:path*"],
 };

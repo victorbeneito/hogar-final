@@ -95,21 +95,42 @@ export const MODULES: ModuleDefinition[] = [
   {
     slug: "seo",
     name: "SEO",
-    description: "Metadatos, indexación y utilidades de buscadores.",
+    description: "Metadatos, indexación, datos estructurados y verificación en buscadores.",
     category: "Marketing",
     route: "/admin/personalizar/modulos/seo",
     icon: "Search",
     defaults: {
       activa: true,
-      proveedor: "interno",
+      // Sitemap y robots
       sitemap: true,
       robotsTxt: true,
+      // Verificación buscadores
+      googleVerification: "",
+      bingVerification: "",
+      // Datos estructurados JSON-LD
+      jsonLdProducto: true,
+      jsonLdCategoria: true,
+      jsonLdOrganizacion: true,
+      // Páginas de categoría
+      mostrarDescripcionCat: true,
+      posicionDescripcion: "top",
+      mostrarTextoSeoCat: true,
+      // Open Graph
+      opengraph: true,
     },
     fields: [
-      { key: "activa", label: "Activo", type: "boolean" },
-      { key: "proveedor", label: "Proveedor", type: "text" },
-      { key: "sitemap", label: "Generar sitemap", type: "boolean" },
+      { key: "activa", label: "Módulo activo", type: "boolean" },
+      { key: "sitemap", label: "Generar sitemap.xml", type: "boolean" },
       { key: "robotsTxt", label: "Generar robots.txt", type: "boolean" },
+      { key: "googleVerification", label: "Código verificación Google Search Console", type: "text" },
+      { key: "bingVerification", label: "Código verificación Bing Webmaster", type: "text" },
+      { key: "jsonLdProducto", label: "JSON-LD en páginas de producto (Product schema)", type: "boolean" },
+      { key: "jsonLdCategoria", label: "JSON-LD en páginas de categoría (CollectionPage)", type: "boolean" },
+      { key: "jsonLdOrganizacion", label: "JSON-LD de organización en layout global", type: "boolean" },
+      { key: "mostrarDescripcionCat", label: "Mostrar descripción en páginas de categoría", type: "boolean" },
+      { key: "posicionDescripcion", label: "Posición descripción en categoría", type: "select", options: ["top", "bottom"] },
+      { key: "mostrarTextoSeoCat", label: "Mostrar texto SEO al pie de categorías", type: "boolean" },
+      { key: "opengraph", label: "Open Graph (vista previa en redes sociales)", type: "boolean" },
     ],
   },
   {

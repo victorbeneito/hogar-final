@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { Settings2 } from "lucide-react";
 
 export default function CookiesPage() {
   return (
@@ -91,10 +92,14 @@ export default function CookiesPage() {
             </div>
           </section>
 
-          {/* Botón de Configuración (Simulado) */}
+          {/* Botón de Configuración */}
           <div className="pt-8 border-t border-gray-200 dark:border-gray-700 text-center">
-             <button className="bg-gray-900 dark:bg-white text-white dark:text-gray-900 font-bold px-8 py-3 rounded-lg hover:opacity-90 transition shadow-lg">
-                Gestionar mis preferencias
+             <button
+               onClick={() => window.dispatchEvent(new CustomEvent("openCookieSettings"))}
+               className="inline-flex items-center gap-2 bg-gray-900 dark:bg-white text-white dark:text-gray-900 font-bold px-8 py-3 rounded-lg hover:opacity-90 transition shadow-lg"
+             >
+               <Settings2 className="w-5 h-5" />
+               Gestionar mis preferencias
              </button>
              <p className="text-xs text-gray-400 mt-4">
                 Última actualización: Febrero 2026

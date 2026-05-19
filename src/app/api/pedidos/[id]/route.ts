@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { sendTemplateEmail } from "@/lib/emailService";
 import { sendReviOrder } from "@/lib/reviService";
+import { createFactura } from "@/lib/invoiceGenerator";
 
 export const dynamic = "force-dynamic";
 
@@ -372,6 +373,17 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
       } else if (body.estado === "CUESTIONARIO") {
         sendReviOrder(pedidoCompleto).catch((err) =>
           console.error("[REVI] Error enviando pedido a REVI:", err?.message)
+        );
+      }
+
+      // Generar factura si el nuevo estado tiene permitirFacturaPDF = true
+      const estadoConfig = await prisma.estadopedido.findUnique({
+        where: { clave: body.estado },
+        select: { permitirFacturaPDF: true },
+      });
+      if (estadoConfig?.permitirFacturaPDF) {
+        createFactura(id).catch((err) =>
+          console.error("[FACTURA] Error generando factura:", err?.message)
         );
       }
     }

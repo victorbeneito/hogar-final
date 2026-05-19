@@ -10,11 +10,15 @@ interface Categoria {
   activa:      boolean;
   orden:       number;
   parentId:    number | null;
-  other_categoria: Categoria[];   // subcategorías hijas
+  metaTitulo:      string | null;
+  metaDescripcion: string | null;
+  textoSeo:        string | null;
+  other_categoria: Categoria[];
 }
 
 const EMPTY = {
   nombre: "", descripcion: "", activa: true, orden: 0, parentId: null as number | null,
+  metaTitulo: "", metaDescripcion: "", textoSeo: "",
 };
 
 export default function AdminCategorias() {
@@ -87,6 +91,9 @@ export default function AdminCategorias() {
       activa: cat.activa,
       orden: cat.orden,
       parentId: cat.parentId,
+      metaTitulo: cat.metaTitulo ?? "",
+      metaDescripcion: cat.metaDescripcion ?? "",
+      textoSeo: cat.textoSeo ?? "",
     };
 
     setForm({ ...current });
@@ -176,7 +183,81 @@ export default function AdminCategorias() {
                   className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-[#6BAEC9]/40 focus:border-[#6BAEC9] transition resize-none"
                 />
               </div>
+            </div>
 
+            {/* SEO */}
+            <div className="border-t border-gray-200 pt-5 mt-2">
+              <h3 className="text-sm font-bold text-[#4A4A4A] mb-4">🔍 SEO</h3>
+              <div className="grid grid-cols-1 gap-4">
+
+                {/* Meta título */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">
+                    Meta título <span className="text-gray-400 font-normal">(máx. 70 caracteres)</span>
+                  </label>
+                  <input
+                    type="text"
+                    maxLength={70}
+                    value={form.metaTitulo}
+                    onChange={e => setForm(p => ({ ...p, metaTitulo: e.target.value }))}
+                    placeholder="Ej: Estores Digitales de Cocina | El Hogar de tus Sueños"
+                    className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-[#6BAEC9]/40 focus:border-[#6BAEC9] transition"
+                  />
+                  <p className="text-xs text-gray-400 mt-1">{form.metaTitulo.length}/70 caracteres</p>
+                </div>
+
+                {/* Meta descripción */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">
+                    Meta descripción <span className="text-gray-400 font-normal">(máx. 160 caracteres)</span>
+                  </label>
+                  <textarea
+                    rows={3}
+                    maxLength={160}
+                    value={form.metaDescripcion}
+                    onChange={e => setForm(p => ({ ...p, metaDescripcion: e.target.value }))}
+                    placeholder="Descripción que aparece bajo el título en Google..."
+                    className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-[#6BAEC9]/40 focus:border-[#6BAEC9] transition resize-none"
+                  />
+                  <p className="text-xs text-gray-400 mt-1">{form.metaDescripcion.length}/160 caracteres</p>
+                </div>
+
+                {/* Texto SEO */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">
+                    Texto SEO <span className="text-gray-400 font-normal">(aparece al final de la página de categoría)</span>
+                  </label>
+                  <textarea
+                    rows={6}
+                    value={form.textoSeo}
+                    onChange={e => setForm(p => ({ ...p, textoSeo: e.target.value }))}
+                    placeholder="Texto enriquecido que la agencia SEO prepara para esta categoría. Acepta HTML básico (<h2>, <p>, <strong>, etc.)"
+                    className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-[#6BAEC9]/40 focus:border-[#6BAEC9] transition resize-y font-mono"
+                  />
+                  <p className="text-xs text-gray-400 mt-1">Acepta HTML. La agencia puede pegar aquí el texto que ya tiene en PrestaShop.</p>
+                </div>
+
+                {/* Vista previa Google */}
+                {(form.metaTitulo || form.nombre) && (
+                  <div className="bg-white border border-gray-200 rounded-xl p-4">
+                    <p className="text-xs font-semibold text-gray-500 mb-3">Vista previa en Google</p>
+                    <div className="rounded-lg border border-gray-100 p-3 bg-white">
+                      <p className="text-xs text-green-700 mb-1 truncate">
+                        elhogardetusuenos.com › categorias › {editando ?? "..."}
+                      </p>
+                      <p className="text-blue-700 text-base font-medium leading-tight mb-1 line-clamp-1">
+                        {(form.metaTitulo || form.nombre).slice(0, 60)}{(form.metaTitulo || form.nombre).length > 60 ? "..." : ""}
+                      </p>
+                      <p className="text-gray-600 text-xs leading-relaxed line-clamp-2">
+                        {form.metaDescripcion || form.descripcion || "Sin descripción todavía."}
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Orden y activa */}
               <div>
                 <label className="block text-sm font-medium text-gray-600 mb-1">Orden</label>

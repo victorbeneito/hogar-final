@@ -60,9 +60,17 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
             imagen: true,
             color: true,
             imagenMuestra: true,
+            imagenesVariante: true,
             precio_extra: true,
             tamano: true,
             tirador: true,
+            varianteatributo: {
+              select: {
+                atributovalor: {
+                  select: { id: true, valor: true, imagen: true, colorHex: true },
+                },
+              },
+            },
           },
         },
       },
@@ -82,7 +90,10 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
           imagenPortada: producto.productoimagen?.find((img) => img.esPortada)?.url ?? null,
           imagenes: (producto.productoimagen ?? []).map((img) => img.url).filter(Boolean),
           caracteristicas: producto.caracteristica ?? [],
-          variantes: producto.variante ?? [],
+          variantes: (producto.variante ?? []).map((v) => ({
+            ...v,
+            atributovalores: v.varianteatributo?.map((va) => va.atributovalor) ?? [],
+          })),
         },
       },
       { status: 200 }

@@ -72,11 +72,11 @@ export default function AdminLayout({
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-gray-100 flex">
+    <div className="h-screen overflow-hidden bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-gray-100 flex">
       <AdminSidebar />
 
-      <div className="flex-1 min-w-0 flex flex-col">
-        <header className="bg-white dark:bg-gray-800 shadow p-4 flex justify-between items-center sticky top-0 z-50">
+      <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
+        <header className="bg-white dark:bg-gray-800 shadow p-4 flex justify-between items-center flex-shrink-0 z-50">
           <h1 className="text-xl font-semibold text-gray-800 dark:text-white">
             Panel de Administración
           </h1>
@@ -96,7 +96,7 @@ export default function AdminLayout({
           )}
         </header>
 
-        <main className="flex-1 p-4 md:p-8">{children}</main>
+        <main className="flex-1 overflow-y-auto p-4 md:p-8">{children}</main>
       </div>
     </div>
   );

@@ -5,9 +5,10 @@ import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import { useClienteAuth } from "@/context/ClienteAuthContext";
 import { getCart } from "@/lib/cartService";
-import { FaShoppingCart, FaSearch, FaBars, FaTimes, FaUser, FaMoon, FaSun } from "react-icons/fa"; // Iconos extra
+import { FaShoppingCart, FaSearch, FaBars, FaTimes, FaUser, FaMoon, FaSun } from "react-icons/fa";
 import { useDebounce } from "use-debounce";
-import { useTheme } from "next-themes"; 
+import { useTheme } from "next-themes";
+import GoogleTranslate from "@/components/GoogleTranslate";
 
 
 type Categoria = {
@@ -212,6 +213,9 @@ export default function Navbar() {
             >
                 {theme === "dark" ? <FaMoon /> : <FaSun />}
             </button>
+
+            {/* Selector de idioma */}
+            <GoogleTranslate />
 
             {/* Carrito */}
             <Link href="/carrito" className="relative text-2xl hover:text-primary transition-colors">

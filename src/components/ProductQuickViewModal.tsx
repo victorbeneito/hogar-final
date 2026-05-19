@@ -30,6 +30,7 @@ type QuickViewProducto = {
     precio_extra?: number | null;
     tamano?: string | null;
     tirador?: string | null;
+    atributovalores?: Array<{ id: number; valor: string; imagen?: string | null; colorHex?: string | null }>;
   }>;
 };
 
@@ -335,21 +336,45 @@ export default function ProductQuickViewModal({ productId, open, onClose }: Prop
             {coloresUnicos.length > 0 && (
               <div>
                 <p className="mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">Color</p>
-                <div className="flex flex-wrap gap-2">
-                  {coloresUnicos.map((color) => (
-                    <button
-                      key={color}
-                      type="button"
-                      onClick={() => setColorSeleccionado(color)}
-                      className={`rounded-full border px-3 py-1.5 text-xs ${
-                        colorSeleccionado === color
-                          ? "border-primary bg-primary/10 text-primary"
-                          : "border-gray-200 dark:border-gray-700 dark:text-gray-200"
-                      }`}
-                    >
-                      {color}
-                    </button>
-                  ))}
+                <div className="grid grid-cols-4 gap-3">
+                  {coloresUnicos.map((color) => {
+                    const norm = (s: string) =>
+                      s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
+                    const varianteColor = variantes.find((v) => v.color === color);
+                    const atributoValorColor = varianteColor?.atributovalores?.find(
+                      (av) => norm(av.valor) === norm(color)
+                    );
+                    const imagenMuestra = atributoValorColor?.imagen || varianteColor?.imagenMuestra;
+                    const seleccionado = colorSeleccionado === color;
+                    return (
+                      <button
+                        key={color}
+                        type="button"
+                        onClick={() => setColorSeleccionado(color)}
+                        title={color}
+                        className={`flex flex-col items-center gap-1 group transition-transform hover:scale-105 ${seleccionado ? "scale-105" : ""}`}
+                      >
+                        <span className={`block w-full aspect-square rounded-md overflow-hidden border-2 transition-colors ${
+                          seleccionado
+                            ? "border-primary shadow-md"
+                            : "border-gray-200 dark:border-gray-600 group-hover:border-primary"
+                        }`}>
+                          {imagenMuestra ? (
+                            <img src={imagenMuestra} alt={color} className="w-full h-full object-cover" />
+                          ) : (
+                            <span className="w-full h-full flex items-center justify-center bg-gray-100 dark:bg-gray-700 text-[9px] text-gray-500 text-center leading-tight px-0.5">
+                              {color}
+                            </span>
+                          )}
+                        </span>
+                        <span className={`text-[10px] leading-tight text-center w-full break-words ${
+                          seleccionado ? "text-primary font-semibold dark:text-primaryHover" : "text-gray-500 dark:text-gray-400"
+                        }`}>
+                          {color}
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             )}

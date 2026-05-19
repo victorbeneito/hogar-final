@@ -94,27 +94,45 @@ export default function ConfiguracionFacturasPage() {
 
       <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
         <div className="space-y-4">
+          {/* Seller info */}
           <section className="rounded-3xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-darkNavBg p-5 md:p-6">
-            <h2 className="text-lg font-bold text-gray-900 dark:text-white">Emisión automática</h2>
-            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Elige en qué estados del pedido se genera la factura.</p>
-            <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {INVOICE_ORDER_STATUS_OPTIONS.map((status) => (
-                <label key={status.value} className="flex items-center gap-3 rounded-2xl border border-gray-200 dark:border-gray-700 p-4">
-                  <input
-                    type="checkbox"
-                    checked={config.emitOnOrderStatuses.includes(status.value)}
-                    onChange={(e) =>
-                      setConfig((prev) => ({
-                        ...prev,
-                        emitOnOrderStatuses: e.target.checked
-                          ? [...prev.emitOnOrderStatuses, status.value]
-                          : prev.emitOnOrderStatuses.filter((item) => item !== status.value),
-                      }))
-                    }
-                  />
-                  <span className="text-sm font-semibold text-gray-700 dark:text-gray-200">{status.label}</span>
-                </label>
-              ))}
+            <h2 className="text-lg font-bold text-gray-900 dark:text-white">Datos del emisor</h2>
+            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400 mb-4">
+              Aparecerán en la factura como datos del vendedor.
+            </p>
+            <div className="grid gap-4 md:grid-cols-2">
+              <Field label="Nombre / Razón social" value={config.seller.nombre}
+                onChange={(v) => setConfig((p) => ({ ...p, seller: { ...p.seller, nombre: v } }))} />
+              <Field label="NIF / CIF" value={config.seller.nif}
+                onChange={(v) => setConfig((p) => ({ ...p, seller: { ...p.seller, nif: v } }))} />
+              <Field label="Dirección" value={config.seller.direccion}
+                onChange={(v) => setConfig((p) => ({ ...p, seller: { ...p.seller, direccion: v } }))} />
+              <Field label="Código postal" value={config.seller.cp}
+                onChange={(v) => setConfig((p) => ({ ...p, seller: { ...p.seller, cp: v } }))} />
+              <Field label="Ciudad" value={config.seller.ciudad}
+                onChange={(v) => setConfig((p) => ({ ...p, seller: { ...p.seller, ciudad: v } }))} />
+              <Field label="Provincia" value={config.seller.provincia}
+                onChange={(v) => setConfig((p) => ({ ...p, seller: { ...p.seller, provincia: v } }))} />
+              <Field label="Teléfono" value={config.seller.telefono}
+                onChange={(v) => setConfig((p) => ({ ...p, seller: { ...p.seller, telefono: v } }))} />
+              <Field label="Email" value={config.seller.email}
+                onChange={(v) => setConfig((p) => ({ ...p, seller: { ...p.seller, email: v } }))} />
+              <Field label="Web" value={config.seller.web}
+                onChange={(v) => setConfig((p) => ({ ...p, seller: { ...p.seller, web: v } }))} />
+              <Field label="Ruta del logo (ej: /img/logo-hogar.jpg)" value={config.seller.logoPath}
+                onChange={(v) => setConfig((p) => ({ ...p, seller: { ...p.seller, logoPath: v } }))} />
+            </div>
+          </section>
+
+          <section className="rounded-3xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-darkNavBg p-5 md:p-6">
+            <h2 className="text-lg font-bold text-gray-900 dark:text-white">IVA</h2>
+            <div className="mt-4 max-w-xs">
+              <Field
+                label="Porcentaje de IVA (%)"
+                type="number"
+                value={String(config.porcentajeIva)}
+                onChange={(v) => setConfig((p) => ({ ...p, porcentajeIva: Math.max(0, Number(v) || 21) }))}
+              />
             </div>
           </section>
 

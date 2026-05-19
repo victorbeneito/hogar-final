@@ -3,14 +3,12 @@
 import Header from "@/components/Header";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
-// Ya no necesitamos useState para el modo oscuro aquí
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen flex flex-col">
       <Header />
-      {/* El Navbar ya se gestiona solo con next-themes */}
-      <Navbar /> 
+      <Navbar />
       <main className="flex-1">
         {children}
       </main>

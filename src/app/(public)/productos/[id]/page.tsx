@@ -1,10 +1,51 @@
 import { notFound } from "next/navigation";
+import type { Metadata } from "next";
 import ProductDetail from "./ProductDetail";
 import { prisma } from "@/lib/prisma";
 
 type PageProps = {
   params: Promise<{ id: string }>;
 };
+
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+  const { id } = await params;
+  const idNumero = Number(id);
+  if (!Number.isInteger(idNumero) || idNumero <= 0) return {};
+
+  const producto = await prisma.producto.findUnique({
+    where: { id: idNumero },
+    select: {
+      nombre: true,
+      metaTitulo: true,
+      metaDescripcion: true,
+      resumen: true,
+      slug: true,
+      productoimagen: { select: { url: true }, orderBy: { orden: "asc" }, take: 1 },
+    },
+  });
+
+  if (!producto) return {};
+
+  const title = producto.metaTitulo || producto.nombre;
+  const description = producto.metaDescripcion || producto.resumen || "";
+  const url = producto.slug
+    ? `https://www.elhogardetusuenos.com/productos/${producto.slug}`
+    : `https://www.elhogardetusuenos.com/productos/${idNumero}`;
+  const image = producto.productoimagen[0]?.url;
+
+  return {
+    title,
+    description,
+    alternates: { canonical: url },
+    openGraph: {
+      title,
+      description,
+      url,
+      type: "website",
+      ...(image && { images: [{ url: image, alt: title }] }),
+    },
+  };
+}
 
 export default async function ProductoPage({ params }: PageProps) {
   const { id } = await params;
@@ -19,6 +60,7 @@ export default async function ProductoPage({ params }: PageProps) {
     select: {
       id: true,
       nombre: true,
+      slug: true,
       descripcion: true,
       descripcion_html: true,
       referencia: true,
@@ -38,6 +80,14 @@ export default async function ProductoPage({ params }: PageProps) {
           precio_extra: true,
           imagen: true,
           imagenMuestra: true,
+          imagenesVariante: true,
+          varianteatributo: {
+            select: {
+              atributovalor: {
+                select: { id: true, valor: true, imagen: true, colorHex: true },
+              },
+            },
+          },
         },
       },
       productocategoria: {
@@ -84,10 +134,45 @@ export default async function ProductoPage({ params }: PageProps) {
       ? ((precioConIva - ofertaConIva) / precioConIva * 100).toFixed(2)
       : null,
     imagenes: productoRaw.productoimagen.map((img: any) => img.url),
-    variantes: productoRaw.variante ?? [],
+    variantes: (productoRaw.variante ?? []).map((v: any) => ({
+      ...v,
+      atributovalores: v.varianteatributo?.map((va: any) => va.atributovalor) ?? [],
+    })),
     categoria: productoRaw.productocategoria?.[0]?.categoria ?? null,
     prestashopProductId, // REVI
   };
 
-  return <ProductDetail producto={productoAdaptado} />;
+  const BASE_URL = "https://www.elhogardetusuenos.com";
+  const productoUrl = productoRaw.slug
+    ? `${BASE_URL}/productos/${productoRaw.slug}`
+    : `${BASE_URL}/productos/${productoRaw.id}`;
+
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Product",
+    "name": productoRaw.nombre,
+    "url": productoUrl,
+    ...(productoRaw.productoimagen[0]?.url && { "image": productoRaw.productoimagen[0].url }),
+    ...(productoRaw.descripcion && { "description": productoRaw.descripcion }),
+    ...(productoRaw.referencia && { "sku": productoRaw.referencia }),
+    ...(productoRaw.marca && { "brand": { "@type": "Brand", "name": productoRaw.marca.nombre } }),
+    "offers": {
+      "@type": "Offer",
+      "url": productoUrl,
+      "priceCurrency": "EUR",
+      "price": (ofertaConIva ?? precioConIva).toFixed(2),
+      "availability": "https://schema.org/InStock",
+      "seller": { "@type": "Organization", "name": "El Hogar de tus Sueños" },
+    },
+  };
+
+  return (
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+      <ProductDetail producto={productoAdaptado} />
+    </>
+  );
 }

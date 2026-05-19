@@ -1,6 +1,5 @@
 "use client";
 
-import React from "react";
 import { useRouter } from "next/navigation";
 
 type Categoria = {
@@ -39,7 +38,7 @@ export default function BannersSection({ categories = [] }: Props) {
       {/* Banner intermedio */}
       <div className="mb-10">
         <img
-          src="/img/medidas-personalizadas.jpg"
+          src="/img/banner-medidas.jpg"
           alt="Banner intermedio"
           className="w-full h-[250px] object-cover rounded-lg shadow-md"
         />

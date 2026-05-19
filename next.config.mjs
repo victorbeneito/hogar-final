@@ -2,7 +2,7 @@
 const nextConfig = {
     output: 'standalone',
     distDir: 'build',
-    serverComponentsExternalPackages: ['@prisma/client', 'bcrypt'],
+    serverExternalPackages: ['@prisma/client', 'bcrypt', '@react-pdf/renderer'],
 typescript: {
     // !! ATENCIÓN !!
     // Ignoramos errores para que Azure pueda desplegar aunque el seed.ts tenga fallos
@@ -11,7 +11,6 @@ typescript: {
   eslint: {
     ignoreDuringBuilds: true,
   },
-  output: 'standalone',
   images: {
     remotePatterns: [
       {

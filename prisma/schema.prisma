@@ -89,6 +89,9 @@ model categoria {
   activa            Boolean             @default(true)
   orden             Int                 @default(0)
   parentId          Int?
+  metaTitulo        String?             @db.VarChar(70)
+  metaDescripcion   String?             @db.Text
+  textoSeo          String?             @db.LongText
   categoria         categoria?          @relation("categoriaTocategoria", fields: [parentId], references: [id], map: "Categoria_parentId_fkey")
   other_categoria   categoria[]         @relation("categoriaTocategoria")
   productocategoria productocategoria[]
@@ -262,7 +265,7 @@ model pedido {
   subtotal       Float
   descuento      Float             @default(0)
   totalFinal     Float
-  estado         pedido_estado     @default(PENDIENTE)
+  estado         String            @default("PENDIENTE")
   cuponCodigo    String?
   cuponDescuento Float?
   notas          String?           @db.Text

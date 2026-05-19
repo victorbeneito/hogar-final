@@ -4,6 +4,12 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Ocultar barra superior de Google Translate */
+.goog-te-banner-frame { display: none !important; }
+body { top: 0 !important; }
+.goog-logo-link { display: none !important; }
+.goog-te-gadget { font-size: 0 !important; }
+
 /* 🎨 VARIABLES CSS (Opcional, pero Tailwind ya usa config) */
 :root {
   --primary: #6BAEC9;

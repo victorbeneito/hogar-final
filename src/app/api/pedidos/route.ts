@@ -40,6 +40,8 @@ export async function GET(req: Request) {
     const fechaHasta = searchParams.get("fechaHasta");
     const sortBy = searchParams.get("sortBy") || "fechaPedido";
     const sortDir = searchParams.get("sortDir") === "asc" ? "asc" : "desc";
+    const page  = Math.max(1, parseInt(searchParams.get("page")  || "1"));
+    const limit = Math.min(200, Math.max(1, parseInt(searchParams.get("limit") || "50")));
     const prestashopImportMarker = "[Importado de Prestashop]";
 
     console.log(`🔍 [GET Pedidos] Buscando para ClienteID: ${clienteId || "TODOS"}`);
@@ -164,9 +166,16 @@ export async function GET(req: Request) {
             subtotal: true,
           },
         },
+        factura: {
+          select: { id: true, numeroFactura: true, fechaFactura: true, total: true },
+        },
       },
       orderBy: orderMap[sortBy] || { fechaPedido: "desc" },
+      skip: (page - 1) * limit,
+      take: limit,
     });
+
+    const total = await prisma.pedido.count({ where: whereClause });
 
     const pedidosFormateados = pedidosRaw.map((p: any) => ({
       id: p.id,
@@ -227,10 +236,13 @@ export async function GET(req: Request) {
         subtotal: Number(prod.subtotal),
         varianteInfo: prod.varianteInfo || null,
       })),
+      factura: p.factura
+        ? { id: p.factura.id, numeroFactura: p.factura.numeroFactura }
+        : null,
       mensajes: p.mensajes || [],
     }));
 
-    return NextResponse.json({ pedidos: pedidosFormateados });
+    return NextResponse.json({ pedidos: pedidosFormateados, total, page, limit });
 
   } catch (error: any) {
     console.error("❌ Error GET Pedidos:", error);
@@ -340,21 +352,34 @@ export async function POST(req: Request) {
     // 3. Ejecutar Transacción
     console.log("💾 Iniciando transacción en Prisma...");
     
+    // Leer configuración de referencia
+    const refConfigRows = await prisma.configuracion.findMany({
+      where: { clave: { in: ["pedidos.refPrefijo","pedidos.refSeparador","pedidos.refPadding","pedidos.refIncluirAno","pedidos.refUltimoNumero"] } }
+    });
+    const refMap: Record<string, string> = {};
+    for (const r of refConfigRows) refMap[r.clave] = r.valor ?? "";
+    const refPrefijo   = refMap["pedidos.refPrefijo"]   || "PED";
+    const refSep       = refMap["pedidos.refSeparador"] !== undefined ? refMap["pedidos.refSeparador"] : "-";
+    const refPadding   = Math.max(1, parseInt(refMap["pedidos.refPadding"] || "4"));
+    const refIncluirAno = (refMap["pedidos.refIncluirAno"] ?? "true") !== "false";
+    const refUltimo    = refMap["pedidos.refUltimoNumero"] ? parseInt(refMap["pedidos.refUltimoNumero"]) : 0;
+
     const result = await prisma.$transaction(async (tx: any) => {
-      // Generar numeroPedido
+      // Generar numeroPedido usando la configuración
       const anio = new Date().getFullYear();
-      const prefijo = `PED-${anio}-`;
-      const ultimo = await tx.pedido.findFirst({
-        where: { numeroPedido: { startsWith: prefijo } },
-        orderBy: { id: 'desc' }
+      const fullPrefix = refIncluirAno ? `${refPrefijo}${refSep}${anio}${refSep}` : `${refPrefijo}${refSep}`;
+      const todos = await tx.pedido.findMany({
+        where: { numeroPedido: { startsWith: fullPrefix } },
+        select: { numeroPedido: true },
       });
-      
-      let sec = 1;
-      if (ultimo && ultimo.numeroPedido) {
-        const partes = ultimo.numeroPedido.split('-');
-        if (partes.length === 3) sec = parseInt(partes[2]) + 1;
+      let maxSeq = 0;
+      for (const p of todos) {
+        if (!p.numeroPedido) continue;
+        const n = parseInt(p.numeroPedido.slice(fullPrefix.length), 10);
+        if (!isNaN(n) && n > maxSeq) maxSeq = n;
       }
-      const numeroGenerado = `${prefijo}${sec.toString().padStart(4, '0')}`;
+      const sec = Math.max(maxSeq + 1, refUltimo + 1);
+      const numeroGenerado = `${fullPrefix}${sec.toString().padStart(refPadding, '0')}`;
       
       console.log("🔢 Número de pedido generado:", numeroGenerado);
 

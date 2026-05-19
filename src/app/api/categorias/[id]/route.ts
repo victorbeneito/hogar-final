@@ -34,7 +34,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
 
   try {
     const body = await req.json();
-    const { nombre, descripcion, imagen, activa, orden, parentId } = body;
+    const { nombre, descripcion, imagen, activa, orden, parentId, metaTitulo, metaDescripcion, textoSeo } = body;
     const ordenNumero = orden !== undefined ? Number(orden) : undefined;
     const parentIdNumero = parentId !== undefined && parentId !== null && parentId !== "" ? Number(parentId) : null;
 
@@ -51,12 +51,15 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
     const categoria = await prisma.categoria.update({
       where: { id },
       data: {
-        ...(nombre       !== undefined && { nombre, slug }),
-        ...(descripcion  !== undefined && { descripcion }),
-        ...(imagen       !== undefined && { imagen }),
-        ...(activa       !== undefined && { activa }),
-        ...(orden        !== undefined && { orden: Number.isFinite(ordenNumero) ? ordenNumero : 0 }),
-        ...(parentId     !== undefined && { parentId: parentIdNumero }),
+        ...(nombre          !== undefined && { nombre, slug }),
+        ...(descripcion     !== undefined && { descripcion }),
+        ...(imagen          !== undefined && { imagen }),
+        ...(activa          !== undefined && { activa }),
+        ...(orden           !== undefined && { orden: Number.isFinite(ordenNumero) ? ordenNumero : 0 }),
+        ...(parentId        !== undefined && { parentId: parentIdNumero }),
+        ...(metaTitulo      !== undefined && { metaTitulo: metaTitulo || null }),
+        ...(metaDescripcion !== undefined && { metaDescripcion: metaDescripcion || null }),
+        ...(textoSeo        !== undefined && { textoSeo: textoSeo || null }),
       },
     });
 

@@ -19,6 +19,22 @@ interface ConfigPedidos {
   "pedidos.embalajeReciclado": string;
 }
 
+interface RefSettings {
+  prefijo: string;
+  separador: string;
+  padding: number;
+  incluirAno: boolean;
+  ultimoNumero: number | null;
+}
+
+interface RefInfo {
+  settings: RefSettings;
+  maxSecuencia: number;
+  proximoNumero: number;
+  preview: string;
+  year: number;
+}
+
 interface EstadoPedido {
   id: number;
   clave: string;
@@ -78,13 +94,21 @@ const EMPTY_ESTADO: EstadoPedido = {
 };
 
 export default function ConfiguracionPedidosPage() {
-  const [tab, setTab] = useState<"config" | "estados">("config");
+  const [tab, setTab] = useState<"config" | "estados" | "numeracion">("config");
   const [config, setConfig] = useState<ConfigPedidos>(DEFAULT_CONFIG);
   const [estados, setEstados] = useState<EstadoPedido[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [editingEstado, setEditingEstado] = useState<EstadoPedido | null>(null);
   const [isNew, setIsNew] = useState(false);
+
+  // Numeración
+  const [refInfo, setRefInfo] = useState<RefInfo | null>(null);
+  const [refDraft, setRefDraft] = useState<RefSettings & { ultimoNumeroDraft: string }>({
+    prefijo: "PED", separador: "-", padding: 4, incluirAno: true, ultimoNumero: null, ultimoNumeroDraft: "",
+  });
+  const [refSaving, setRefSaving] = useState(false);
+  const [refError, setRefError] = useState("");
 
   useEffect(() => {
     loadAll();
@@ -93,18 +117,64 @@ export default function ConfiguracionPedidosPage() {
   async function loadAll() {
     setLoading(true);
     try {
-      const [configRes, estadosRes] = await Promise.all([
+      const [configRes, estadosRes, refRes] = await Promise.all([
         fetch("/api/admin/configuracion/pedidos"),
         fetch("/api/admin/pedidos/estados"),
+        fetch("/api/admin/pedidos/referencia"),
       ]);
       const configData = await configRes.json();
       const estadosData = await estadosRes.json();
+      const refData = await refRes.json();
       setConfig({ ...DEFAULT_CONFIG, ...configData.config });
       setEstados(estadosData.estados ?? []);
+      if (refData.settings) {
+        setRefInfo(refData);
+        setRefDraft({
+          ...refData.settings,
+          ultimoNumeroDraft: refData.settings.ultimoNumero != null ? String(refData.settings.ultimoNumero) : "",
+        });
+      }
     } catch {
       toast.error("Error cargando configuración");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function saveRef() {
+    setRefSaving(true);
+    setRefError("");
+    try {
+      const body: Record<string, unknown> = {
+        prefijo:    refDraft.prefijo,
+        separador:  refDraft.separador,
+        padding:    refDraft.padding,
+        incluirAno: refDraft.incluirAno,
+      };
+      // Solo enviamos ultimoNumero si el campo tiene valor
+      if (refDraft.ultimoNumeroDraft.trim() !== "") {
+        body.ultimoNumero = parseInt(refDraft.ultimoNumeroDraft);
+      } else {
+        body.ultimoNumero = null;
+      }
+
+      const res = await fetch("/api/admin/pedidos/referencia", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) throw new Error(data.error ?? "Error guardando");
+      setRefInfo(data);
+      setRefDraft({
+        ...data.settings,
+        ultimoNumeroDraft: data.settings.ultimoNumero != null ? String(data.settings.ultimoNumero) : "",
+      });
+      toast.success("Configuración de numeración guardada");
+    } catch (e: any) {
+      setRefError(e.message);
+    } finally {
+      setRefSaving(false);
     }
   }
 
@@ -213,6 +283,15 @@ export default function ConfiguracionPedidosPage() {
               <Save className="w-4 h-4" /> {saving ? "Guardando..." : "Guardar"}
             </button>
           )}
+          {tab === "numeracion" && (
+            <button
+              onClick={saveRef}
+              disabled={refSaving}
+              className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white inline-flex items-center gap-2 disabled:opacity-60"
+            >
+              <Save className="w-4 h-4" /> {refSaving ? "Guardando..." : "Guardar"}
+            </button>
+          )}
           {tab === "estados" && !editingEstado && (
             <button
               onClick={() => {
@@ -231,8 +310,9 @@ export default function ConfiguracionPedidosPage() {
       <div className="flex border-b border-gray-200 dark:border-gray-700 mb-6">
         {(
           [
-            { id: "config", label: "Configuración de Pedidos" },
-            { id: "estados", label: "Estados" },
+            { id: "config",     label: "Configuración de Pedidos" },
+            { id: "numeracion", label: "Numeración" },
+            { id: "estados",    label: "Estados" },
           ] as const
         ).map((t) => (
           <button
@@ -362,6 +442,127 @@ export default function ConfiguracionPedidosPage() {
                   }
                   className="w-full rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-950 px-4 py-3 text-sm"
                 />
+              </div>
+            )}
+          </section>
+        </div>
+      )}
+
+      {/* ── Tab: Numeración ── */}
+      {tab === "numeracion" && (
+        <div className="space-y-4">
+          <section className="rounded-3xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-darkNavBg p-5 md:p-6">
+            <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-1">Formato de la referencia</h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-5">
+              Define cómo se genera automáticamente el número de pedido. Ejemplo: <strong>PED-2026-0042</strong>
+            </p>
+
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-6">
+              <div>
+                <label className="block text-sm text-gray-500 mb-1">Prefijo</label>
+                <input
+                  type="text"
+                  value={refDraft.prefijo}
+                  onChange={(e) => setRefDraft((p) => ({ ...p, prefijo: e.target.value.toUpperCase().replace(/\s/g,"") }))}
+                  placeholder="PED"
+                  className="w-full rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-950 px-4 py-3 text-sm font-mono"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-500 mb-1">Separador</label>
+                <input
+                  type="text"
+                  value={refDraft.separador}
+                  onChange={(e) => setRefDraft((p) => ({ ...p, separador: e.target.value.slice(0,3) }))}
+                  placeholder="-"
+                  maxLength={3}
+                  className="w-full rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-950 px-4 py-3 text-sm font-mono"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-500 mb-1">Dígitos del número</label>
+                <input
+                  type="number"
+                  min={1}
+                  max={10}
+                  value={refDraft.padding}
+                  onChange={(e) => setRefDraft((p) => ({ ...p, padding: Math.max(1, parseInt(e.target.value) || 4) }))}
+                  className="w-full rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-950 px-4 py-3 text-sm"
+                />
+                <p className="text-xs text-gray-400 mt-1">Ceros a la izquierda (ej: 4 → 0042)</p>
+              </div>
+              <div className="flex items-center">
+                <Toggle
+                  label="Incluir año"
+                  checked={refDraft.incluirAno}
+                  onChange={(v) => setRefDraft((p) => ({ ...p, incluirAno: v }))}
+                />
+              </div>
+            </div>
+
+            {/* Preview */}
+            <div className="rounded-2xl bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 px-5 py-4 mb-2">
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Vista previa del próximo pedido</p>
+              <p className="font-mono text-xl font-bold text-primary">
+                {refDraft.prefijo || "PED"}
+                {refDraft.separador}
+                {refDraft.incluirAno ? `${new Date().getFullYear()}${refDraft.separador}` : ""}
+                {String(Math.max((refInfo?.maxSecuencia ?? 0) + 1, (refDraft.ultimoNumero ?? 0) + 1)).padStart(refDraft.padding, "0")}
+              </p>
+            </div>
+          </section>
+
+          <section className="rounded-3xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-darkNavBg p-5 md:p-6">
+            <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-1">Contador de secuencia</h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+              El sistema detecta automáticamente el último número utilizado. Puedes ajustarlo manualmente si, por ejemplo, has eliminado un pedido y quieres reutilizar su número.
+            </p>
+
+            <div className="flex flex-wrap items-start gap-6 mb-4">
+              <div className="rounded-2xl bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 px-5 py-4">
+                <p className="text-xs text-blue-500 font-semibold uppercase tracking-wide mb-1">Último número detectado</p>
+                <p className="text-2xl font-bold text-blue-700 dark:text-blue-300">{refInfo?.maxSecuencia ?? "—"}</p>
+                <p className="text-xs text-blue-400 mt-1">Año {refInfo?.year ?? new Date().getFullYear()}</p>
+              </div>
+              <div className="rounded-2xl bg-green-50 dark:bg-green-900/20 border border-green-100 dark:border-green-800 px-5 py-4">
+                <p className="text-xs text-green-500 font-semibold uppercase tracking-wide mb-1">Próximo pedido</p>
+                <p className="text-2xl font-bold text-green-700 dark:text-green-300">
+                  {Math.max((refInfo?.maxSecuencia ?? 0) + 1, (refDraft.ultimoNumero ?? 0) + 1)}
+                </p>
+                <p className="text-xs text-green-400 mt-1">Número de secuencia</p>
+              </div>
+            </div>
+
+            <div className="max-w-xs">
+              <label className="block text-sm text-gray-500 mb-1">
+                Establecer último número manualmente
+              </label>
+              <input
+                type="number"
+                min={refInfo?.maxSecuencia ?? 0}
+                value={refDraft.ultimoNumeroDraft}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setRefDraft((p) => ({
+                    ...p,
+                    ultimoNumeroDraft: v,
+                    ultimoNumero: v.trim() !== "" ? parseInt(v) : null,
+                  }));
+                }}
+                placeholder={`Mínimo: ${refInfo?.maxSecuencia ?? 0}`}
+                className="w-full rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-950 px-4 py-3 text-sm font-mono"
+              />
+              <p className="text-xs text-gray-400 mt-1">
+                Dejar en blanco para usar la detección automática.
+                {refInfo && refInfo.maxSecuencia > 0 && (
+                  <> El mínimo permitido es <strong>{refInfo.maxSecuencia}</strong> (último pedido existente).</>
+                )}
+              </p>
+            </div>
+
+            {refError && (
+              <div className="mt-3 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 px-4 py-3 text-sm text-red-600 dark:text-red-400">
+                {refError}
               </div>
             )}
           </section>
