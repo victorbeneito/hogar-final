@@ -5,10 +5,11 @@ export const dynamic = "force-dynamic";
 import React, { useState, useEffect } from "react";
 import Banner from "@/components/Banner";
 import ProductGrid from "@/components/ProductGrid";
-import BannersSection from "@/components/BannersSection"; 
+import BannersSection from "@/components/BannersSection";
 import BannerPrincipal from "@/components/BannerPrincipal";
 import SeoText from "@/components/SeoText";
 import SubscribeForm from "@/components/SubscribeForm";
+import ReviWidget from "@/components/ReviWidget";
 import clienteAxios from "@/lib/axiosClient";
 
 // Definimos los tipos alineados con MariaDB (ids numéricos)
@@ -114,6 +115,13 @@ export default function HomePage() {
               productosFiltrados={productosFiltrados}
               busquedaActiva={busquedaActiva}
             />
+         </div>
+      </section>
+
+      {/* SECCIÓN 3.5: Widget Revi */}
+      <section className="w-full">
+         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <ReviWidget />
          </div>
       </section>
 
