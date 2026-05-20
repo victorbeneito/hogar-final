@@ -84,7 +84,7 @@ export default async function ProductoPage({ params }: PageProps) {
           varianteatributo: {
             select: {
               atributovalor: {
-                select: { id: true, valor: true, imagen: true, colorHex: true },
+                select: { id: true, valor: true, imagen: true, colorHex: true, orden: true },
               },
             },
           },
@@ -116,6 +116,20 @@ export default async function ProductoPage({ params }: PageProps) {
     prestashopProductId = mapeo?.idPrestashop || null;
   }
 
+  // Lookup atributovalores by color/tirador value directly, as fallback when varianteatributo links are missing
+  const uniqueVariantValues = [
+    ...new Set(
+      productoRaw.variante.flatMap((v) => [v.color, v.tirador]).filter((x): x is string => Boolean(x))
+    ),
+  ];
+  const avLookup = uniqueVariantValues.length > 0
+    ? await prisma.atributovalor.findMany({
+        where: { valor: { in: uniqueVariantValues } },
+        select: { id: true, valor: true, imagen: true, colorHex: true, orden: true },
+      })
+    : [];
+  const avByValor = new Map(avLookup.map((av) => [av.valor, av]));
+
   // precio en BD es sin IVA → convertir a precio con IVA para mostrar al cliente
   const porcentajeIva = Number(productoRaw.reglaimpuesto?.porcentaje ?? 0);
   const factorIva = 1 + porcentajeIva / 100;
@@ -134,10 +148,15 @@ export default async function ProductoPage({ params }: PageProps) {
       ? ((precioConIva - ofertaConIva) / precioConIva * 100).toFixed(2)
       : null,
     imagenes: productoRaw.productoimagen.map((img: any) => img.url),
-    variantes: (productoRaw.variante ?? []).map((v: any) => ({
-      ...v,
-      atributovalores: v.varianteatributo?.map((va: any) => va.atributovalor) ?? [],
-    })),
+    variantes: (productoRaw.variante ?? []).map((v: any) => {
+      const linked: any[] = v.varianteatributo?.map((va: any) => va.atributovalor) ?? [];
+      const linkedValues = new Set(linked.map((av: any) => av.valor));
+      const fromLookup = ([v.color, v.tirador] as (string | null | undefined)[])
+        .filter((val): val is string => Boolean(val) && !linkedValues.has(val))
+        .map((val) => avByValor.get(val))
+        .filter(Boolean);
+      return { ...v, atributovalores: [...linked, ...fromLookup] };
+    }),
     categoria: productoRaw.productocategoria?.[0]?.categoria ?? null,
     prestashopProductId, // REVI
   };

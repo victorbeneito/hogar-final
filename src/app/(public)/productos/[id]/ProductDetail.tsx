@@ -16,6 +16,7 @@ interface AtributoValor {
   valor: string;
   imagen?: string | null;
   colorHex?: string | null;
+  orden?: number | null;
 }
 
 interface Variante {
@@ -73,11 +74,17 @@ export default function ProductDetail({ producto }: { producto: Producto }) {
       .map((v) => v.tamano)
   );
 
-  const tiradoresUnicos = ordenarValoresNaturales(
-    variantes
-      .filter((v): v is Variante & { tirador: string } => Boolean(v.tirador))
-      .map((v) => v.tirador)
-  );
+  const tiradoresUnicos = (() => {
+    const norm = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
+    const vistos = new Map<string, number>();
+    for (const v of variantes) {
+      if (!v.tirador) continue;
+      if (vistos.has(v.tirador)) continue;
+      const av = v.atributovalores?.find((a) => norm(a.valor) === norm(v.tirador!));
+      vistos.set(v.tirador, av?.orden ?? 999);
+    }
+    return [...vistos.entries()].sort((a, b) => a[1] - b[1]).map(([val]) => val);
+  })();
 
   const coloresUnicos = ordenarValoresNaturales(
     variantes
@@ -290,22 +297,56 @@ export default function ProductDetail({ producto }: { producto: Producto }) {
             {/* TIRADORES */}
             {tiradoresUnicos.length > 0 && (
               <div>
-                <h3 className="text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Tirador</h3>
-                <div className="grid grid-cols-2 gap-2">
-                  {tiradoresUnicos.map((tirador, idx) => (
-                    <button
-                      key={`${tirador}-${idx}`}
-                      type="button"
-                      onClick={() => setTiradorSeleccionado(tirador)}
-                      className={`border rounded px-3 py-2 text-sm transition-colors ${
-                        tiradorSeleccionado === tirador
-                          ? "border-primary bg-primary/10 text-primary dark:text-primaryHover"
-                          : "border-gray-200 dark:border-gray-600 dark:text-gray-300 hover:border-primary"
-                      }`}
-                    >
-                      {tirador}
-                    </button>
-                  ))}
+                <h3 className="text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Tirador</h3>
+                <div className="grid grid-cols-4 gap-3">
+                  {tiradoresUnicos.map((tirador, idx) => {
+                    const norm = (s: string) =>
+                      s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
+                    const varianteTirador = variantes.find((v) => v.tirador === tirador);
+                    const atributoValorTirador = varianteTirador?.atributovalores?.find(
+                      (av) => norm(av.valor) === norm(tirador)
+                    );
+                    const imagenMuestra = atributoValorTirador?.imagen || varianteTirador?.imagenMuestra;
+                    const seleccionado = tiradorSeleccionado === tirador;
+                    return (
+                      <button
+                        key={`${tirador}-${idx}`}
+                        type="button"
+                        onClick={() => setTiradorSeleccionado(tirador)}
+                        title={tirador}
+                        className={`flex flex-col items-center gap-1 group transition-transform hover:scale-105 ${
+                          seleccionado ? "scale-105" : ""
+                        }`}
+                      >
+                        <span
+                          className={`block w-full aspect-square rounded-md overflow-hidden border-2 transition-colors ${
+                            seleccionado
+                              ? "border-primary shadow-md"
+                              : "border-gray-200 dark:border-gray-600 group-hover:border-primary"
+                          }`}
+                        >
+                          {imagenMuestra ? (
+                            <img
+                              src={imagenMuestra}
+                              alt={tirador}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <span className="w-full h-full flex items-center justify-center bg-gray-100 dark:bg-gray-700 text-[9px] text-gray-500 dark:text-gray-400 text-center leading-tight px-0.5">
+                              {tirador}
+                            </span>
+                          )}
+                        </span>
+                        <span className={`text-[10px] leading-tight text-center w-full break-words ${
+                          seleccionado
+                            ? "text-primary font-semibold dark:text-primaryHover"
+                            : "text-gray-500 dark:text-gray-400"
+                        }`}>
+                          {tirador}
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             )}

@@ -67,7 +67,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
             varianteatributo: {
               select: {
                 atributovalor: {
-                  select: { id: true, valor: true, imagen: true, colorHex: true },
+                  select: { id: true, valor: true, imagen: true, colorHex: true, orden: true },
                 },
               },
             },
@@ -80,6 +80,19 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ ok: false, error: "Producto no encontrado" }, { status: 404 });
     }
 
+    const uniqueVariantValues = [
+      ...new Set(
+        (producto.variante ?? []).flatMap((v) => [v.color, v.tirador]).filter((x): x is string => Boolean(x))
+      ),
+    ];
+    const avLookup = uniqueVariantValues.length > 0
+      ? await prisma.atributovalor.findMany({
+          where: { valor: { in: uniqueVariantValues } },
+          select: { id: true, valor: true, imagen: true, colorHex: true, orden: true },
+        })
+      : [];
+    const avByValor = new Map(avLookup.map((av) => [av.valor, av]));
+
     return NextResponse.json(
       {
         ok: true,
@@ -90,10 +103,15 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
           imagenPortada: producto.productoimagen?.find((img) => img.esPortada)?.url ?? null,
           imagenes: (producto.productoimagen ?? []).map((img) => img.url).filter(Boolean),
           caracteristicas: producto.caracteristica ?? [],
-          variantes: (producto.variante ?? []).map((v) => ({
-            ...v,
-            atributovalores: v.varianteatributo?.map((va) => va.atributovalor) ?? [],
-          })),
+          variantes: (producto.variante ?? []).map((v) => {
+            const linked = v.varianteatributo?.map((va) => va.atributovalor) ?? [];
+            const linkedValues = new Set(linked.map((av) => av.valor));
+            const fromLookup = [v.color, v.tirador]
+              .filter((val): val is string => Boolean(val) && !linkedValues.has(val as string))
+              .map((val) => avByValor.get(val as string))
+              .filter((av): av is NonNullable<typeof av> => Boolean(av));
+            return { ...v, atributovalores: [...linked, ...fromLookup] };
+          }),
         },
       },
       { status: 200 }
