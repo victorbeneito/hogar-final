@@ -260,7 +260,6 @@ export default function AdminAtributosPage() {
       orden: valor.orden,
     });
     setEditandoValor({ atributoId: atributo.id, valorId: valor.id });
-    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   async function handleDeleteAtributo(id: number) {
@@ -674,47 +673,174 @@ export default function AdminAtributosPage() {
                                     contieneTexto(valor.id, terminoBusqueda) ||
                                     contieneTexto(valor.orden, terminoBusqueda));
 
+                                const seEstaEditando =
+                                  editandoValor?.atributoId === atributo.id && editandoValor?.valorId === valor.id;
+
                                 return (
-                                  <div
-                                    key={valor.id}
-                                    className={`grid grid-cols-12 gap-3 items-center px-2 py-3 border-b border-gray-100 last:border-b-0 rounded-xl ${coincideValorDirecto ? "bg-amber-50/70" : ""}`}
-                                  >
-                                    <div className="col-span-1 text-center text-xs text-gray-500 font-mono">#{valor.id}</div>
-                                    <div className="col-span-3 font-medium text-gray-800">{valor.valor}</div>
-                                    <div className="col-span-2 flex items-center gap-2">
-                                      {valor.colorHex ? (
-                                        <>
-                                          <span className="w-5 h-5 rounded-full border border-gray-200" style={{ backgroundColor: valor.colorHex }} />
-                                          <span className="text-sm text-gray-600">{valor.colorHex}</span>
-                                        </>
-                                      ) : (
-                                        <span className="text-sm text-gray-400">—</span>
-                                      )}
+                                  <div key={valor.id}>
+                                    <div
+                                      className={`grid grid-cols-12 gap-3 items-center px-2 py-3 border-b border-gray-100 rounded-xl ${coincideValorDirecto ? "bg-amber-50/70" : ""} ${seEstaEditando ? "bg-blue-50/50" : ""}`}
+                                    >
+                                      <div className="col-span-1 text-center text-xs text-gray-500 font-mono">#{valor.id}</div>
+                                      <div className="col-span-3 font-medium text-gray-800">{valor.valor}</div>
+                                      <div className="col-span-2 flex items-center gap-2">
+                                        {valor.colorHex ? (
+                                          <>
+                                            <span className="w-5 h-5 rounded-full border border-gray-200" style={{ backgroundColor: valor.colorHex }} />
+                                            <span className="text-sm text-gray-600">{valor.colorHex}</span>
+                                          </>
+                                        ) : (
+                                          <span className="text-sm text-gray-400">—</span>
+                                        )}
+                                      </div>
+                                      <div className="col-span-3 flex items-center gap-2">
+                                        {valor.imagen ? (
+                                          <>
+                                            <div className="w-10 h-10 rounded-lg border border-gray-200 bg-white overflow-hidden flex items-center justify-center flex-shrink-0">
+                                              <img src={valor.imagen} alt={valor.valor} className="w-full h-full object-contain p-1" />
+                                            </div>
+                                            <a href={valor.imagen} target="_blank" rel="noreferrer" className="text-[#6BAEC9] hover:underline text-sm truncate">
+                                              Ver imagen
+                                            </a>
+                                          </>
+                                        ) : (
+                                          <span className="text-sm text-gray-400">—</span>
+                                        )}
+                                      </div>
+                                      <div className="col-span-1 text-center text-sm text-gray-600">{valor.orden}</div>
+                                      <div className="col-span-2 flex justify-end gap-2">
+                                        <button
+                                          onClick={() => handleEditValor(atributo, valor)}
+                                          className="px-3 py-1.5 bg-orange-50 hover:bg-orange-100 text-orange-500 rounded-lg text-xs font-semibold transition"
+                                        >
+                                          Editar
+                                        </button>
+                                        <button
+                                          onClick={() => handleDeleteValor(atributo.id, valor.id)}
+                                          className="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-500 rounded-lg text-xs font-semibold transition"
+                                        >
+                                          Borrar
+                                        </button>
+                                      </div>
                                     </div>
-                                    <div className="col-span-3 text-sm text-gray-600 truncate">
-                                      {valor.imagen ? (
-                                        <a href={valor.imagen} target="_blank" rel="noreferrer" className="text-[#6BAEC9] hover:underline">
-                                          Ver imagen
-                                        </a>
-                                      ) : (
-                                        <span className="text-gray-400">—</span>
-                                      )}
-                                    </div>
-                                    <div className="col-span-1 text-center text-sm text-gray-600">{valor.orden}</div>
-                                    <div className="col-span-2 flex justify-end gap-2">
-                                      <button
-                                        onClick={() => handleEditValor(atributo, valor)}
-                                        className="px-3 py-1.5 bg-orange-50 hover:bg-orange-100 text-orange-500 rounded-lg text-xs font-semibold transition"
-                                      >
-                                        Editar
-                                      </button>
-                                      <button
-                                        onClick={() => handleDeleteValor(atributo.id, valor.id)}
-                                        className="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-500 rounded-lg text-xs font-semibold transition"
-                                      >
-                                        Borrar
-                                      </button>
-                                    </div>
+
+                                    {seEstaEditando && (
+                                      <div className="border-b border-gray-100 bg-white px-2 py-4 md:px-4">
+                                        <form onSubmit={handleSubmitValor} className="space-y-4 rounded-2xl border border-blue-100 bg-blue-50/30 p-5">
+                                          <div className="flex items-center justify-between mb-4">
+                                            <h3 className="text-sm font-bold text-gray-700">✏️ Editando valor</h3>
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                setEditandoValor(null);
+                                                setValorForm(emptyValorForm);
+                                              }}
+                                              className="text-gray-400 hover:text-gray-600"
+                                            >
+                                              <X className="h-4 w-4" />
+                                            </button>
+                                          </div>
+
+                                          <div>
+                                            <label className="block text-sm font-medium text-gray-600 mb-1">Valor / nombre *</label>
+                                            <input
+                                              required
+                                              value={valorForm.valor}
+                                              onChange={(e) => setValorForm((prev) => ({ ...prev, valor: e.target.value }))}
+                                              placeholder={atributoSeleccionado?.nombre === "Color" ? "Gris claro" : "Ej: 80x200"}
+                                              className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-[#6BAEC9]/40 focus:border-[#6BAEC9] transition"
+                                            />
+                                          </div>
+
+                                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div>
+                                              <label className="block text-sm font-medium text-gray-600 mb-1">Color hex</label>
+                                              <input
+                                                value={valorForm.colorHex}
+                                                onChange={(e) => setValorForm((prev) => ({ ...prev, colorHex: e.target.value }))}
+                                                placeholder="#d9d9d9"
+                                                className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-[#6BAEC9]/40 focus:border-[#6BAEC9] transition"
+                                              />
+                                            </div>
+                                            <div>
+                                              <label className="block text-sm font-medium text-gray-600 mb-1">Orden</label>
+                                              <input
+                                                type="number"
+                                                min="0"
+                                                value={valorForm.orden}
+                                                onChange={(e) => setValorForm((prev) => ({ ...prev, orden: parseInt(e.target.value) || 0 }))}
+                                                className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-[#6BAEC9]/40 focus:border-[#6BAEC9] transition"
+                                              />
+                                            </div>
+                                          </div>
+
+                                          <div>
+                                            <label className="block text-sm font-medium text-gray-600 mb-1">Imagen</label>
+                                            <div className="space-y-3 rounded-2xl border border-gray-200 bg-gray-50/70 p-4">
+                                              <input
+                                                value={valorForm.imagen}
+                                                onChange={(e) => setValorForm((prev) => ({ ...prev, imagen: e.target.value }))}
+                                                placeholder="URL de la imagen o pega una data URL"
+                                                className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-[#6BAEC9]/40 focus:border-[#6BAEC9] transition bg-white"
+                                              />
+                                              <label className="block text-xs font-medium text-gray-500">O subir archivo desde el ordenador</label>
+                                              <input
+                                                type="file"
+                                                accept="image/*"
+                                                onChange={(e) => void handleValorImageFile(e.target.files?.[0] ?? null)}
+                                                className="block w-full text-sm text-gray-500 file:mr-4 file:rounded-xl file:border-0 file:bg-[#6BAEC9] file:px-4 file:py-2 file:text-white file:font-semibold hover:file:opacity-90"
+                                              />
+                                              <div className="flex items-start gap-3">
+                                                {valorForm.imagen ? (
+                                                  <div className="w-20 h-20 rounded-xl border border-gray-200 bg-white overflow-hidden flex items-center justify-center flex-shrink-0">
+                                                    <img src={valorForm.imagen} alt="Vista previa" className="w-full h-full object-contain p-2" />
+                                                  </div>
+                                                ) : (
+                                                  <div className="w-20 h-20 rounded-xl border border-dashed border-gray-300 bg-white flex items-center justify-center text-[11px] text-gray-400 flex-shrink-0 text-center px-2">
+                                                    Sin imagen
+                                                  </div>
+                                                )}
+
+                                                <div className="min-w-0 flex-1 space-y-2">
+                                                  <p className="text-xs text-gray-500">
+                                                    Puedes usar una URL o subir un archivo. Si subes archivo, se guardará dentro del valor como imagen embebida.
+                                                  </p>
+                                                  {valorForm.imagen && (
+                                                    <button
+                                                      type="button"
+                                                      onClick={() => setValorForm((prev) => ({ ...prev, imagen: "" }))}
+                                                      className="inline-flex items-center rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50"
+                                                    >
+                                                      Quitar imagen
+                                                    </button>
+                                                  )}
+                                                </div>
+                                              </div>
+                                            </div>
+                                          </div>
+
+                                          <div className="flex gap-3 pt-2 border-t border-gray-200">
+                                            <button
+                                              type="submit"
+                                              disabled={loading}
+                                              className="bg-[#6BAEC9] hover:bg-[#5FA0B3] text-white px-6 py-2.5 rounded-xl font-semibold shadow transition disabled:opacity-50 text-sm"
+                                            >
+                                              {loading ? "⏳ Guardando..." : "✏️ Actualizar valor"}
+                                            </button>
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                setEditandoValor(null);
+                                                setValorForm(emptyValorForm);
+                                              }}
+                                              className="px-6 py-2.5 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-xl font-semibold transition text-sm"
+                                            >
+                                              Cancelar
+                                            </button>
+                                          </div>
+                                        </form>
+                                      </div>
+                                    )}
                                   </div>
                                 );
                               })
