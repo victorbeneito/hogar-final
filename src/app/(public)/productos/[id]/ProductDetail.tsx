@@ -21,6 +21,7 @@ interface AtributoValor {
 
 interface Variante {
   id: number;
+  referencia?: string | null;
   color?: string;
   imagen?: string;
   tamano?: string;
@@ -28,7 +29,15 @@ interface Variante {
   precio_extra?: number | null;
   imagenMuestra?: string;
   imagenesVariante?: string;
+  stock?: number;
   atributovalores?: AtributoValor[];
+}
+
+interface Marca {
+  id: number;
+  nombre: string;
+  logo_url?: string | null;
+  imagen?: string | null;
 }
 
 interface Producto {
@@ -43,6 +52,9 @@ interface Producto {
   variantes?: Variante[];
   categoria?: CategoriaProducto;
   prestashopProductId?: number | null; // REVI
+  referencia?: string | null;
+  marca?: Marca | null;
+  stock?: number;
 }
 
 export default function ProductDetail({ producto }: { producto: Producto }) {
@@ -456,6 +468,13 @@ export default function ProductDetail({ producto }: { producto: Producto }) {
             </div>
           )}
 
+          {/* Referencia del Producto */}
+          {producto.referencia && (
+            <div className="text-sm text-gray-700 dark:text-gray-300 py-2">
+              Referencia: <span className="font-mono font-semibold text-gray-900 dark:text-white">{producto.referencia}</span>
+            </div>
+          )}
+
           {/* Sección de iconos informativos */}
           <div className="space-y-3 mt-4">
             <div className="flex items-center gap-3">
@@ -534,11 +553,39 @@ export default function ProductDetail({ producto }: { producto: Producto }) {
           )}
 
           {tabActiva === "detalles" && (
-            <p>Productos realizados con la mejor calidad y diseño moderno.</p>
+            <div className="space-y-3">
+              <p className="text-gray-700 dark:text-gray-300">Productos realizados con la mejor calidad y diseño moderno.</p>
+
+              {/* Sección Marca - estilo PrestaShop */}
+              {producto.marca && (
+                <div className="flex items-start gap-3">
+                  {(producto.marca.logo_url || producto.marca.imagen) && (
+                    <img
+                      src={producto.marca.logo_url || producto.marca.imagen || ""}
+                      alt={producto.marca.nombre}
+                      className="h-16 w-auto object-contain flex-shrink-0"
+                    />
+                  )}
+                  <div className="flex-1 text-sm space-y-1">
+                    <div className="font-semibold text-gray-900 dark:text-white">{producto.marca.nombre}</div>
+                    {varianteSeleccionada?.referencia && (
+                      <div className="text-gray-700 dark:text-gray-300">
+                        Referencia de la combinación: <span className="font-mono font-semibold">{varianteSeleccionada.referencia}</span>
+                      </div>
+                    )}
+                    {varianteSeleccionada?.stock !== undefined && (
+                      <div className="text-gray-700 dark:text-gray-300">
+                        Stock disponible: <span className="font-semibold">{varianteSeleccionada.stock} artículos</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
           )}
 
           {tabActiva === "opiniones" && (
-            <div className="mt-4">
+            <div className="mt-4 space-y-6">
               {/* REVI: Widget de reseñas del producto */}
               {producto.prestashopProductId ? (
                 <div
@@ -550,6 +597,32 @@ export default function ProductDetail({ producto }: { producto: Producto }) {
               ) : (
                 <div className="bg-yellow-50 p-4 rounded border border-yellow-200 text-sm text-yellow-900">
                   ⚠ Producto sin mapeo a Prestashop. Configura el mapeo en /admin/revi para mostrar reseñas.
+                </div>
+              )}
+
+              {/* Referencias del Producto */}
+              {(producto.referencia || varianteSeleccionada?.referencia) && (
+                <div className="border-t pt-4 mt-4">
+                  <h4 className="font-semibold text-gray-900 dark:text-white mb-3">Referencias</h4>
+                  <div className="space-y-2 text-sm">
+                    {producto.referencia && (
+                      <div className="flex justify-between items-center bg-gray-50 dark:bg-gray-700/30 p-3 rounded">
+                        <span className="text-gray-600 dark:text-gray-400">Referencia del producto</span>
+                        <span className="font-mono font-semibold text-gray-900 dark:text-white">{producto.referencia}</span>
+                      </div>
+                    )}
+                    {varianteSeleccionada?.referencia && (
+                      <div className="flex justify-between items-center bg-blue-50 dark:bg-blue-900/20 p-3 rounded">
+                        <span className="text-gray-600 dark:text-gray-400">Referencia de la combinación</span>
+                        <span className="font-mono font-semibold text-gray-900 dark:text-white">{varianteSeleccionada.referencia}</span>
+                      </div>
+                    )}
+                    {!varianteSeleccionada?.referencia && (producto.referencia || varianteSeleccionada) && (
+                      <p className="text-xs text-gray-500 dark:text-gray-400 italic mt-2">
+                        *La combinación seleccionada no tiene una referencia específica
+                      </p>
+                    )}
+                  </div>
                 </div>
               )}
             </div>

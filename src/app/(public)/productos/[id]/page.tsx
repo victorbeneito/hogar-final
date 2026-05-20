@@ -74,6 +74,7 @@ export default async function ProductoPage({ params }: PageProps) {
       variante: {
         select: {
           id: true,
+          referencia: true,
           tamano: true,
           tirador: true,
           color: true,
@@ -81,6 +82,7 @@ export default async function ProductoPage({ params }: PageProps) {
           imagen: true,
           imagenMuestra: true,
           imagenesVariante: true,
+          stock: true,
           varianteatributo: {
             select: {
               atributovalor: {
@@ -98,7 +100,7 @@ export default async function ProductoPage({ params }: PageProps) {
         },
       },
       marca: {
-        select: { id: true, nombre: true },
+        select: { id: true, nombre: true, logo_url: true, imagen: true },
       },
     },
   });
@@ -159,6 +161,9 @@ export default async function ProductoPage({ params }: PageProps) {
     }),
     categoria: productoRaw.productocategoria?.[0]?.categoria ?? null,
     prestashopProductId, // REVI
+    referencia: productoRaw.referencia,
+    marca: productoRaw.marca,
+    stock: productoRaw.stock,
   };
 
   const BASE_URL = "https://www.elhogardetusuenos.com";
