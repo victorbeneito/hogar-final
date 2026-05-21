@@ -66,6 +66,13 @@ export async function GET(req: NextRequest) {
       { referencia: { contains: q } },
       { slug: { contains: q } },
     ];
+
+    // Registrar búsqueda (sin romper el flujo si falla)
+    if (q.length > 2) {
+      prisma.busqueda_log.create({
+        data: { termino: q.toLowerCase() }
+      }).catch(() => {});
+    }
   }
 
   const idMin = searchParams.get("idMin");

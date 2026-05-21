@@ -565,3 +565,12 @@ model visita {
   @@index([sessionId])
   @@index([fuente])
 }
+
+model busqueda_log {
+  id        Int      @id @default(autoincrement())
+  termino   String   @db.VarChar(255)
+  timestamp DateTime @default(now())
+
+  @@index([timestamp])
+  @@index([termino])
+}
