@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowRight, RefreshCw, Search, Settings } from "lucide-react";
+import { ArrowRight, Download, FileDown, RefreshCw, Search, Settings } from "lucide-react";
 
 type InvoiceRow = {
   id: number;
@@ -39,6 +39,12 @@ export default function AdminFacturasPage() {
   const [facturas, setFacturas] = useState<InvoiceRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [generandoBatch, setGenerandoBatch] = useState(false);
+  const [batchFiltros, setBatchFiltros] = useState({
+    origen: "actuales" as SourceFilter,
+    fechaDesde: "",
+    fechaHasta: "",
+  });
   const [filters, setFilters] = useState({
     origen: origenInicial,
     numero: "",
@@ -85,6 +91,34 @@ export default function AdminFacturasPage() {
     }
   }
 
+  async function generarBatchPDF() {
+    setGenerandoBatch(true);
+    try {
+      const params = new URLSearchParams();
+      if (batchFiltros.origen !== "todos") params.set("origen", batchFiltros.origen);
+      if (batchFiltros.fechaDesde) params.set("fechaDesde", batchFiltros.fechaDesde);
+      if (batchFiltros.fechaHasta) params.set("fechaHasta", batchFiltros.fechaHasta);
+
+      const res = await fetch(`/api/facturas/batch-pdf?${params.toString()}`);
+      if (!res.ok) {
+        alert("No hay facturas para los filtros seleccionados");
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      const desde = batchFiltros.fechaDesde || "";
+      const hasta = batchFiltros.fechaHasta || "";
+      a.download = `listado-facturas${desde ? `_${desde}` : ""}${hasta ? `_${hasta}` : ""}.pdf`;
+      a.click();
+    } catch {
+      alert("Error al generar el listado PDF");
+    } finally {
+      setGenerandoBatch(false);
+    }
+  }
+
   return (
     <div className="min-h-screen bg-[#F8F8F5] py-6 md:py-8 px-3 sm:px-4 md:px-6">
       <div className="max-w-screen-2xl mx-auto">
@@ -123,6 +157,48 @@ export default function AdminFacturasPage() {
               className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-gray-700 hover:bg-gray-50"
             >
               Volver a pedidos
+            </button>
+          </div>
+        </div>
+
+        {/* ── Generar Listado PDF en Batch ─────────────────────────────────── */}
+        <div className="bg-gradient-to-r from-[#6BAEC9]/5 to-[#6BAEC9]/10 rounded-2xl shadow-md p-4 md:p-6 border border-[#6BAEC9]/20 mb-6">
+          <div className="flex items-center gap-2 mb-4">
+            <FileDown className="w-5 h-5 text-[#6BAEC9]" />
+            <h2 className="text-base font-bold text-[#4A4A4A]">Generar listado PDF de facturas</h2>
+            <span className="text-xs text-gray-500 ml-auto">Para inspecciones o archivo contable</span>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 items-end">
+            <select
+              value={batchFiltros.origen}
+              onChange={(e) => setBatchFiltros((prev) => ({ ...prev, origen: e.target.value as SourceFilter }))}
+              className="rounded-xl border border-gray-200 px-3 py-2.5 text-sm bg-white"
+            >
+              <option value="actuales">Facturas nuevas</option>
+              <option value="prestashop">Archivo Prestashop</option>
+              <option value="todos">Todas</option>
+            </select>
+            <input
+              type="date"
+              value={batchFiltros.fechaDesde}
+              onChange={(e) => setBatchFiltros((prev) => ({ ...prev, fechaDesde: e.target.value }))}
+              className="rounded-xl border border-gray-200 px-3 py-2.5 text-sm"
+              placeholder="Desde"
+            />
+            <input
+              type="date"
+              value={batchFiltros.fechaHasta}
+              onChange={(e) => setBatchFiltros((prev) => ({ ...prev, fechaHasta: e.target.value }))}
+              className="rounded-xl border border-gray-200 px-3 py-2.5 text-sm"
+              placeholder="Hasta"
+            />
+            <button
+              onClick={generarBatchPDF}
+              disabled={generandoBatch}
+              className="rounded-xl bg-[#6BAEC9] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#5FA0B3] disabled:opacity-60 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2"
+            >
+              <FileDown className="w-4 h-4" />
+              {generandoBatch ? "Generando..." : "Descargar"}
             </button>
           </div>
         </div>
@@ -226,9 +302,17 @@ export default function AdminFacturasPage() {
                       <td className="px-4 py-4 text-gray-600">{factura.pedido.numeroPedido}</td>
                       <td className="px-4 py-4 font-semibold text-[#6BAEC9]">{Number(factura.total).toFixed(2)} €</td>
                       <td className="px-4 py-4">
-                        <Link href={`/admin/pedidos/${factura.pedido.id}`} className="inline-flex items-center gap-1 text-sm font-semibold text-[#6BAEC9] hover:underline">
-                          Ver pedido <ArrowRight className="w-4 h-4" />
-                        </Link>
+                        <div className="flex items-center gap-3">
+                          <Link href={`/admin/pedidos/${factura.pedido.id}`} className="inline-flex items-center gap-1 text-sm font-semibold text-[#6BAEC9] hover:underline">
+                            Ver pedido <ArrowRight className="w-4 h-4" />
+                          </Link>
+                          <a
+                            href={`/api/facturas/${factura.id}/pdf`}
+                            className="inline-flex items-center gap-1 text-sm font-semibold text-gray-500 hover:text-[#6BAEC9]"
+                          >
+                            <Download className="w-4 h-4" />
+                          </a>
+                        </div>
                       </td>
                     </tr>
                   ))
@@ -255,6 +339,18 @@ export default function AdminFacturasPage() {
                   <div className="mt-3 text-sm text-gray-600">
                     <p>{[factura.pedido.nombre, factura.pedido.apellidos].filter(Boolean).join(" ") || factura.pedido.email}</p>
                     <p className="text-xs text-gray-500">Pedido {factura.pedido.numeroPedido}</p>
+                  </div>
+                  <div className="mt-4 flex items-center gap-3">
+                    <Link href={`/admin/pedidos/${factura.pedido.id}`} className="flex-1 inline-flex items-center justify-center gap-1 text-sm font-semibold text-[#6BAEC9] hover:underline">
+                      Ver pedido <ArrowRight className="w-4 h-4" />
+                    </Link>
+                    <a
+                      href={`/api/facturas/${factura.id}/pdf`}
+                      className="inline-flex items-center gap-1 text-sm font-semibold text-gray-500 hover:text-[#6BAEC9]"
+                    >
+                      <Download className="w-4 h-4" />
+                      Descargar
+                    </a>
                   </div>
                 </article>
               ))
