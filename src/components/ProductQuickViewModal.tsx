@@ -49,6 +49,7 @@ const splitImages = (value?: string | null) =>
 const hasSrc = (value?: string | null) => Boolean(String(value ?? "").trim());
 
 export default function ProductQuickViewModal({ productId, open, onClose }: Props) {
+  const [mounted, setMounted] = useState(false);
   const [producto, setProducto] = useState<QuickViewProducto | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -58,6 +59,11 @@ export default function ProductQuickViewModal({ productId, open, onClose }: Prop
   const [tiradorSeleccionado, setTiradorSeleccionado] = useState<string | null>(null);
   const [colorSeleccionado, setColorSeleccionado] = useState<string | null>(null);
   const [imagenActiva, setImagenActiva] = useState("");
+
+  useEffect(() => {
+    setMounted(true);
+    return () => setMounted(false);
+  }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -182,7 +188,7 @@ export default function ProductQuickViewModal({ productId, open, onClose }: Prop
     setAdded(true);
   };
 
-  if (!open) return null;
+  if (!mounted || !open) return null;
 
   // Pantalla de confirmación tras añadir al carrito
   if (added && producto) {
@@ -268,7 +274,7 @@ export default function ProductQuickViewModal({ productId, open, onClose }: Prop
                 <div className="text-sm text-red-500">{error}</div>
               ) : (
                 <img
-                  src={hasSrc(imagenActiva) ? imagenActiva : imagenPrincipal}
+                  src={(hasSrc(imagenActiva) ? imagenActiva : imagenPrincipal) || undefined}
                   alt={producto?.nombre}
                   className="max-h-full max-w-full object-contain"
                 />

@@ -175,14 +175,16 @@ export default function ProductDetail({ producto }: { producto: Producto }) {
 
   const handleAddToCart = async () => {
     await addToCart({
-      ...producto,
       id: Number(producto.id),
+      nombre: producto.nombre,
+      precio: producto.precio,
+      precioFinal: precioFinalProducto,
+      imagen: imagenActiva || imagenPrincipalSeleccionada || producto.imagenes?.[0] || "",
       cantidad,
       tamanoSeleccionado: tamanoSeleccionado ?? undefined,
       tiradorSeleccionado: tiradorSeleccionado ?? undefined,
       colorSeleccionado: colorSeleccionado ?? undefined,
-      precioFinal: precioFinalProducto,
-      imagen: imagenActiva || imagenPrincipalSeleccionada || producto.imagenes?.[0] || "",
+      stock: producto.stock,
     });
     setModalAbierto(true);
   };

@@ -179,6 +179,17 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
       if (!isValidSpanishFiscalDocument(nifFinal)) {
         return NextResponse.json({ error: SPANISH_FISCAL_DOCUMENT_ERROR }, { status: 400 });
       }
+
+      const nifExistente = await prisma.cliente.findFirst({
+        where: { nif: nifFinal, NOT: { id } },
+        select: { id: true },
+      });
+      if (nifExistente) {
+        return NextResponse.json(
+          { error: "Este NIF/CIF ya está registrado en otra cuenta" },
+          { status: 409 }
+        );
+      }
     }
 
     const updateClienteData: Record<string, any> = {

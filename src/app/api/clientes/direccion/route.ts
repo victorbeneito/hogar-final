@@ -109,6 +109,18 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ ok: false, error: SPANISH_FISCAL_DOCUMENT_ERROR }, { status: 400 });
     }
 
+    // Verificar que el NIF no esté en uso por otro cliente diferente
+    const nifExistente = await prisma.cliente.findFirst({
+      where: { nif: nifFinal, NOT: { id } },
+      select: { id: true },
+    });
+    if (nifExistente) {
+      return NextResponse.json(
+        { ok: false, error: "Este NIF/CIF ya está registrado en otra cuenta" },
+        { status: 409 }
+      );
+    }
+
     const result = await prisma.$transaction(async (tx) => {
       const clienteActualizado = await tx.cliente.update({
         where: { id },

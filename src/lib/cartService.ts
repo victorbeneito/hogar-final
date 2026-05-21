@@ -71,10 +71,14 @@ export const getCart = (): CartItem[] => {
 export const setCart = (cart: CartItem[]) => {
   if (typeof window === 'undefined') return;
 
-  localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(cart));
-  if (typeof window !== 'undefined') {
-    window.dispatchEvent(new Event("storage"));
+  try {
+    localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(cart));
+  } catch {
+    // Quota superada: limpiar el carrito corrupto y volver a intentar con el nuevo estado
+    localStorage.removeItem(CART_STORAGE_KEY);
+    try { localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(cart)); } catch { /* nada */ }
   }
+  window.dispatchEvent(new Event("storage"));
   syncCart(cart);
 };
 

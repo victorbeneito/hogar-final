@@ -8,6 +8,16 @@ const WHATSAPP_MESSAGE = "Hola! Tengo una consulta sobre vuestra tienda.";
 
 export default function ChatWidgets() {
   useEffect(() => {
+    // Tawk.to y Revi inyectan nodos directamente en <body>; cuando Next.js
+    // reconcilia el árbol durante la navegación, removeChild falla porque
+    // esos nodos externos alteran el orden de hijos que React espera.
+    const origRemoveChild = Node.prototype.removeChild;
+    // @ts-expect-error — parche tipado manual
+    Node.prototype.removeChild = function <T extends Node>(child: T): T {
+      if (child.parentNode !== this) return child;
+      return origRemoveChild.call(this, child) as T;
+    };
+
     const original = console.error.bind(console);
     console.error = (...args: unknown[]) => {
       // Silenciar ruido de Tawk.to (booleanos, strings propios del widget)
@@ -17,6 +27,7 @@ export default function ChatWidgets() {
       original(...args);
     };
     return () => {
+      Node.prototype.removeChild = origRemoveChild;
       console.error = original;
     };
   }, []);
