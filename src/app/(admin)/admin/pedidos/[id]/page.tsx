@@ -81,10 +81,20 @@ type Pedido = {
   factura?: { id: number; numeroFactura: string; total: number; fechaFactura: string } | null;
   productos: OrderProduct[];
   mensajes: OrderMessage[];
+  estadoHistorial: { id: number; estado: string; color: string; fecha: string }[];
 };
 
-const TABS = ["pedido", "cliente", "direcciones", "transporte", "mensajes", "pago", "productos", "resumen"] as const;
-type TabKey = (typeof TABS)[number];
+function parseNombre(nombre: string): { base: string; atributos: { label: string; valor: string }[] } {
+  const atributos: { label: string; valor: string }[] = [];
+  const pattern = /\s*-\s*(Tamaño|Color|Tirador)\s*:\s*([^-]+)/gi;
+  const firstMatch = nombre.match(/\s*-\s*(Tamaño|Color|Tirador)\s*:/i);
+  const base = firstMatch?.index !== undefined ? nombre.substring(0, firstMatch.index).trim() : nombre.trim();
+  let m;
+  while ((m = pattern.exec(nombre)) !== null) {
+    atributos.push({ label: m[1], valor: m[2].trim() });
+  }
+  return { base, atributos };
+}
 
 function formatMoney(value: number | string | null | undefined) {
   const num = Number(value ?? 0);
@@ -134,24 +144,16 @@ function mapAddress(source?: Partial<Address> | null, fallback?: Partial<Address
   };
 }
 
-function TabButton({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
+/* ── Card con cabecera ── */
+function Card({ title, children, action }: { title: string; children: React.ReactNode; action?: React.ReactNode }) {
   return (
-    <button
-      onClick={onClick}
-      className={`px-4 py-2 rounded-xl text-sm font-semibold transition-colors ${
-        active ? "bg-[#6BAEC9] text-white shadow-md" : "bg-white text-gray-600 border border-gray-200 hover:bg-gray-50"
-      }`}
-    >
-      {children}
-    </button>
+    <div className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+      <div className="flex items-center justify-between px-5 py-3 bg-gray-50 border-b border-gray-200">
+        <span className="text-xs font-bold uppercase tracking-widest text-gray-500">{title}</span>
+        {action}
+      </div>
+      <div className="p-5">{children}</div>
+    </div>
   );
 }
 
@@ -172,14 +174,14 @@ function Field({
 }) {
   return (
     <label className="block">
-      <span className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">{label}</span>
+      <span className="block text-xs font-semibold text-gray-500 mb-1">{label}</span>
       <input
         type={type}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         disabled={disabled}
-        className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#6BAEC9] disabled:bg-gray-100 disabled:text-gray-500"
+        className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#6BAEC9] disabled:bg-gray-100 disabled:text-gray-500"
       />
     </label>
   );
@@ -198,12 +200,12 @@ function TextArea({
 }) {
   return (
     <label className="block">
-      <span className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">{label}</span>
+      <span className="block text-xs font-semibold text-gray-500 mb-1">{label}</span>
       <textarea
         value={value}
         onChange={(e) => onChange(e.target.value)}
         rows={rows}
-        className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#6BAEC9]"
+        className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#6BAEC9]"
       />
     </label>
   );
@@ -217,7 +219,6 @@ export default function PedidoDetallePage({ params }: { params: Promise<{ id: st
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [generandoFactura, setGenerandoFactura] = useState(false);
-  const [activeTab, setActiveTab] = useState<TabKey>("pedido");
   const [estado, setEstado] = useState("");
   const [estadoPago, setEstadoPago] = useState("");
   const [notas, setNotas] = useState("");
@@ -234,32 +235,48 @@ export default function PedidoDetallePage({ params }: { params: Promise<{ id: st
   const [mensajePrivado, setMensajePrivado] = useState(false);
   const [mensajes, setMensajes] = useState<OrderMessage[]>([]);
   const [estadosPedido, setEstadosPedido] = useState<{ clave: string; nombre: string; color: string }[]>([]);
+  const [estadoHistorial, setEstadoHistorial] = useState<{ id: number; estado: string; color: string; fecha: string }[]>([]);
+  const [transportistasConfig, setTransportistasConfig] = useState<{ id: string; name: string; trackingUrl: string }[]>([]);
+  const [tabDireccion, setTabDireccion] = useState<"entrega" | "facturacion">("entrega");
+  const [tabEstado, setTabEstado] = useState<"estado" | "documentos">("estado");
 
   useEffect(() => {
     const loadPedido = async () => {
       try {
-        const [pedidoRes, estadosRes] = await Promise.all([
+        const [pedidoRes, estadosRes, transportesRes] = await Promise.all([
           fetch(`/api/pedidos/${id}`),
           fetch("/api/admin/pedidos/estados"),
+          fetch("/api/transportes/configuracion"),
         ]);
         const data = await pedidoRes.json();
-        if (!data.ok || !data.pedido) {
-          throw new Error(data.error || "Pedido no encontrado");
-        }
+        if (!data.ok || !data.pedido) throw new Error(data.error || "Pedido no encontrado");
 
         const estadosData = await estadosRes.json();
-        if (estadosData.estados) {
-          setEstadosPedido(estadosData.estados.filter((e: any) => e.activo));
-        }
+        if (estadosData.estados) setEstadosPedido(estadosData.estados.filter((e: any) => e.activo));
+
+        const transportesData = await transportesRes.json();
+        const carriers: { id: string; name: string; trackingUrl: string }[] = (transportesData.config?.carriers ?? [])
+          .filter((c: any) => c.active)
+          .map((c: any) => ({ id: c.id, name: c.name, trackingUrl: c.trackingUrl || "" }));
+        setTransportistasConfig(carriers);
 
         const current: Pedido = data.pedido;
         setPedido(current);
         setEstado(current.estado || "PENDIENTE");
         setEstadoPago(current.estadoPago || "PENDIENTE");
         setNotas(current.notas || "");
-        setTransportistaNombre(current.transportistaNombre || "");
+
+        // Auto-rellenar transportista desde config si el pedido no tiene uno asignado
+        let autoNombre = current.transportistaNombre || "";
+        let autoUrl = current.trackingUrl || "";
+        if (!autoNombre && current.envioMetodo === "delivery" && carriers.length === 1) {
+          autoNombre = carriers[0].name;
+          if (!autoUrl) autoUrl = carriers[0].trackingUrl;
+        }
+
+        setTransportistaNombre(autoNombre);
         setNumeroSeguimiento(current.numeroSeguimiento || "");
-        setTrackingUrl(current.trackingUrl || "");
+        setTrackingUrl(autoUrl);
         setFechaEnvio(current.fechaEnvio ? current.fechaEnvio.slice(0, 16) : "");
         setFechaEntrega(current.fechaEntrega ? current.fechaEntrega.slice(0, 16) : "");
         setEnvioCoste(Number(current.envioCoste || 0));
@@ -267,13 +284,13 @@ export default function PedidoDetallePage({ params }: { params: Promise<{ id: st
         setEntrega(mapAddress(current.direccionEntrega));
         setProductos(current.productos || []);
         setMensajes(current.mensajes || []);
+        setEstadoHistorial(current.estadoHistorial || []);
       } catch (error) {
         console.error(error);
       } finally {
         setLoading(false);
       }
     };
-
     loadPedido();
   }, [id]);
 
@@ -288,8 +305,8 @@ export default function PedidoDetallePage({ params }: { params: Promise<{ id: st
 
   const updateProduct = (index: number, field: keyof OrderProduct, value: string) => {
     setProductos((prev) =>
-      prev.map((item, currentIndex) => {
-        if (currentIndex !== index) return item;
+      prev.map((item, i) => {
+        if (i !== index) return item;
         const next = { ...item } as OrderProduct;
         if (field === "cantidad" || field === "precioUnitario" || field === "subtotal") {
           (next[field] as any) = Number(value);
@@ -315,7 +332,6 @@ export default function PedidoDetallePage({ params }: { params: Promise<{ id: st
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Error generando factura");
-      // Reload pedido to get updated factura
       const reloadRes = await fetch(`/api/pedidos/${id}`);
       const reloadData = await reloadRes.json();
       if (reloadData.ok && reloadData.pedido) setPedido(reloadData.pedido);
@@ -329,7 +345,6 @@ export default function PedidoDetallePage({ params }: { params: Promise<{ id: st
 
   const savePedido = async () => {
     if (!pedido) return;
-
     setSaving(true);
     try {
       const res = await fetch(`/api/pedidos/${id}`, {
@@ -349,7 +364,7 @@ export default function PedidoDetallePage({ params }: { params: Promise<{ id: st
           totalFinal: totals.total,
           pagoRecargo: pedido.pagoRecargo,
           envioMetodo: pedido.envioMetodo,
-          envioCoste: envioCoste,
+          envioCoste,
           nombre: entrega.nombre,
           apellidos: entrega.apellidos,
           telefono: entrega.telefono,
@@ -380,7 +395,6 @@ export default function PedidoDetallePage({ params }: { params: Promise<{ id: st
           })),
         }),
       });
-
       const data = await res.json();
       if (!res.ok || !data.ok) throw new Error(data.error || "No se pudo guardar el pedido");
       setPedido(data.pedido);
@@ -394,6 +408,7 @@ export default function PedidoDetallePage({ params }: { params: Promise<{ id: st
       setTransportistaNombre(data.pedido.transportistaNombre || transportistaNombre);
       setNumeroSeguimiento(data.pedido.numeroSeguimiento || numeroSeguimiento);
       setTrackingUrl(data.pedido.trackingUrl || trackingUrl);
+      setEstadoHistorial(data.pedido.estadoHistorial || []);
       alert("Pedido actualizado correctamente");
       router.refresh();
     } catch (error: any) {
@@ -409,12 +424,7 @@ export default function PedidoDetallePage({ params }: { params: Promise<{ id: st
       const res = await fetch(`/api/pedidos/${id}/mensajes`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          mensaje: mensajeNuevo,
-          privado: mensajePrivado,
-          autor: "admin",
-          autorNombre: "Administrador",
-        }),
+        body: JSON.stringify({ mensaje: mensajeNuevo, privado: mensajePrivado, autor: "admin", autorNombre: "Administrador" }),
       });
       const data = await res.json();
       if (!res.ok || !data.ok) throw new Error(data.error || "No se pudo guardar el mensaje");
@@ -426,466 +436,565 @@ export default function PedidoDetallePage({ params }: { params: Promise<{ id: st
     }
   };
 
-  if (loading) {
-    return <div className="min-h-screen flex items-center justify-center text-gray-500">Cargando pedido...</div>;
-  }
-
-  if (!pedido) {
-    return <div className="min-h-screen flex items-center justify-center text-gray-500">Pedido no encontrado.</div>;
-  }
+  if (loading) return <div className="min-h-screen flex items-center justify-center text-gray-500">Cargando pedido...</div>;
+  if (!pedido) return <div className="min-h-screen flex items-center justify-center text-gray-500">Pedido no encontrado.</div>;
 
   return (
-    <div className="min-h-screen bg-[#F8F8F5] py-6 md:py-8 px-4 md:px-6">
+    <div className="min-h-screen bg-[#F4F4F0] py-6 md:py-8 px-4 md:px-6">
       <div className="mx-auto max-w-7xl">
-        <div className="mb-6 flex flex-col gap-2">
-          <p className="text-sm text-gray-500">Pedidos</p>
-          <h1 className="text-3xl md:text-4xl font-bold text-[#4A4A4A]">
-            Pedido {pedido.numeroPedido} de {pedido.cliente?.nombre || pedido.nombre}
-          </h1>
-        </div>
 
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
-          <div className="rounded-2xl bg-white border border-gray-100 p-4 shadow-sm">
-            <p className="text-xs uppercase tracking-wide text-gray-400 font-semibold">Estado</p>
-            <p className="mt-2 text-lg font-bold text-gray-800">{pedido.estado}</p>
-          </div>
-          <div className="rounded-2xl bg-white border border-gray-100 p-4 shadow-sm">
-            <p className="text-xs uppercase tracking-wide text-gray-400 font-semibold">Total</p>
-            <p className="mt-2 text-lg font-bold text-[#6BAEC9]">{formatMoney(totals.total)} €</p>
-          </div>
-          <div className="rounded-2xl bg-white border border-gray-100 p-4 shadow-sm">
-            <p className="text-xs uppercase tracking-wide text-gray-400 font-semibold">Mensajes</p>
-            <p className="mt-2 text-lg font-bold text-gray-800">{mensajes.length}</p>
-          </div>
-          <div className="rounded-2xl bg-white border border-gray-100 p-4 shadow-sm">
-            <p className="text-xs uppercase tracking-wide text-gray-400 font-semibold">Productos</p>
-            <p className="mt-2 text-lg font-bold text-gray-800">{productos.length}</p>
-          </div>
-        </div>
-
-        <div className="rounded-3xl bg-white border border-[#6BAEC9]/10 shadow-xl overflow-hidden">
-          <div className="p-4 md:p-6 border-b border-gray-100">
+        {/* Cabecera */}
+        <div className="mb-5">
+          <p className="text-sm text-gray-400 mb-1">Pedidos</p>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <h1 className="text-2xl md:text-3xl font-bold text-[#4A4A4A]">
+              Pedido <span className="text-[#6BAEC9]">{pedido.numeroPedido}</span> de {pedido.cliente?.nombre || pedido.nombre}
+            </h1>
             <div className="flex flex-wrap gap-2">
-              {TABS.map((tab) => (
-                <TabButton key={tab} active={activeTab === tab} onClick={() => setActiveTab(tab)}>
-                  {tab === "pedido" && "Pedido"}
-                  {tab === "cliente" && "Cliente"}
-                  {tab === "direcciones" && "Direcciones"}
-                  {tab === "transporte" && "Transporte"}
-                  {tab === "mensajes" && "Mensajes"}
-                  {tab === "pago" && "Pago"}
-                  {tab === "productos" && "Productos"}
-                  {tab === "resumen" && "Resumen"}
-                </TabButton>
-              ))}
+              <button
+                onClick={() => router.push("/admin/pedidos")}
+                className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-50"
+              >
+                ← Volver
+              </button>
+              {pedido.factura ? (
+                <a
+                  href={`/api/facturas/${pedido.factura.id}/pdf`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="rounded-lg border border-green-300 bg-green-50 px-4 py-2 text-sm font-semibold text-green-700 hover:bg-green-100"
+                >
+                  Descargar factura PDF
+                </a>
+              ) : (
+                <button
+                  onClick={generarFactura}
+                  disabled={generandoFactura}
+                  className="rounded-lg border border-blue-300 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-100 disabled:opacity-60"
+                >
+                  {generandoFactura ? "Generando..." : "Generar factura"}
+                </button>
+              )}
+              <button
+                onClick={savePedido}
+                disabled={saving}
+                className="rounded-lg bg-[#6BAEC9] px-4 py-2 text-sm font-semibold text-white hover:bg-[#5FA0B3] disabled:opacity-60"
+              >
+                {saving ? "Guardando..." : "Guardar cambios"}
+              </button>
             </div>
           </div>
+        </div>
 
-          <div className="p-4 md:p-6">
-            {activeTab === "pedido" && (
-              <div className="space-y-6">
-                <div className="grid lg:grid-cols-3 gap-4">
-                  <div className="lg:col-span-2 rounded-2xl border border-gray-100 p-5 bg-gray-50">
-                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                      <div>
-                        <p className="text-sm text-gray-500">Nº pedido</p>
-                        <p className="text-2xl font-bold text-[#4A4A4A]">{pedido.numeroPedido}</p>
-                        <p className="text-sm text-gray-500 mt-1">Creado el {formatDate(pedido.fechaPedido)}</p>
-                      </div>
-                      <div className="flex gap-3 flex-wrap">
-                        <label className="min-w-[180px]">
-                          <span className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">Estado</span>
-                          <select
-                            value={estado}
-                            onChange={(e) => setEstado(e.target.value)}
-                            className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm"
-                          >
-                            {estadosPedido.length > 0
-                              ? estadosPedido.map((e) => (
-                                  <option key={e.clave} value={e.clave}>
-                                    {e.nombre}
-                                  </option>
-                                ))
-                              : (
-                                <>
-                                  <option value="PENDIENTE">PENDIENTE</option>
-                                  <option value="PROCESANDO">PROCESANDO</option>
-                                  <option value="ENVIADO">ENVIADO</option>
-                                  <option value="ENTREGADO">ENTREGADO</option>
-                                  <option value="CANCELADO">CANCELADO</option>
-                                  <option value="DEVUELTO">DEVUELTO</option>
-                                </>
-                              )
-                            }
-                          </select>
-                        </label>
-                        <label className="min-w-[180px]">
-                          <span className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">Estado pago</span>
-                          <select
-                            value={estadoPago}
-                            onChange={(e) => setEstadoPago(e.target.value)}
-                            className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm"
-                          >
-                            <option value="PENDIENTE">PENDIENTE</option>
-                            <option value="PAGADO">PAGADO</option>
-                            <option value="FALLIDO">FALLIDO</option>
-                            <option value="REEMBOLSADO">REEMBOLSADO</option>
-                          </select>
-                        </label>
-                      </div>
-                    </div>
-                  </div>
+        {/* Fila de métricas */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
+          {[
+            { label: "Fecha", value: formatDate(pedido.fechaPedido) },
+            { label: "Total", value: `${formatMoney(totals.total)} €`, highlight: true },
+            { label: "Mensajes", value: String(mensajes.length) },
+            { label: "Productos", value: String(productos.length) },
+          ].map(({ label, value, highlight }) => (
+            <div key={label} className="rounded-xl bg-white border border-gray-200 px-4 py-3 shadow-sm">
+              <p className="text-[11px] uppercase tracking-wider text-gray-400 font-semibold">{label}</p>
+              <p className={`mt-1 text-lg font-bold ${highlight ? "text-[#6BAEC9]" : "text-gray-800"}`}>{value}</p>
+            </div>
+          ))}
+        </div>
 
-                  <div className="rounded-2xl border border-gray-100 p-5">
-                    <p className="text-sm font-semibold text-gray-700 mb-3">Notas internas</p>
-                    <TextArea label="Notas" value={notas} onChange={setNotas} rows={6} />
-                  </div>
-                </div>
+        {/* Layout dos columnas */}
+        <div className="grid lg:grid-cols-3 gap-5">
+
+          {/* ── Columna principal ── */}
+          <div className="lg:col-span-2 flex flex-col gap-5">
+
+            {/* Estado del pedido + Documentos en pestañas */}
+            <Card
+              title=""
+              action={undefined}
+            >
+              {/* Pestañas internas */}
+              <div className="-mx-5 -mt-5 mb-5 flex border-b border-gray-200 bg-gray-50 px-5 pt-3 rounded-t-2xl">
+                <button
+                  type="button"
+                  onClick={() => setTabEstado("estado")}
+                  className={`mr-4 pb-2 text-xs font-bold uppercase tracking-wider border-b-2 transition-colors ${
+                    tabEstado === "estado"
+                      ? "border-[#6BAEC9] text-[#6BAEC9]"
+                      : "border-transparent text-gray-400 hover:text-gray-600"
+                  }`}
+                >
+                  Estado
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTabEstado("documentos")}
+                  className={`pb-2 text-xs font-bold uppercase tracking-wider border-b-2 transition-colors ${
+                    tabEstado === "documentos"
+                      ? "border-[#6BAEC9] text-[#6BAEC9]"
+                      : "border-transparent text-gray-400 hover:text-gray-600"
+                  }`}
+                >
+                  Documentos
+                </button>
               </div>
-            )}
 
-            {activeTab === "cliente" && (
-              <div className="grid lg:grid-cols-2 gap-5">
-                <div className="rounded-2xl border border-gray-100 p-5 bg-gray-50">
-                  <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-lg font-bold text-[#4A4A4A]">Datos del cliente</h2>
-                    {pedido.cliente && (
-                      <Link href={`/admin/clientes/${pedido.cliente.id}`} className="text-sm font-semibold text-[#6BAEC9] hover:underline">
-                        Ver ficha
-                      </Link>
-                    )}
-                  </div>
-                  <div className="grid md:grid-cols-2 gap-4">
-                    <Field label="Nombre" value={pedido.cliente?.nombre || pedido.nombre} onChange={() => {}} disabled />
-                    <Field label="Email" value={pedido.cliente?.email || pedido.email} onChange={() => {}} disabled />
-                    <Field label="Teléfono" value={pedido.cliente?.telefono || pedido.telefono} onChange={() => {}} disabled />
-                    <Field label="Empresa" value={pedido.cliente?.empresa || ""} onChange={() => {}} disabled />
-                    <Field label="NIF" value={pedido.cliente?.nif || pedido.nif} onChange={() => {}} disabled />
-                    <Field label="ID cliente" value={String(pedido.clienteId)} onChange={() => {}} disabled />
-                  </div>
-                </div>
-                <div className="rounded-2xl border border-gray-100 p-5">
-                  <h2 className="text-lg font-bold text-[#4A4A4A] mb-4">Resumen</h2>
-                  <div className="space-y-3 text-sm text-gray-600">
-                    <p><span className="font-semibold">Fecha:</span> {formatDate(pedido.fechaPedido)}</p>
-                    <p><span className="font-semibold">Última actualización:</span> {formatDate(pedido.updatedAt)}</p>
-                    <p><span className="font-semibold">Estado pedido:</span> {pedido.estado}</p>
-                    <p><span className="font-semibold">Estado pago:</span> {pedido.estadoPago}</p>
-                    <p><span className="font-semibold">Total:</span> {formatMoney(totals.total)} €</p>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {activeTab === "direcciones" && (
-              <div className="grid lg:grid-cols-2 gap-5">
-                <div className="rounded-2xl border border-gray-100 p-5 bg-gray-50">
-                  <h2 className="text-lg font-bold text-[#4A4A4A] mb-4">Dirección de entrega</h2>
-                  <div className="grid md:grid-cols-2 gap-4">
-                    <Field label="Nombre" value={entrega.nombre} onChange={(value) => setEntrega((prev) => ({ ...prev, nombre: value }))} />
-                    <Field label="Apellidos" value={entrega.apellidos} onChange={(value) => setEntrega((prev) => ({ ...prev, apellidos: value }))} />
-                    <Field label="Empresa" value={entrega.empresa} onChange={(value) => setEntrega((prev) => ({ ...prev, empresa: value }))} />
-                    <Field label="NIF" value={entrega.nif} onChange={(value) => setEntrega((prev) => ({ ...prev, nif: value }))} />
-                    <Field label="Teléfono" value={entrega.telefono} onChange={(value) => setEntrega((prev) => ({ ...prev, telefono: value }))} />
-                    <Field label="Código postal" value={entrega.codigoPostal} onChange={(value) => setEntrega((prev) => ({ ...prev, codigoPostal: value }))} />
-                    <Field label="Ciudad" value={entrega.ciudad} onChange={(value) => setEntrega((prev) => ({ ...prev, ciudad: value }))} />
-                    <Field label="Provincia" value={entrega.provincia} onChange={(value) => setEntrega((prev) => ({ ...prev, provincia: value }))} />
-                    <Field label="País" value={entrega.pais} onChange={(value) => setEntrega((prev) => ({ ...prev, pais: value }))} />
-                    <div className="md:col-span-2">
-                      <Field label="Dirección" value={entrega.direccion} onChange={(value) => setEntrega((prev) => ({ ...prev, direccion: value }))} />
-                    </div>
-                    <div className="md:col-span-2">
-                      <Field
-                        label="Dirección 2"
-                        value={entrega.direccionComplementaria}
-                        onChange={(value) => setEntrega((prev) => ({ ...prev, direccionComplementaria: value }))}
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="rounded-2xl border border-gray-100 p-5 bg-gray-50">
-                  <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-lg font-bold text-[#4A4A4A]">Dirección de facturación</h2>
-                    <button
-                      type="button"
-                      onClick={() => setFacturacion({ ...entrega })}
-                      className="text-sm font-semibold text-[#6BAEC9] hover:underline"
-                    >
-                      Copiar desde entrega
-                    </button>
-                  </div>
-                  <div className="grid md:grid-cols-2 gap-4">
-                    <Field label="Nombre" value={facturacion.nombre} onChange={(value) => setFacturacion((prev) => ({ ...prev, nombre: value }))} />
-                    <Field label="Apellidos" value={facturacion.apellidos} onChange={(value) => setFacturacion((prev) => ({ ...prev, apellidos: value }))} />
-                    <Field label="Empresa" value={facturacion.empresa} onChange={(value) => setFacturacion((prev) => ({ ...prev, empresa: value }))} />
-                    <Field label="NIF" value={facturacion.nif} onChange={(value) => setFacturacion((prev) => ({ ...prev, nif: value }))} />
-                    <Field label="Teléfono" value={facturacion.telefono} onChange={(value) => setFacturacion((prev) => ({ ...prev, telefono: value }))} />
-                    <Field label="Código postal" value={facturacion.codigoPostal} onChange={(value) => setFacturacion((prev) => ({ ...prev, codigoPostal: value }))} />
-                    <Field label="Ciudad" value={facturacion.ciudad} onChange={(value) => setFacturacion((prev) => ({ ...prev, ciudad: value }))} />
-                    <Field label="Provincia" value={facturacion.provincia} onChange={(value) => setFacturacion((prev) => ({ ...prev, provincia: value }))} />
-                    <Field label="País" value={facturacion.pais} onChange={(value) => setFacturacion((prev) => ({ ...prev, pais: value }))} />
-                    <div className="md:col-span-2">
-                      <Field label="Dirección" value={facturacion.direccion} onChange={(value) => setFacturacion((prev) => ({ ...prev, direccion: value }))} />
-                    </div>
-                    <div className="md:col-span-2">
-                      <Field
-                        label="Dirección 2"
-                        value={facturacion.direccionComplementaria}
-                        onChange={(value) => setFacturacion((prev) => ({ ...prev, direccionComplementaria: value }))}
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {activeTab === "transporte" && (
-              <div className="grid lg:grid-cols-2 gap-5">
-                <div className="rounded-2xl border border-gray-100 p-5 bg-gray-50 space-y-4">
-                  <h2 className="text-lg font-bold text-[#4A4A4A]">Envío y seguimiento</h2>
-                  <Field label="Transportista" value={transportistaNombre} onChange={setTransportistaNombre} />
-                  <Field label="Número de seguimiento" value={numeroSeguimiento} onChange={setNumeroSeguimiento} />
-                  <Field label="URL de seguimiento" value={trackingUrl} onChange={setTrackingUrl} />
-                  <Field label="Fecha de envío" type="datetime-local" value={fechaEnvio} onChange={setFechaEnvio} />
-                  <Field label="Fecha de entrega" type="datetime-local" value={fechaEntrega} onChange={setFechaEntrega} />
-                </div>
-                <div className="rounded-2xl border border-gray-100 p-5 space-y-4">
-                  <h2 className="text-lg font-bold text-[#4A4A4A]">Coste de envío</h2>
-                  <label className="block">
-                    <span className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">Importe envío (IVA incluido)</span>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={envioCoste}
-                        onChange={(e) => setEnvioCoste(Number(e.target.value))}
-                        className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#6BAEC9]"
-                      />
-                      <span className="text-sm font-semibold text-gray-600 whitespace-nowrap">€</span>
-                    </div>
-                  </label>
-                  <div className="space-y-2 text-sm text-gray-600">
-                    <p><span className="font-semibold">Método:</span> {pedido.envioMetodo}</p>
-                    <p><span className="font-semibold">Transportista:</span> {transportistaNombre || "Sin asignar"}</p>
-                    <p><span className="font-semibold">Seguimiento:</span> {numeroSeguimiento || "Pendiente"}</p>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {activeTab === "mensajes" && (
-              <div className="grid lg:grid-cols-2 gap-5">
-                <div className="rounded-2xl border border-gray-100 p-5 bg-gray-50">
-                  <h2 className="text-lg font-bold text-[#4A4A4A] mb-4">Mensajes del pedido</h2>
-                  <div className="space-y-3 max-h-[420px] overflow-auto pr-1">
-                    {mensajes.length === 0 ? (
-                      <p className="text-sm text-gray-500">Todavía no hay mensajes.</p>
-                    ) : (
-                      mensajes.map((mensaje) => (
-                        <div key={mensaje.id} className="rounded-xl border border-gray-100 bg-white p-4">
-                          <div className="flex items-center justify-between gap-3 mb-2">
-                            <p className="text-sm font-semibold text-gray-700">
-                              {mensaje.autorNombre || mensaje.autor || "Sistema"}
-                              {mensaje.privado ? <span className="ml-2 rounded-full bg-[#F7A38B]/20 px-2 py-0.5 text-xs font-semibold text-[#F7A38B]">Privado</span> : null}
-                            </p>
-                            <p className="text-xs text-gray-400">{formatDate(mensaje.createdAt)}</p>
-                          </div>
-                          <p className="text-sm text-gray-600 whitespace-pre-wrap">{mensaje.mensaje}</p>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-
-                <div className="rounded-2xl border border-gray-100 p-5">
-                  <h2 className="text-lg font-bold text-[#4A4A4A] mb-4">Añadir mensaje</h2>
-                  <div className="space-y-4">
-                    <TextArea label="Mensaje" value={mensajeNuevo} onChange={setMensajeNuevo} rows={6} />
-                    <label className="flex items-center gap-2 text-sm text-gray-600">
-                      <input type="checkbox" checked={mensajePrivado} onChange={(e) => setMensajePrivado(e.target.checked)} />
-                      Marcar como privado
-                    </label>
-                    <button
-                      type="button"
-                      onClick={addMessage}
-                      className="rounded-xl bg-[#6BAEC9] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#5FA0B3]"
-                    >
-                      Guardar mensaje
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {activeTab === "pago" && (
-              <div className="grid lg:grid-cols-2 gap-5">
-                <div className="rounded-2xl border border-gray-100 p-5 bg-gray-50 space-y-4">
-                  <h2 className="text-lg font-bold text-[#4A4A4A]">Pago</h2>
-                  <Field label="Método de pago" value={pedido.pagoMetodo} onChange={() => {}} disabled />
-                  <Field label="Estado del pago" value={estadoPago} onChange={setEstadoPago} />
-                  <Field label="Recargo" value={formatMoney(pedido.pagoRecargo)} onChange={() => {}} disabled />
-                  <Field label="Cupon" value={pedido.cuponCodigo || ""} onChange={() => {}} disabled />
-                </div>
-                <div className="rounded-2xl border border-gray-100 p-5">
-                  <h2 className="text-lg font-bold text-[#4A4A4A] mb-4">Resumen del pago</h2>
-                  <div className="space-y-3 text-sm text-gray-600">
-                    <p><span className="font-semibold">Subtotal:</span> {formatMoney(totals.subtotal)} €</p>
-                    <p><span className="font-semibold">Envío:</span> {formatMoney(totals.envio)} €</p>
-                    <p><span className="font-semibold">Descuento:</span> - {formatMoney(pedido.descuento)} €</p>
-                    <p><span className="font-semibold">Recargo:</span> {formatMoney(totals.recargo)} €</p>
-                    <p className="text-xl font-bold text-[#4A4A4A] pt-2 border-t">Total: {formatMoney(totals.total)} €</p>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {activeTab === "productos" && (
-              <div className="space-y-5">
-                <div className="overflow-x-auto rounded-2xl border border-gray-100">
-                  <table className="min-w-full text-sm">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-4 py-3 text-left font-semibold text-gray-600">Producto</th>
-                        <th className="px-4 py-3 text-left font-semibold text-gray-600">Variante</th>
-                        <th className="px-4 py-3 text-right font-semibold text-gray-600">Cantidad</th>
-                        <th className="px-4 py-3 text-right font-semibold text-gray-600">Precio</th>
-                        <th className="px-4 py-3 text-right font-semibold text-gray-600">Subtotal</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {productos.map((producto, index) => (
-                        <tr key={producto.id} className="border-t">
-                          <td className="px-4 py-3">
-                            <div className="font-semibold text-gray-800">{producto.nombre}</div>
-                            <div className="text-xs text-gray-400">
-                              {producto.producto?.referencia ? `Ref. ${producto.producto.referencia}` : ""}
+              {tabEstado === "estado" && (
+                <>
+                  {/* Historial */}
+                  {estadoHistorial.length > 0 ? (
+                    <div className="space-y-0 mb-5">
+                      {[...estadoHistorial].reverse().map((entrada, idx) => {
+                        const esUltimo = idx === 0;
+                        return (
+                          <div key={entrada.id} className="flex items-stretch gap-3">
+                            <div className="flex flex-col items-center w-5 shrink-0">
+                              <div
+                                className="w-3 h-3 rounded-full mt-1 shrink-0 ring-2 ring-white"
+                                style={{ backgroundColor: entrada.color }}
+                              />
+                              {!esUltimo && <div className="w-0.5 bg-gray-200 flex-1 mt-1" />}
                             </div>
-                          </td>
-                          <td className="px-4 py-3">
-                            <input
-                              value={producto.varianteInfo || ""}
-                              onChange={(e) => updateProduct(index, "varianteInfo", e.target.value)}
-                              className="w-full rounded-lg border border-gray-200 px-3 py-2"
-                            />
-                          </td>
-                          <td className="px-4 py-3 text-right">
-                            <input
-                              type="number"
-                              min="1"
-                              value={producto.cantidad}
-                              onChange={(e) => updateProduct(index, "cantidad", e.target.value)}
-                              className="w-24 rounded-lg border border-gray-200 px-3 py-2 text-right"
-                            />
-                          </td>
-                          <td className="px-4 py-3 text-right">
-                            <input
-                              type="number"
-                              min="0"
-                              step="0.01"
-                              value={producto.precioUnitario}
-                              onChange={(e) => updateProduct(index, "precioUnitario", e.target.value)}
-                              className="w-28 rounded-lg border border-gray-200 px-3 py-2 text-right"
-                            />
-                          </td>
-                          <td className="px-4 py-3 text-right font-semibold text-[#6BAEC9]">
-                            {formatMoney(producto.subtotal)} €
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-                <div className="flex justify-end">
-                  <div className="rounded-2xl border border-gray-100 bg-gray-50 p-5 w-full max-w-md">
-                    <div className="space-y-2 text-sm text-gray-600">
-                      <div className="flex justify-between"><span>Subtotal</span><span>{formatMoney(totals.subtotal)} €</span></div>
-                      <div className="flex justify-between"><span>Envío</span><span>{formatMoney(totals.envio)} €</span></div>
-                      <div className="flex justify-between"><span>Descuento</span><span>- {formatMoney(pedido.descuento)} €</span></div>
-                      <div className="flex justify-between font-bold text-gray-800 pt-2 border-t"><span>Total</span><span>{formatMoney(totals.total)} €</span></div>
+                            <div className="pb-4 flex-1">
+                              <div className="flex items-center gap-3 flex-wrap">
+                                <span
+                                  className="inline-block rounded-full px-2.5 py-0.5 text-xs font-bold text-white"
+                                  style={{ backgroundColor: entrada.color }}
+                                >
+                                  {entrada.estado}
+                                </span>
+                                <span className="text-xs text-gray-400">{formatDate(entrada.fecha)}</span>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
-                  </div>
-                </div>
-              </div>
-            )}
+                  ) : (
+                    <p className="text-sm text-gray-400 mb-4">Sin historial de estados registrado.</p>
+                  )}
 
-            {activeTab === "resumen" && (
-              <div className="grid lg:grid-cols-3 gap-5">
-                <div className="rounded-2xl border border-gray-100 p-5 bg-gray-50">
-                  <h2 className="text-lg font-bold text-[#4A4A4A] mb-4">Resumen general</h2>
-                  <div className="space-y-2 text-sm text-gray-600">
-                    <p><span className="font-semibold">Pedido:</span> {pedido.numeroPedido}</p>
-                    <p><span className="font-semibold">Cliente:</span> {pedido.cliente?.nombre || pedido.nombre}</p>
-                    <p><span className="font-semibold">Fecha:</span> {formatDate(pedido.fechaPedido)}</p>
-                    <p><span className="font-semibold">Pago:</span> {pedido.pagoMetodo}</p>
-                    <p><span className="font-semibold">Envío:</span> {pedido.envioMetodo}</p>
-                  </div>
-                </div>
-                <div className="rounded-2xl border border-gray-100 p-5">
-                  <h2 className="text-lg font-bold text-[#4A4A4A] mb-4">Importes</h2>
-                  <div className="space-y-2 text-sm text-gray-600">
-                    <p className="flex justify-between"><span>Subtotal</span><span>{formatMoney(totals.subtotal)} €</span></p>
-                    <p className="flex justify-between"><span>Envío</span><span>{formatMoney(totals.envio)} €</span></p>
-                    <p className="flex justify-between"><span>Descuento</span><span>- {formatMoney(pedido.descuento)} €</span></p>
-                    <p className="flex justify-between"><span>Recargo pago</span><span>{formatMoney(totals.recargo)} €</span></p>
-                    <p className="flex justify-between text-base font-bold text-gray-800 pt-2 border-t"><span>Total</span><span>{formatMoney(totals.total)} €</span></p>
-                  </div>
-                </div>
-                <div className="rounded-2xl border border-gray-100 p-5">
-                  <h2 className="text-lg font-bold text-[#4A4A4A] mb-4">Acciones</h2>
-                  <div className="space-y-3">
+                  {/* Actualizar estado */}
+                  <div className="border-t border-gray-100 pt-4 flex flex-col sm:flex-row gap-3 items-end">
+                    <div className="flex-1">
+                      <label className="block text-xs font-semibold text-gray-500 mb-1">Actualizar estado</label>
+                      <select
+                        value={estado}
+                        onChange={(e) => setEstado(e.target.value)}
+                        className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm"
+                      >
+                        {estadosPedido.length > 0 ? estadosPedido.map((e) => (
+                          <option key={e.clave} value={e.clave}>{e.nombre}</option>
+                        )) : (
+                          <>
+                            <option value="PENDIENTE">PENDIENTE</option>
+                            <option value="PROCESANDO">PROCESANDO</option>
+                            <option value="ENVIADO">ENVIADO</option>
+                            <option value="ENTREGADO">ENTREGADO</option>
+                            <option value="CANCELADO">CANCELADO</option>
+                            <option value="DEVUELTO">DEVUELTO</option>
+                          </>
+                        )}
+                      </select>
+                    </div>
                     <button
                       onClick={savePedido}
                       disabled={saving}
-                      className="w-full rounded-xl bg-[#6BAEC9] px-4 py-3 text-sm font-semibold text-white hover:bg-[#5FA0B3] disabled:opacity-60"
+                      className="rounded-lg bg-[#6BAEC9] px-4 py-2 text-sm font-semibold text-white hover:bg-[#5FA0B3] disabled:opacity-60 whitespace-nowrap"
                     >
-                      {saving ? "Guardando..." : "Guardar cambios"}
+                      {saving ? "Guardando..." : "Actualizar estado"}
                     </button>
+                  </div>
+
+                  {/* Notas internas */}
+                  <div className="mt-4">
+                    <TextArea label="Notas internas" value={notas} onChange={setNotas} rows={2} />
+                  </div>
+                </>
+              )}
+
+              {tabEstado === "documentos" && (
+                <table className="min-w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-100">
+                      <th className="pb-2 text-left text-xs font-semibold text-gray-500">Fecha</th>
+                      <th className="pb-2 text-left text-xs font-semibold text-gray-500">Documento</th>
+                      <th className="pb-2 text-left text-xs font-semibold text-gray-500">Número</th>
+                      <th className="pb-2 text-right text-xs font-semibold text-gray-500">Importe</th>
+                      <th className="pb-2" />
+                    </tr>
+                  </thead>
+                  <tbody>
                     {pedido.factura ? (
-                      <a
-                        href={`/api/facturas/${pedido.factura.id}/pdf`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="w-full rounded-xl border border-green-300 bg-green-50 px-4 py-3 text-sm font-semibold text-green-700 hover:bg-green-100 flex items-center justify-center gap-2"
-                      >
-                        Descargar factura PDF
-                      </a>
+                      <tr className="border-t border-gray-50">
+                        <td className="py-3 pr-4 text-gray-500 text-xs">{formatDate(pedido.factura.fechaFactura)}</td>
+                        <td className="py-3 pr-4 text-gray-700 font-semibold">Factura</td>
+                        <td className="py-3 pr-4 text-[#6BAEC9] font-mono text-xs">{pedido.factura.numeroFactura}</td>
+                        <td className="py-3 pr-4 text-right text-gray-700">{formatMoney(pedido.factura.total)} €</td>
+                        <td className="py-3 text-right">
+                          <a
+                            href={`/api/facturas/${pedido.factura.id}/pdf`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="rounded-lg border border-green-300 bg-green-50 px-3 py-1.5 text-xs font-semibold text-green-700 hover:bg-green-100"
+                          >
+                            PDF
+                          </a>
+                        </td>
+                      </tr>
                     ) : (
-                      <button
-                        onClick={generarFactura}
-                        disabled={generandoFactura}
-                        className="w-full rounded-xl border border-blue-300 bg-blue-50 px-4 py-3 text-sm font-semibold text-blue-700 hover:bg-blue-100 disabled:opacity-60"
-                      >
-                        {generandoFactura ? "Generando..." : "Generar factura"}
-                      </button>
+                      <tr>
+                        <td colSpan={5} className="py-4 text-sm text-gray-400">No hay documentos generados.</td>
+                      </tr>
                     )}
-                    <button
-                      onClick={() => router.push("/admin/pedidos")}
-                      className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm font-semibold text-gray-700 hover:bg-gray-50"
-                    >
-                      Volver a pedidos
-                    </button>
+                  </tbody>
+                </table>
+              )}
+            </Card>
+
+            {/* Transporte */}
+            <Card title="Transporte">
+              <div className="grid md:grid-cols-2 gap-4">
+                {/* Selector de transportista desde config (si hay varios) */}
+                {transportistasConfig.length > 1 && pedido.envioMetodo === "delivery" && (
+                  <div className="md:col-span-2">
+                    <label className="block text-xs font-semibold text-gray-500 mb-1">Cargar datos del transportista</label>
+                    <div className="flex gap-2">
+                      <select
+                        className="flex-1 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#6BAEC9]"
+                        defaultValue=""
+                        onChange={(e) => {
+                          const carrier = transportistasConfig.find((c) => c.id === e.target.value);
+                          if (carrier) {
+                            setTransportistaNombre(carrier.name);
+                            if (!trackingUrl) setTrackingUrl(carrier.trackingUrl);
+                          }
+                        }}
+                      >
+                        <option value="" disabled>Seleccionar transportista...</option>
+                        {transportistasConfig.map((c) => (
+                          <option key={c.id} value={c.id}>{c.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                )}
+                <Field label="Transportista" value={transportistaNombre} onChange={setTransportistaNombre} />
+                <Field label="Número de seguimiento" value={numeroSeguimiento} onChange={setNumeroSeguimiento} />
+                <div className="md:col-span-2">
+                  <Field label="URL de seguimiento" value={trackingUrl} onChange={setTrackingUrl} />
+                </div>
+                <Field label="Fecha de envío" type="datetime-local" value={fechaEnvio} onChange={setFechaEnvio} />
+                <Field label="Fecha de entrega" type="datetime-local" value={fechaEntrega} onChange={setFechaEntrega} />
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">Coste de envío (€)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={envioCoste}
+                    onChange={(e) => setEnvioCoste(Number(e.target.value))}
+                    className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#6BAEC9]"
+                  />
+                </div>
+                <div className="flex items-end">
+                  <p className="text-sm text-gray-500">
+                    Método:{" "}
+                    <span className="font-semibold text-gray-700">
+                      {pedido.envioMetodo === "delivery" ? "Envío a domicilio" : pedido.envioMetodo === "pickup" ? "Recogida en tienda" : pedido.envioMetodo || "—"}
+                    </span>
+                  </p>
+                </div>
+              </div>
+            </Card>
+
+            {/* Pago */}
+            <Card title="Pago">
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-100">
+                      <th className="pb-2 text-left text-xs font-semibold text-gray-500">Fecha</th>
+                      <th className="pb-2 text-left text-xs font-semibold text-gray-500">Método de pago</th>
+                      <th className="pb-2 text-left text-xs font-semibold text-gray-500">Estado</th>
+                      <th className="pb-2 text-right text-xs font-semibold text-gray-500">Importe</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td className="py-3 pr-4 text-gray-700">{formatDate(pedido.fechaPedido)}</td>
+                      <td className="py-3 pr-4 text-gray-700">{pedido.pagoMetodo}</td>
+                      <td className="py-3 pr-4">
+                        <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-bold ${
+                          estadoPago === "PAGADO" ? "bg-green-100 text-green-700" :
+                          estadoPago === "FALLIDO" ? "bg-red-100 text-red-700" :
+                          "bg-yellow-100 text-yellow-700"
+                        }`}>{estadoPago}</span>
+                      </td>
+                      <td className="py-3 text-right font-semibold text-gray-800">{formatMoney(totals.total)} €</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              {pedido.cuponCodigo && (
+                <p className="mt-3 text-sm text-gray-500">Cupón: <span className="font-semibold text-gray-700">{pedido.cuponCodigo}</span></p>
+              )}
+              {Number(pedido.pagoRecargo) > 0 && (
+                <p className="mt-1 text-sm text-gray-500">Recargo: <span className="font-semibold text-gray-700">{formatMoney(pedido.pagoRecargo)} €</span></p>
+              )}
+            </Card>
+
+            {/* Productos */}
+            <Card title={`Productos (${productos.length})`}>
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-100">
+                      <th className="pb-2 text-left text-xs font-semibold text-gray-500">Producto</th>
+                      <th className="pb-2 text-right text-xs font-semibold text-gray-500">Cant.</th>
+                      <th className="pb-2 text-right text-xs font-semibold text-gray-500">Precio unit.</th>
+                      <th className="pb-2 text-right text-xs font-semibold text-gray-500">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {productos.map((producto, index) => (
+                      <tr key={producto.id} className="border-t border-gray-50">
+                        <td className="py-3 pr-3">
+                          {(() => {
+                            // Si hay variante estructurada, usar sus campos; si no, parsear el nombre
+                            const tieneVarianteEstructurada = producto.variante?.tamano || producto.variante?.color || producto.variante?.tirador;
+                            const parsed = tieneVarianteEstructurada ? null : parseNombre(producto.nombre);
+                            const atributos: { label: string; valor: string }[] = tieneVarianteEstructurada
+                              ? [
+                                  ...(producto.variante?.tamano ? [{ label: "Tamaño", valor: producto.variante.tamano }] : []),
+                                  ...(producto.variante?.color ? [{ label: "Color", valor: producto.variante.color }] : []),
+                                  ...(producto.variante?.tirador ? [{ label: "Tirador", valor: producto.variante.tirador }] : []),
+                                ]
+                              : (parsed?.atributos ?? []);
+                            const nombreBase = parsed?.base ?? producto.nombre;
+                            return (
+                              <>
+                                <div className="font-semibold text-gray-800 leading-snug">{nombreBase}</div>
+                                {atributos.length > 0 && (
+                                  <div className="flex flex-wrap gap-1.5 mt-1.5">
+                                    {atributos.map((a) => (
+                                      <span key={a.label} className="inline-flex items-center gap-1 rounded-md bg-[#6BAEC9]/10 px-2 py-0.5 text-xs text-gray-700">
+                                        <span className="font-semibold text-[#6BAEC9]">{a.label}</span> {a.valor}
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
+                                {producto.producto?.referencia && (
+                                  <div className="text-xs text-gray-400 mt-1">Ref. {producto.producto.referencia}</div>
+                                )}
+                                {atributos.length === 0 && producto.varianteInfo && (() => {
+                                  // varianteInfo puede tener formato "Tamaño : 120x180- Tirador : Izquierda"
+                                  const parsedInfo = parseNombre(`X - ${producto.varianteInfo}`);
+                                  return parsedInfo.atributos.length > 0 ? (
+                                    <div className="flex flex-wrap gap-1.5 mt-1.5">
+                                      {parsedInfo.atributos.map((a) => (
+                                        <span key={a.label} className="inline-flex items-center gap-1 rounded-md bg-[#6BAEC9]/10 px-2 py-0.5 text-xs text-gray-700">
+                                          <span className="font-semibold text-[#6BAEC9]">{a.label}</span> {a.valor}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  ) : (
+                                    <div className="text-xs text-gray-500 mt-1">{producto.varianteInfo}</div>
+                                  );
+                                })()}
+                              </>
+                            );
+                          })()}
+                        </td>
+                        <td className="py-3 pr-3 text-right align-top pt-4">
+                          <input
+                            type="number"
+                            min="1"
+                            value={producto.cantidad}
+                            onChange={(e) => updateProduct(index, "cantidad", e.target.value)}
+                            className="w-20 rounded-lg border border-gray-200 px-2 py-1.5 text-sm text-right"
+                          />
+                        </td>
+                        <td className="py-3 pr-3 text-right align-top pt-4">
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={producto.precioUnitario}
+                            onChange={(e) => updateProduct(index, "precioUnitario", e.target.value)}
+                            className="w-24 rounded-lg border border-gray-200 px-2 py-1.5 text-sm text-right"
+                          />
+                        </td>
+                        <td className="py-3 text-right font-bold text-[#6BAEC9] align-top pt-4">
+                          {formatMoney(producto.subtotal)} €
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="mt-4 flex justify-end border-t border-gray-100 pt-4">
+                <div className="w-full max-w-xs space-y-1.5 text-sm text-gray-600">
+                  <div className="flex justify-between"><span>Subtotal productos</span><span>{formatMoney(totals.subtotal)} €</span></div>
+                  <div className="flex justify-between"><span>Envío</span><span>{formatMoney(totals.envio)} €</span></div>
+                  {Number(pedido.descuento) > 0 && (
+                    <div className="flex justify-between text-green-600"><span>Descuento</span><span>- {formatMoney(pedido.descuento)} €</span></div>
+                  )}
+                  {Number(pedido.pagoRecargo) > 0 && (
+                    <div className="flex justify-between"><span>Recargo pago</span><span>{formatMoney(pedido.pagoRecargo)} €</span></div>
+                  )}
+                  <div className="flex justify-between font-bold text-gray-800 text-base pt-2 border-t border-gray-200">
+                    <span>Total</span><span>{formatMoney(totals.total)} €</span>
                   </div>
                 </div>
               </div>
-            )}
+            </Card>
+
           </div>
 
-          <div className="border-t border-gray-100 p-4 md:p-6 flex flex-col md:flex-row gap-3 justify-end">
-            <button
-              onClick={() => router.push("/admin/pedidos")}
-              className="rounded-xl border border-gray-200 bg-white px-5 py-3 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+          {/* ── Columna lateral ── */}
+          <div className="flex flex-col gap-5">
+
+            {/* Cliente */}
+            <Card
+              title="Cliente"
+              action={
+                pedido.cliente ? (
+                  <Link href={`/admin/clientes/${pedido.cliente.id}`} className="text-xs font-semibold text-[#6BAEC9] hover:underline">
+                    Ver ficha →
+                  </Link>
+                ) : undefined
+              }
             >
-              Volver
-            </button>
-            <button
-              onClick={savePedido}
-              disabled={saving}
-              className="rounded-xl bg-[#6BAEC9] px-5 py-3 text-sm font-semibold text-white hover:bg-[#5FA0B3] disabled:opacity-60"
+              <div className="space-y-2 text-sm text-gray-700">
+                <p className="font-bold text-gray-900">{pedido.cliente?.nombre || pedido.nombre}</p>
+                <p className="text-gray-500">{pedido.cliente?.email || pedido.email}</p>
+                {(pedido.cliente?.telefono || pedido.telefono) && (
+                  <p className="text-gray-500">{pedido.cliente?.telefono || pedido.telefono}</p>
+                )}
+                {pedido.cliente?.empresa && <p className="text-gray-500">{pedido.cliente.empresa}</p>}
+                {(pedido.cliente?.nif || pedido.nif) && (
+                  <p className="text-gray-500">NIF: {pedido.cliente?.nif || pedido.nif}</p>
+                )}
+                <p className="text-xs text-gray-400 pt-1">ID: #{pedido.clienteId}</p>
+              </div>
+            </Card>
+
+            {/* Direcciones */}
+            <Card
+              title="Direcciones"
+              action={
+                tabDireccion === "facturacion" ? (
+                  <button type="button" onClick={() => setFacturacion({ ...entrega })} className="text-xs font-semibold text-[#6BAEC9] hover:underline">
+                    Copiar entrega
+                  </button>
+                ) : undefined
+              }
             >
-              {saving ? "Guardando..." : "Guardar cambios"}
-            </button>
+              {/* Pestañas */}
+              <div className="flex gap-1 mb-4 border-b border-gray-100 pb-3">
+                <button
+                  type="button"
+                  onClick={() => setTabDireccion("entrega")}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                    tabDireccion === "entrega" ? "bg-[#6BAEC9] text-white" : "text-gray-500 hover:bg-gray-100"
+                  }`}
+                >
+                  Entrega
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTabDireccion("facturacion")}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                    tabDireccion === "facturacion" ? "bg-[#6BAEC9] text-white" : "text-gray-500 hover:bg-gray-100"
+                  }`}
+                >
+                  Facturación
+                </button>
+              </div>
+
+              {tabDireccion === "entrega" && (
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="Nombre" value={entrega.nombre} onChange={(v) => setEntrega((p) => ({ ...p, nombre: v }))} />
+                  <Field label="Apellidos" value={entrega.apellidos} onChange={(v) => setEntrega((p) => ({ ...p, apellidos: v }))} />
+                  <Field label="Teléfono" value={entrega.telefono} onChange={(v) => setEntrega((p) => ({ ...p, telefono: v }))} />
+                  <Field label="NIF" value={entrega.nif} onChange={(v) => setEntrega((p) => ({ ...p, nif: v }))} />
+                  <div className="col-span-2">
+                    <Field label="Dirección" value={entrega.direccion} onChange={(v) => setEntrega((p) => ({ ...p, direccion: v }))} />
+                  </div>
+                  <div className="col-span-2">
+                    <Field label="Dirección 2" value={entrega.direccionComplementaria} onChange={(v) => setEntrega((p) => ({ ...p, direccionComplementaria: v }))} />
+                  </div>
+                  <Field label="C.P." value={entrega.codigoPostal} onChange={(v) => setEntrega((p) => ({ ...p, codigoPostal: v }))} />
+                  <Field label="Ciudad" value={entrega.ciudad} onChange={(v) => setEntrega((p) => ({ ...p, ciudad: v }))} />
+                  <div className="col-span-2">
+                    <Field label="Provincia" value={entrega.provincia} onChange={(v) => setEntrega((p) => ({ ...p, provincia: v }))} />
+                  </div>
+                  <div className="col-span-2">
+                    <Field label="País" value={entrega.pais} onChange={(v) => setEntrega((p) => ({ ...p, pais: v }))} />
+                  </div>
+                </div>
+              )}
+
+              {tabDireccion === "facturacion" && (
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="Nombre" value={facturacion.nombre} onChange={(v) => setFacturacion((p) => ({ ...p, nombre: v }))} />
+                  <Field label="Apellidos" value={facturacion.apellidos} onChange={(v) => setFacturacion((p) => ({ ...p, apellidos: v }))} />
+                  <Field label="Empresa" value={facturacion.empresa} onChange={(v) => setFacturacion((p) => ({ ...p, empresa: v }))} />
+                  <Field label="NIF" value={facturacion.nif} onChange={(v) => setFacturacion((p) => ({ ...p, nif: v }))} />
+                  <div className="col-span-2">
+                    <Field label="Dirección" value={facturacion.direccion} onChange={(v) => setFacturacion((p) => ({ ...p, direccion: v }))} />
+                  </div>
+                  <div className="col-span-2">
+                    <Field label="Dirección 2" value={facturacion.direccionComplementaria} onChange={(v) => setFacturacion((p) => ({ ...p, direccionComplementaria: v }))} />
+                  </div>
+                  <Field label="C.P." value={facturacion.codigoPostal} onChange={(v) => setFacturacion((p) => ({ ...p, codigoPostal: v }))} />
+                  <Field label="Ciudad" value={facturacion.ciudad} onChange={(v) => setFacturacion((p) => ({ ...p, ciudad: v }))} />
+                  <div className="col-span-2">
+                    <Field label="Provincia" value={facturacion.provincia} onChange={(v) => setFacturacion((p) => ({ ...p, provincia: v }))} />
+                  </div>
+                  <div className="col-span-2">
+                    <Field label="País" value={facturacion.pais} onChange={(v) => setFacturacion((p) => ({ ...p, pais: v }))} />
+                  </div>
+                </div>
+              )}
+            </Card>
+
+            {/* Mensajes */}
+            <Card title={`Mensajes (${mensajes.length})`}>
+              <div className="space-y-3 mb-5 max-h-80 overflow-auto">
+                {mensajes.length === 0 ? (
+                  <p className="text-sm text-gray-400">Sin mensajes.</p>
+                ) : mensajes.map((msg) => (
+                  <div key={msg.id} className="rounded-lg border border-gray-100 bg-gray-50 p-3">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-sm font-semibold text-gray-700">
+                        {msg.autorNombre || msg.autor || "Sistema"}
+                        {msg.privado && <span className="ml-2 rounded-full bg-orange-100 px-2 py-0.5 text-xs font-semibold text-orange-600">Privado</span>}
+                      </span>
+                      <span className="text-xs text-gray-400">{formatDate(msg.createdAt)}</span>
+                    </div>
+                    <p className="text-sm text-gray-600 whitespace-pre-wrap">{msg.mensaje}</p>
+                  </div>
+                ))}
+              </div>
+              <div className="border-t border-gray-100 pt-4 space-y-3">
+                <TextArea label="Nuevo mensaje" value={mensajeNuevo} onChange={setMensajeNuevo} rows={3} />
+                <div className="flex items-center justify-between">
+                  <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
+                    <input type="checkbox" checked={mensajePrivado} onChange={(e) => setMensajePrivado(e.target.checked)} />
+                    Mensaje privado
+                  </label>
+                  <button
+                    type="button"
+                    onClick={addMessage}
+                    className="rounded-lg bg-[#6BAEC9] px-4 py-2 text-sm font-semibold text-white hover:bg-[#5FA0B3]"
+                  >
+                    Enviar mensaje
+                  </button>
+                </div>
+              </div>
+            </Card>
+
           </div>
         </div>
       </div>

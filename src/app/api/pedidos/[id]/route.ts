@@ -101,6 +101,7 @@ function mapPedido(pedidoRaw: any) {
       variante: prod.variante || null,
     })),
     mensajes: pedidoRaw.mensajes || [],
+    estadoHistorial: [] as { id: number; estado: string; color: string; fecha: string }[],
   };
 }
 
@@ -128,12 +129,29 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
         telefono: true,
         nif: true,
         direccion: true,
+        direccionComplementaria: true,
         ciudad: true,
         provincia: true,
         cp: true,
         pais: true,
+        facturacionNombre: true,
+        facturacionApellidos: true,
+        facturacionEmpresa: true,
+        facturacionNif: true,
+        facturacionTelefono: true,
+        facturacionDireccion: true,
+        facturacionDireccionComplementaria: true,
+        facturacionCodigoPostal: true,
+        facturacionCiudad: true,
+        facturacionProvincia: true,
+        facturacionPais: true,
         envioMetodo: true,
         envioCoste: true,
+        transportistaNombre: true,
+        numeroSeguimiento: true,
+        trackingUrl: true,
+        fechaEnvio: true,
+        fechaEntrega: true,
         pagoMetodo: true,
         pagoRecargo: true,
         estadoPago: true,
@@ -183,6 +201,18 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
           },
           orderBy: { id: "asc" },
         },
+        mensajes: {
+          select: {
+            id: true,
+            autor: true,
+            autorNombre: true,
+            mensaje: true,
+            privado: true,
+            createdAt: true,
+            updatedAt: true,
+          },
+          orderBy: { createdAt: "asc" },
+        },
       },
     });
 
@@ -190,7 +220,22 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ ok: false, error: "Pedido no encontrado" }, { status: 404 });
     }
 
-    return NextResponse.json({ ok: true, pedido: mapPedido(pedidoRaw) });
+    const historial: any[] = await prisma.$queryRaw`
+      SELECT h.id, h.estado, h.color, h.fecha
+      FROM historialestadopedido h
+      WHERE h.pedidoId = ${id}
+      ORDER BY h.fecha ASC
+    `;
+
+    const pedidoMapeado = mapPedido(pedidoRaw);
+    pedidoMapeado.estadoHistorial = historial.map((h: any) => ({
+      id: h.id,
+      estado: h.estado,
+      color: h.color || "#6b7280",
+      fecha: h.fecha instanceof Date ? h.fecha.toISOString() : String(h.fecha),
+    }));
+
+    return NextResponse.json({ ok: true, pedido: pedidoMapeado });
   } catch (error: any) {
     console.error("Error GET pedido:", error);
     return NextResponse.json({ ok: false, error: "Error de servidor", detalle: error.message }, { status: 500 });
@@ -232,6 +277,11 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
           notas: body.notas,
           envioMetodo: body.envioMetodo,
           envioCoste: body.envioCoste !== undefined ? Number(body.envioCoste) : undefined,
+          transportistaNombre: body.transportistaNombre,
+          numeroSeguimiento: body.numeroSeguimiento,
+          trackingUrl: body.trackingUrl,
+          fechaEnvio: body.fechaEnvio ? new Date(body.fechaEnvio) : body.fechaEnvio === null ? null : undefined,
+          fechaEntrega: body.fechaEntrega ? new Date(body.fechaEntrega) : body.fechaEntrega === null ? null : undefined,
           pagoMetodo: body.pagoMetodo,
           pagoRecargo: body.pagoRecargo !== undefined ? Number(body.pagoRecargo) : undefined,
           subtotal: body.subtotal !== undefined ? Number(body.subtotal) : undefined,
@@ -245,10 +295,22 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
           telefono: body.telefono,
           nif: body.nif,
           direccion: body.direccion,
+          direccionComplementaria: body.direccionComplementaria,
           ciudad: body.ciudad,
           provincia: body.provincia,
           cp: body.cp,
           pais: body.pais,
+          facturacionNombre: body.facturacionNombre,
+          facturacionApellidos: body.facturacionApellidos,
+          facturacionEmpresa: body.facturacionEmpresa,
+          facturacionNif: body.facturacionNif,
+          facturacionTelefono: body.facturacionTelefono,
+          facturacionDireccion: body.facturacionDireccion,
+          facturacionDireccionComplementaria: body.facturacionDireccionComplementaria,
+          facturacionCodigoPostal: body.facturacionCodigoPostal,
+          facturacionCiudad: body.facturacionCiudad,
+          facturacionProvincia: body.facturacionProvincia,
+          facturacionPais: body.facturacionPais,
           updatedAt: new Date(),
         }),
         select: {
@@ -286,12 +348,29 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
         telefono: true,
         nif: true,
         direccion: true,
+        direccionComplementaria: true,
         ciudad: true,
         provincia: true,
         cp: true,
         pais: true,
+        facturacionNombre: true,
+        facturacionApellidos: true,
+        facturacionEmpresa: true,
+        facturacionNif: true,
+        facturacionTelefono: true,
+        facturacionDireccion: true,
+        facturacionDireccionComplementaria: true,
+        facturacionCodigoPostal: true,
+        facturacionCiudad: true,
+        facturacionProvincia: true,
+        facturacionPais: true,
         envioMetodo: true,
         envioCoste: true,
+        transportistaNombre: true,
+        numeroSeguimiento: true,
+        trackingUrl: true,
+        fechaEnvio: true,
+        fechaEntrega: true,
         pagoMetodo: true,
         pagoRecargo: true,
         estadoPago: true,
@@ -341,8 +420,32 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
           },
           orderBy: { id: "asc" },
         },
+        mensajes: {
+          select: {
+            id: true,
+            autor: true,
+            autorNombre: true,
+            mensaje: true,
+            privado: true,
+            createdAt: true,
+            updatedAt: true,
+          },
+          orderBy: { createdAt: "asc" },
+        },
       },
     });
+
+    // Guardar historial de estado si cambió
+    if (body.estado && pedidoAnterior && pedidoAnterior.estado !== body.estado) {
+      const estadoInfo = await prisma.estadopedido.findUnique({
+        where: { clave: body.estado },
+        select: { nombre: true, color: true },
+      });
+      await prisma.$executeRaw`
+        INSERT INTO historialestadopedido (pedidoId, estado, color, fecha)
+        VALUES (${id}, ${estadoInfo?.nombre ?? body.estado}, ${estadoInfo?.color ?? "#6b7280"}, NOW())
+      `;
+    }
 
     // Emails automáticos al cambiar el estado del pedido
     if (pedidoAnterior && body.estado && pedidoAnterior.estado !== body.estado && pedidoAnterior.email) {
@@ -388,7 +491,20 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
       }
     }
 
-    return NextResponse.json({ ok: true, pedido: pedidoCompleto ? mapPedido(pedidoCompleto) : result });
+    if (pedidoCompleto) {
+      const historialPut: any[] = await prisma.$queryRaw`
+        SELECT id, estado, color, fecha FROM historialestadopedido WHERE pedidoId = ${id} ORDER BY fecha ASC
+      `;
+      const pedidoFinal = mapPedido(pedidoCompleto);
+      pedidoFinal.estadoHistorial = historialPut.map((h: any) => ({
+        id: h.id,
+        estado: h.estado,
+        color: h.color || "#6b7280",
+        fecha: h.fecha instanceof Date ? h.fecha.toISOString() : String(h.fecha),
+      }));
+      return NextResponse.json({ ok: true, pedido: pedidoFinal });
+    }
+    return NextResponse.json({ ok: true, pedido: result });
   } catch (error: any) {
     console.error("Error PUT pedido:", error);
     return NextResponse.json({ ok: false, error: error.message || "Error de servidor" }, { status: 500 });

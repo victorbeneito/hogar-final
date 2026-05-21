@@ -57,11 +57,40 @@ export async function POST(req: NextRequest) {
 
     // Código de respuesta < 100 significa pago autorizado
     if (!isNaN(pedidoId) && responseCode < 100) {
+      // Buscar dinámicamente el estado para pago aceptado
+      const estadosActivos = await prisma.estadopedido.findMany({
+        where: { activo: true },
+        select: { nombre: true, color: true },
+        orderBy: { orden: "asc" },
+      });
+
+      const patrones = ["pago", "aceptado"];
+      let estadoPagoAceptado = null;
+      for (const patron of patrones) {
+        estadoPagoAceptado = estadosActivos.find((e: any) =>
+          e.nombre.toLowerCase().includes(patron.toLowerCase())
+        );
+        if (estadoPagoAceptado) break;
+      }
+
+      const nombreEstado = estadoPagoAceptado?.nombre ?? "PAGO_ACEPTADO";
+      const colorEstado = estadoPagoAceptado?.color ?? "#22c55e";
+
       const pedido = await prisma.pedido.update({
         where: { id: pedidoId },
-        data: { estadoPago: "PAGADO", pagoMetodo: "tarjeta" },
+        data: { estadoPago: "PAGADO", pagoMetodo: "tarjeta", estado: nombreEstado },
         include: { pedidoproducto: true },
       });
+
+      // Registrar en historial
+      try {
+        await prisma.$executeRaw`
+          INSERT INTO historialestadopedido (pedidoId, estado, color, fecha)
+          VALUES (${pedidoId}, ${nombreEstado}, ${colorEstado}, NOW())
+        `;
+      } catch (err: any) {
+        console.warn("⚠️ No se pudo insertar historial Redsys exitoso:", err?.message);
+      }
 
       // Enviar emails ahora que el pago está confirmado
       const appUrl = process.env.APP_URL || "https://www.elhogardetusuenos.com";
@@ -79,17 +108,79 @@ export async function POST(req: NextRequest) {
         }).catch((err: any) => console.error("❌ Email cliente Redsys:", err?.message));
       }
 
-      loadEmailSettings().then((emailSettings: any) => {
+      loadEmailSettings().then(async (emailSettings: any) => {
         if (!emailSettings.adminEmail) return;
         const datosCliente = { nombre: pedido.nombre, email: pedido.email };
-        const htmlAdmin = buildAdminOrderEmail(pedido, datosCliente, { brandName: emailSettings.brandName, appUrl });
-        const nombreCliente = `${pedido.nombre || ""} ${(pedido as any).apellidos || ""}`.trim() || "Cliente";
-        return sendRawEmail({
-          to: emailSettings.adminEmail,
-          subject: `[${emailSettings.brandName}] Nuevo pedido (tarjeta): ${pedido.numeroPedido} — ${nombreCliente}`,
-          html: htmlAdmin,
-        });
-      }).catch((err: any) => console.error("❌ Email admin Redsys:", err?.message));
+
+        try {
+          // Cargar mensaje del cliente si existe
+          const mensajeClienteRecord = await prisma.pedido_mensaje.findFirst({
+            where: { pedidoId: pedidoId, autor: "cliente" },
+            select: { mensaje: true },
+          });
+
+          console.log("📧 Buscando mensaje para pedido", pedidoId, "- Resultado:", mensajeClienteRecord);
+          const mensajeCliente = mensajeClienteRecord?.mensaje || null;
+
+          const pedidoConMensaje = { ...pedido, mensajeCliente } as any;
+          const htmlAdmin = buildAdminOrderEmail(pedidoConMensaje, datosCliente, { brandName: emailSettings.brandName, appUrl });
+          const nombreCliente = `${pedido.nombre || ""} ${(pedido as any).apellidos || ""}`.trim() || "Cliente";
+          return sendRawEmail({
+            to: emailSettings.adminEmail,
+            subject: `[${emailSettings.brandName}] Nuevo pedido (tarjeta): ${pedido.numeroPedido} — ${nombreCliente}`,
+            html: htmlAdmin,
+          });
+        } catch (err: any) {
+          console.error("❌ Error buscando mensaje o enviando email Redsys:", err?.message);
+        }
+      }).catch((err: any) => console.error("❌ Error en loadEmailSettings Redsys:", err?.message));
+    } else if (!isNaN(pedidoId) && responseCode >= 100) {
+      // Pago rechazado - buscar el estado de error
+      const estadosActivos = await prisma.estadopedido.findMany({
+        where: { activo: true },
+        select: { nombre: true, color: true },
+        orderBy: { orden: "asc" },
+      });
+
+      const estadoErrorPago = estadosActivos.find((e: any) =>
+        e.nombre.toLowerCase().includes("error")
+      );
+      const nombreEstado = estadoErrorPago?.nombre ?? "Error pago";
+      const colorEstado = estadoErrorPago?.color ?? "#ef4444";
+
+      const pedido = await prisma.pedido.update({
+        where: { id: pedidoId },
+        data: { estadoPago: "FALLIDO", estado: nombreEstado },
+        include: { pedidoproducto: true },
+      }).catch((err: any) => {
+        console.error("❌ Error actualizando pedido rechazado:", err?.message);
+        return null;
+      });
+
+      // Registrar en historial
+      if (pedido) {
+        try {
+          await prisma.$executeRaw`
+            INSERT INTO historialestadopedido (pedidoId, estado, color, fecha)
+            VALUES (${pedidoId}, ${nombreEstado}, ${colorEstado}, NOW())
+          `;
+        } catch (err: any) {
+          console.warn("⚠️ No se pudo insertar historial Redsys fallido:", err?.message);
+        }
+      }
+
+      if (pedido?.email) {
+        sendTemplateEmail({
+          to: pedido.email,
+          templateSlug: "order-placed",
+          variables: {
+            nombre: pedido.nombre || "Cliente",
+            numeroPedido: pedido.numeroPedido,
+            total: `${Number(pedido.totalFinal).toFixed(2)} €`,
+            pedidoUrl: `${process.env.APP_URL || "https://www.elhogardetusuenos.com"}/account/orders`,
+          },
+        }).catch((err: any) => console.error("❌ Email cliente Redsys fallido:", err?.message));
+      }
     }
 
     return new Response("OK", { status: 200 });

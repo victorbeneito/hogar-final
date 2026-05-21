@@ -1,7 +1,51 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { sendTemplateEmail, sendRawEmail, buildAdminOrderEmail, loadEmailSettings } from "@/lib/emailService";
+
+async function getEstadoInicialPorMetodo(metodoPago: string, tx: any): Promise<{ nombre: string; color: string; clave: string }> {
+  const metodo = (metodoPago || "").toLowerCase().trim();
+
+  let patrones: string[] = [];
+  switch (metodo) {
+    case "transferencia":
+      patrones = ["transferencia", "espera"];
+      break;
+    case "bizum":
+      patrones = ["bizum"];
+      break;
+    case "contrareembolso":
+      patrones = ["preparaci", "contrareembolso"];
+      break;
+    case "tarjeta":
+    case "paypal":
+    default:
+      patrones = ["pendiente"];
+      break;
+  }
+
+  // Buscar el estado por patrón (sin case-sensitivity)
+  const estadosActivos = await tx.estadopedido.findMany({
+    where: { activo: true },
+    select: { nombre: true, color: true, clave: true },
+    orderBy: { orden: "asc" },
+  });
+
+  for (const patron of patrones) {
+    const estado = estadosActivos.find((e: any) =>
+      e.nombre.toLowerCase().includes(patron.toLowerCase())
+    );
+    if (estado) return estado;
+  }
+
+  // Si no encuentra por patrón, retornar estado por defecto
+  const estadoDefault = estadosActivos.find((e: any) =>
+    e.nombre.toLowerCase().includes("pendiente")
+  );
+
+  return estadoDefault || { nombre: "PENDIENTE", color: "#6b7280", clave: "PENDIENTE" };
+}
 
 export const dynamic = "force-dynamic";
 
@@ -119,12 +163,29 @@ export async function GET(req: Request) {
         telefono: true,
         nif: true,
         direccion: true,
+        direccionComplementaria: true,
         ciudad: true,
         provincia: true,
         cp: true,
         pais: true,
+        facturacionNombre: true,
+        facturacionApellidos: true,
+        facturacionEmpresa: true,
+        facturacionNif: true,
+        facturacionTelefono: true,
+        facturacionDireccion: true,
+        facturacionDireccionComplementaria: true,
+        facturacionCodigoPostal: true,
+        facturacionCiudad: true,
+        facturacionProvincia: true,
+        facturacionPais: true,
         envioMetodo: true,
         envioCoste: true,
+        transportistaNombre: true,
+        numeroSeguimiento: true,
+        trackingUrl: true,
+        fechaEnvio: true,
+        fechaEntrega: true,
         pagoMetodo: true,
         pagoRecargo: true,
         estadoPago: true,
@@ -177,70 +238,120 @@ export async function GET(req: Request) {
 
     const total = await prisma.pedido.count({ where: whereClause });
 
-    const pedidosFormateados = pedidosRaw.map((p: any) => ({
-      id: p.id,
-      referencia: p.referencia || p.numeroPedido,
-      numeroPedido: p.numeroPedido,
-      pagoMetodo: p.pagoMetodo,
-      estadoPago: p.estadoPago,
-      envioMetodo: p.envioMetodo,
-      envioCoste: Number(p.envioCoste),
-      transportistaNombre: p.transportistaNombre,
-      numeroSeguimiento: p.numeroSeguimiento,
-      trackingUrl: p.trackingUrl,
-      totalFinal: parseFloat(p.totalFinal),
-      estado: p.estado,
-      fecha: p.fechaPedido ? p.fechaPedido.toISOString() : null,
-      fechaPedido: p.fechaPedido ? p.fechaPedido.toISOString() : null,
-      
-      // Datos cliente
-      nombre: `${p.nombre || p.cliente?.nombre || ""} ${p.apellidos || p.cliente?.apellidos || ""}`.trim(),
-      cliente: {
-        id: p.cliente?.id,
-        nombre: `${p.nombre || p.cliente?.nombre || ""} ${p.apellidos || p.cliente?.apellidos || ""}`.trim() || "Cliente Visitante",
-        email: p.email || p.cliente?.email || "Sin email"
-      },
-      direccionEntrega: {
-        nombre: p.nombre || p.cliente?.nombre || "",
-        apellidos: p.apellidos || p.cliente?.apellidos || "",
-        empresa: p.cliente?.empresa || "",
-        nif: p.nif || "",
-        telefono: p.telefono || "",
-        direccion: p.direccion || "",
-        direccionComplementaria: p.direccionComplementaria || "",
-        codigoPostal: p.cp || "",
-        ciudad: p.ciudad || "",
-        provincia: p.provincia || "",
-        pais: p.pais || "España",
-      },
-      direccionFacturacion: {
-        nombre: p.facturacionNombre || p.nombre || "",
-        apellidos: p.facturacionApellidos || p.apellidos || "",
-        empresa: p.facturacionEmpresa || "",
-        nif: p.facturacionNif || p.nif || "",
-        telefono: p.facturacionTelefono || p.telefono || "",
-        direccion: p.facturacionDireccion || p.direccion || "",
-        direccionComplementaria: p.facturacionDireccionComplementaria || p.direccionComplementaria || "",
-        codigoPostal: p.facturacionCodigoPostal || p.cp || "",
-        ciudad: p.facturacionCiudad || p.ciudad || "",
-        provincia: p.facturacionProvincia || p.provincia || "",
-        pais: p.facturacionPais || p.pais || "España",
-      },
-      
-      // Productos
-      productos: p.pedidoproducto.map((prod: any) => ({
-        id: prod.id,
-        nombre: prod.nombreProducto || prod.nombre,
-        cantidad: prod.cantidad,
-        precioUnitario: Number(prod.precioUnitario),
-        subtotal: Number(prod.subtotal),
-        varianteInfo: prod.varianteInfo || null,
-      })),
-      factura: p.factura
-        ? { id: p.factura.id, numeroFactura: p.factura.numeroFactura }
-        : null,
-      mensajes: p.mensajes || [],
-    }));
+    // Obtener el color del historial para TODOS los pedidos en una sola query (fuente de verdad)
+    const colorMap: Record<number, string> = {};
+    if (pedidosRaw.length > 0) {
+      const pedidoIds = pedidosRaw.map((p: any) => p.id);
+      const historials = await prisma.$queryRaw`
+        SELECT h.pedidoId, h.color
+        FROM historialestadopedido h
+        INNER JOIN (
+          SELECT pedidoId, MAX(fecha) as maxFecha
+          FROM historialestadopedido
+          WHERE pedidoId IN (${Prisma.join(pedidoIds)})
+          GROUP BY pedidoId
+        ) grouped ON h.pedidoId = grouped.pedidoId AND h.fecha = grouped.maxFecha
+      `;
+
+      for (const h of historials as any[]) {
+        colorMap[h.pedidoId] = h.color || "#6b7280";
+      }
+    }
+
+    const pedidosFormateados = pedidosRaw.map((p: any) => {
+      const colorEstado = colorMap[p.id] || "#6b7280"; // Gris por defecto
+
+      return {
+        id: p.id,
+        numeroPedido: p.numeroPedido,
+        clienteId: p.clienteId,
+        nombre: p.nombre,
+        apellidos: p.apellidos,
+        email: p.email,
+        telefono: p.telefono,
+        nif: p.nif,
+        direccion: p.direccion,
+        direccionComplementaria: p.direccionComplementaria,
+        ciudad: p.ciudad,
+        provincia: p.provincia,
+        cp: p.cp,
+        pais: p.pais,
+        direccionEntrega: {
+          nombre: p.nombre || p.cliente?.nombre || "",
+          apellidos: p.apellidos || p.cliente?.apellidos || "",
+          empresa: p.cliente?.empresa || "",
+          nif: p.nif || "",
+          telefono: p.telefono || "",
+          direccion: p.direccion || "",
+          direccionComplementaria: p.direccionComplementaria || "",
+          codigoPostal: p.cp || "",
+          ciudad: p.ciudad || "",
+          provincia: p.provincia || "",
+          pais: p.pais || "España",
+        },
+        direccionFacturacion: {
+          nombre: p.facturacionNombre || p.nombre || "",
+          apellidos: p.facturacionApellidos || p.apellidos || "",
+          empresa: p.facturacionEmpresa || "",
+          nif: p.facturacionNif || p.nif || "",
+          telefono: p.facturacionTelefono || p.telefono || "",
+          direccion: p.facturacionDireccion || p.direccion || "",
+          direccionComplementaria: p.facturacionDireccionComplementaria || p.direccionComplementaria || "",
+          codigoPostal: p.facturacionCodigoPostal || p.cp || "",
+          ciudad: p.facturacionCiudad || p.ciudad || "",
+          provincia: p.facturacionProvincia || p.provincia || "",
+          pais: p.facturacionPais || p.pais || "España",
+        },
+        envioMetodo: p.envioMetodo,
+        envioCoste: Number(p.envioCoste),
+        transportistaNombre: p.transportistaNombre,
+        numeroSeguimiento: p.numeroSeguimiento,
+        trackingUrl: p.trackingUrl,
+        fechaEnvio: p.fechaEnvio ? p.fechaEnvio.toISOString() : null,
+        fechaEntrega: p.fechaEntrega ? p.fechaEntrega.toISOString() : null,
+        pagoMetodo: p.pagoMetodo,
+        pagoRecargo: Number(p.pagoRecargo),
+        estadoPago: p.estadoPago,
+        subtotal: Number(p.subtotal),
+        descuento: Number(p.descuento),
+        totalFinal: Number(p.totalFinal),
+        estado: p.estado,
+        colorEstado: colorEstado,
+        cuponCodigo: p.cuponCodigo,
+        cuponDescuento: p.cuponDescuento ? Number(p.cuponDescuento) : null,
+        notas: p.notas,
+        fechaPedido: p.fechaPedido ? p.fechaPedido.toISOString() : null,
+        updatedAt: p.updatedAt ? p.updatedAt.toISOString() : null,
+        cliente: {
+          id: p.cliente?.id,
+          nombre: p.cliente?.nombre,
+          apellidos: p.cliente?.apellidos,
+          email: p.cliente?.email,
+          telefono: p.cliente?.telefono,
+          empresa: p.cliente?.empresa,
+          nif: p.cliente?.nif,
+          direccion: p.cliente?.direccion,
+          direccionComplementaria: p.cliente?.direccionComplementaria,
+          codigoPostal: p.cliente?.codigoPostal,
+          ciudad: p.cliente?.ciudad,
+          provincia: p.cliente?.provincia,
+          pais: p.cliente?.pais,
+        },
+        productos: p.pedidoproducto.map((prod: any) => ({
+          id: prod.id,
+          productoIdRef: prod.productoIdRef,
+          varianteIdRef: prod.varianteIdRef,
+          nombre: prod.nombre,
+          varianteInfo: prod.varianteInfo || null,
+          cantidad: prod.cantidad,
+          precioUnitario: Number(prod.precioUnitario),
+          subtotal: Number(prod.subtotal),
+        })),
+        factura: p.factura
+          ? { id: p.factura.id, numeroFactura: p.factura.numeroFactura, fechaFactura: p.factura.fechaFactura, total: p.factura.total }
+          : null,
+      };
+    });
 
     return NextResponse.json({ pedidos: pedidosFormateados, total, page, limit });
 
@@ -332,6 +443,9 @@ export async function POST(req: Request) {
 
     console.log("📌 Creando pedido para clienteId:", clienteId);
 
+    // Capturar comentario del cliente antes de la transacción
+    const comentarioCliente = body.notas || "";
+
     // 2. Preparar productos
     const listaItems = body.carrito || body.productos || body.items || [];
     if (listaItems.length === 0) {
@@ -339,15 +453,25 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: "Carrito vacío" }, { status: 400 });
     }
 
-    const productosParaInsertar = listaItems.map((p: any) => ({
-      nombre: p.nombre,
-      cantidad: p.cantidad,
-      precioUnitario: parseFloat(p.precioFinal ?? p.precio),
-      subtotal: (parseFloat(p.precioFinal ?? p.precio)) * p.cantidad,
-      productoIdRef: p.id,
-      varianteIdRef: p.varianteId ?? null,
-      varianteInfo: p.varianteInfo ?? p.atributo ?? null,
-    }));
+    const productosParaInsertar = listaItems.map((p: any) => {
+      // Construir varianteInfo desde los campos del carrito
+      const partes: string[] = [];
+      if (p.tamanoSeleccionado) partes.push(`Tamaño : ${p.tamanoSeleccionado}`);
+      if (p.colorSeleccionado)  partes.push(`Color : ${p.colorSeleccionado}`);
+      if (p.tiradorSeleccionado) partes.push(`Tirador : ${p.tiradorSeleccionado}`);
+      const varianteInfo = p.varianteInfo ?? p.atributo ?? (partes.length > 0 ? partes.join("- ") : null);
+      // Incluir la variante en el nombre para compatibilidad con datos históricos
+      const nombreCompleto = partes.length > 0 ? `${p.nombre} - ${partes.join("- ")}` : p.nombre;
+      return {
+        nombre: nombreCompleto,
+        cantidad: p.cantidad,
+        precioUnitario: parseFloat(p.precioFinal ?? p.precio),
+        subtotal: parseFloat(p.precioFinal ?? p.precio) * p.cantidad,
+        productoIdRef: p.id,
+        varianteIdRef: p.varianteId ?? null,
+        varianteInfo,
+      };
+    });
 
     // 3. Ejecutar Transacción
     console.log("💾 Iniciando transacción en Prisma...");
@@ -383,7 +507,10 @@ export async function POST(req: Request) {
       
       console.log("🔢 Número de pedido generado:", numeroGenerado);
 
-      // Crear
+      // Crear - Obtener estado inicial del método de pago
+        const metodoPagoStr = String(body.metodoPago?.metodo || body.pagoMetodo?.metodo || "tarjeta");
+        const estadoInicial = await getEstadoInicialPorMetodo(metodoPagoStr, tx);
+
         const pedido = await tx.pedido.create({
           data: {
             numeroPedido: numeroGenerado,
@@ -400,16 +527,16 @@ export async function POST(req: Request) {
             pais: datosCliente.pais || "España",
             envioMetodo: String(body.metodoEnvio?.metodo || body.envioMetodo?.metodo || "estándar"),
             envioCoste: parseFloat(String(body.metodoEnvio?.coste || body.envioMetodo?.coste || 0)),
-            pagoMetodo: String(body.metodoPago?.metodo || body.pagoMetodo?.metodo || "tarjeta"),
+            pagoMetodo: metodoPagoStr,
             pagoRecargo: parseFloat(String(body.pagoRecargo || 0)),
             estadoPago: body.estadoPago || "PENDIENTE",
             subtotal: parseFloat(body.subtotal || 0),
             descuento: parseFloat(body.descuento || body.descuentoAplicado || body.cuponDescuento || 0),
             totalFinal: parseFloat(body.totalFinal || 0),
-            estado: "PENDIENTE",
+            estado: estadoInicial.nombre,
             cuponCodigo: body.cuponCodigo || body.cupon?.codigo || null,
             cuponDescuento: body.cuponDescuento || body.descuentoAplicado || body.cupon?.descuento || null,
-            notas: body.notas || null,
+            notas: null,
             fechaPedido: new Date(),
             updatedAt: new Date(),
             pedidoproducto: {
@@ -451,6 +578,39 @@ export async function POST(req: Request) {
       return pedido;
     });
 
+    // Insertar estado inicial en historial - Usar el estado dinámico obtenido
+    try {
+      await prisma.$executeRaw`
+        INSERT INTO historialestadopedido (pedidoId, estado, color, fecha)
+        VALUES (${result.id}, ${estadoInicial.nombre}, ${estadoInicial.color}, NOW())
+      `;
+      console.log("✅ Historial inicial creado para estado:", estadoInicial.nombre, "Color:", estadoInicial.color);
+    } catch (err: any) {
+      console.warn("⚠️ No se pudo insertar historial inicial:", err?.message);
+    }
+
+    // Crear mensaje del cliente si hay comentario
+    if (comentarioCliente && comentarioCliente.trim()) {
+      try {
+        console.log("📝 Creando mensaje del cliente para pedido", result.id, "con comentario:", comentarioCliente.substring(0, 50));
+        const nuevoMensaje = await prisma.pedido_mensaje.create({
+          data: {
+            pedidoId: result.id,
+            autor: "cliente",
+            autorNombre: result.nombre || "Cliente",
+            mensaje: comentarioCliente.trim(),
+            privado: false,
+            updatedAt: new Date(),
+          },
+        });
+        console.log("✅ Mensaje del cliente creado exitosamente:", nuevoMensaje.id);
+      } catch (err: any) {
+        console.error("❌ Error al crear mensaje del cliente:", err?.message, err);
+      }
+    } else {
+      console.log("ℹ️ No hay comentario del cliente para crear mensaje");
+    }
+
     console.log("✨ ¡ÉXITO! Pedido guardado");
     console.log("   - ID:", result.id);
     console.log("   - Número:", result.numeroPedido);
@@ -482,7 +642,7 @@ export async function POST(req: Request) {
 
       loadEmailSettings().then((emailSettings) => {
         if (!emailSettings.adminEmail) return;
-        const htmlAdmin = buildAdminOrderEmail(result, datosCliente, { brandName: emailSettings.brandName, appUrl });
+        const htmlAdmin = buildAdminOrderEmail({ ...result, mensajeCliente: comentarioCliente }, datosCliente, { brandName: emailSettings.brandName, appUrl });
         const nombreCliente = `${result.nombre || ""} ${result.apellidos || ""}`.trim() || "Cliente";
         return sendRawEmail({
           to: emailSettings.adminEmail,

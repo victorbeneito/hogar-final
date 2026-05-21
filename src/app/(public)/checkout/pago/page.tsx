@@ -27,6 +27,7 @@ export default function PagoPage() {
         gratisAplicado?: boolean;
         zonaId?: string | null;
         zonaNombre?: string | null;
+        comentarios?: string | null;
     } | null>(null);
   const [descuento, setDescuento] = useState(0);
   const [paymentConfig, setPaymentConfig] = useState<PaymentCheckoutConfig>(DEFAULT_PAYMENT_CONFIG);
@@ -74,6 +75,7 @@ export default function PagoPage() {
                             gratisAplicado: Boolean(parsed.gratisAplicado),
                             zonaId: parsed.zonaId ?? null,
                             zonaNombre: parsed.zonaNombre ?? null,
+                            comentarios: parsed.comentarios ?? null,
                         });
         }
 
@@ -126,7 +128,8 @@ export default function PagoPage() {
         totalFinal: parseFloat(calcularTotalMostrado()), // Usamos el total final calculado
         subtotal: total - costeEnvio,
         descuentoAplicado: descuento,
-        
+        notas: shippingData?.comentarios || localStorage.getItem("checkout_comentarios") || "",
+
         cliente: {
             nombre: cliente.nombre,
             email: cliente.email,

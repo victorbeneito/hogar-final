@@ -24,32 +24,94 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, error: "Pedido no encontrado" }, { status: 404 });
     }
 
+    // Buscar dinámicamente el estado para transferencia (patrones: transferencia, espera)
+    const estadosActivos = await prisma.estadopedido.findMany({
+      where: { activo: true },
+      select: { nombre: true, color: true },
+      orderBy: { orden: "asc" },
+    });
+
+    const patrones = ["transferencia", "espera"];
+    let estadoTransferencia = null;
+    for (const patron of patrones) {
+      estadoTransferencia = estadosActivos.find((e: any) =>
+        e.nombre.toLowerCase().includes(patron.toLowerCase())
+      );
+      if (estadoTransferencia) break;
+    }
+
+    const nombreEstadoTransferencia = estadoTransferencia?.nombre || pedido.estado;
+    const colorEstadoTransferencia = estadoTransferencia?.color || "#6b7280";
+
+    // Actualizar estado
+    const pedidoActualizado = await prisma.pedido.update({
+      where: { id },
+      data: { estado: nombreEstadoTransferencia, updatedAt: new Date() },
+      include: { pedidoproducto: true },
+    });
+
+    // Registrar en historial con el color correcto
+    try {
+      await prisma.$executeRaw`
+        INSERT INTO historialestadopedido (pedidoId, estado, color, fecha)
+        VALUES (${id}, ${nombreEstadoTransferencia}, ${colorEstadoTransferencia}, NOW())
+      `;
+    } catch (err: any) {
+      console.warn("⚠️ No se pudo insertar historial:", err?.message);
+    }
+
     const appUrl = process.env.APP_URL || "https://www.elhogardetusuenos.com";
 
-    if (pedido.email) {
+    if (pedidoActualizado.email) {
       sendTemplateEmail({
-        to: pedido.email,
+        to: pedidoActualizado.email,
         templateSlug: "order-placed",
         variables: {
-          nombre: pedido.nombre || "Cliente",
-          numeroPedido: pedido.numeroPedido,
-          total: `${Number(pedido.totalFinal).toFixed(2)} €`,
+          nombre: pedidoActualizado.nombre || "Cliente",
+          numeroPedido: pedidoActualizado.numeroPedido,
+          total: `${Number(pedidoActualizado.totalFinal).toFixed(2)} €`,
           pedidoUrl: `${appUrl}/account/orders`,
         },
       }).catch((err: any) => console.error("❌ Email cliente transferencia:", err?.message));
     }
 
-    loadEmailSettings().then((emailSettings: any) => {
-      if (!emailSettings.adminEmail) return;
-      const datosCliente = { nombre: pedido.nombre, email: pedido.email };
-      const htmlAdmin = buildAdminOrderEmail(pedido, datosCliente, { brandName: emailSettings.brandName, appUrl });
-      const nombreCliente = `${pedido.nombre || ""} ${(pedido as any).apellidos || ""}`.trim() || "Cliente";
-      return sendRawEmail({
-        to: emailSettings.adminEmail,
-        subject: `[${emailSettings.brandName}] Nuevo pedido (transferencia): ${pedido.numeroPedido} — ${nombreCliente}`,
-        html: htmlAdmin,
-      });
-    }).catch((err: any) => console.error("❌ Email admin transferencia:", err?.message));
+    // Enviar email al admin (sin esperar)
+    (async () => {
+      try {
+        console.log("📧 Transferencia: Preparando email para pedido", id);
+        const emailSettings = await loadEmailSettings();
+
+        if (!emailSettings.adminEmail) {
+          console.warn("⚠️ No se configuró email admin");
+          return;
+        }
+
+        const datosCliente = { nombre: pedidoActualizado.nombre, email: pedidoActualizado.email };
+
+        // Cargar mensaje del cliente si existe
+        const mensajeClienteRecord = await prisma.pedido_mensaje.findFirst({
+          where: { pedidoId: id, autor: "cliente" },
+          select: { mensaje: true },
+        });
+
+        console.log("📧 Transferencia: Buscando mensaje para pedido", id, "- Resultado:", mensajeClienteRecord?.mensaje?.substring(0, 50));
+        const mensajeCliente = mensajeClienteRecord?.mensaje || null;
+
+        const pedidoConMensaje = { ...pedidoActualizado, mensajeCliente } as any;
+        const htmlAdmin = buildAdminOrderEmail(pedidoConMensaje, datosCliente, { brandName: emailSettings.brandName, appUrl });
+        const nombreCliente = `${pedidoActualizado.nombre || ""} ${(pedidoActualizado as any).apellidos || ""}`.trim() || "Cliente";
+
+        console.log("📧 Transferencia: Enviando email a", emailSettings.adminEmail);
+        await sendRawEmail({
+          to: emailSettings.adminEmail,
+          subject: `[${emailSettings.brandName}] Nuevo pedido (transferencia): ${pedidoActualizado.numeroPedido} — ${nombreCliente}`,
+          html: htmlAdmin,
+        });
+        console.log("✅ Email transferencia enviado exitosamente");
+      } catch (err: any) {
+        console.error("❌ Error al enviar email transferencia:", err?.message || err);
+      }
+    })();
 
     return NextResponse.json({ ok: true });
   } catch (error: any) {

@@ -275,7 +275,8 @@ model pedido {
   factura        factura?
   cliente        cliente           @relation(fields: [clienteId], references: [id], map: "Pedido_clienteId_fkey")
   pedidoproducto pedidoproducto[]
-  mensajes       pedido_mensaje[]
+  mensajes        pedido_mensaje[]
+  estadoHistorial historialestadopedido[]
   carrito        carritocompra?    @relation(fields: [carritoId], references: [id], onDelete: SetNull, map: "Pedido_carritoId_fkey")
 
   @@index([clienteId], map: "Pedido_clienteId_idx")
@@ -524,6 +525,17 @@ enum pedido_estado {
   CUESTIONARIO
   CANCELADO
   DEVUELTO
+}
+
+model historialestadopedido {
+  id       Int      @id @default(autoincrement())
+  pedidoId Int
+  estado   String
+  color    String?
+  fecha    DateTime @default(now())
+  pedido   pedido   @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+
+  @@index([pedidoId])
 }
 
 model mapeo_producto_ps {

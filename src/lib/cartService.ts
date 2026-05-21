@@ -94,14 +94,15 @@ export const addToCart = (product: CartItem) => {
     (item.atributo ?? "") === (product.atributo ?? "");
 
   const existing = cart.find((item) => sameSelection(item));
-  
+  const productQuantity = product.cantidad || 1;
+
   if (existing) {
-    existing.cantidad += 1;
+    existing.cantidad += productQuantity;
   } else {
     cart.push({
       ...product,
       id: Number(product.id),
-      cantidad: 1,
+      cantidad: productQuantity,
     });
   }
   

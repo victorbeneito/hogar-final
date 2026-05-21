@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
     // Actualizar a PAGADO y cargar datos para emails
     const pedidoActualizado = await prisma.pedido.update({
       where: { id },
-      data: { estadoPago: "PAGADO", pagoMetodo: "tarjeta", updatedAt: new Date() },
+      data: { estadoPago: "PAGADO", pagoMetodo: "tarjeta", estado: "Pago Aceptado", updatedAt: new Date() },
       include: { pedidoproducto: true },
     });
 
@@ -52,17 +52,32 @@ export async function POST(req: NextRequest) {
       }).catch((err: any) => console.error("❌ Email cliente OK-fallback:", err?.message));
     }
 
-    loadEmailSettings().then((emailSettings: any) => {
+    loadEmailSettings().then(async (emailSettings: any) => {
       if (!emailSettings.adminEmail) return;
       const datosCliente = { nombre: pedidoActualizado.nombre, email: pedidoActualizado.email };
-      const htmlAdmin = buildAdminOrderEmail(pedidoActualizado, datosCliente, { brandName: emailSettings.brandName, appUrl });
-      const nombreCliente = `${pedidoActualizado.nombre || ""} ${(pedidoActualizado as any).apellidos || ""}`.trim() || "Cliente";
-      return sendRawEmail({
-        to: emailSettings.adminEmail,
-        subject: `[${emailSettings.brandName}] Nuevo pedido (tarjeta): ${pedidoActualizado.numeroPedido} — ${nombreCliente}`,
-        html: htmlAdmin,
-      });
-    }).catch((err: any) => console.error("❌ Email admin OK-fallback:", err?.message));
+
+      try {
+        // Cargar mensaje del cliente si existe
+        const mensajeClienteRecord = await prisma.pedido_mensaje.findFirst({
+          where: { pedidoId: id, autor: "cliente" },
+          select: { mensaje: true },
+        });
+
+        console.log("📧 Confirmar-OK: Buscando mensaje para pedido", id, "- Resultado:", mensajeClienteRecord);
+        const mensajeCliente = mensajeClienteRecord?.mensaje || null;
+
+        const pedidoConMensaje = { ...pedidoActualizado, mensajeCliente } as any;
+        const htmlAdmin = buildAdminOrderEmail(pedidoConMensaje, datosCliente, { brandName: emailSettings.brandName, appUrl });
+        const nombreCliente = `${pedidoActualizado.nombre || ""} ${(pedidoActualizado as any).apellidos || ""}`.trim() || "Cliente";
+        return sendRawEmail({
+          to: emailSettings.adminEmail,
+          subject: `[${emailSettings.brandName}] Nuevo pedido (tarjeta): ${pedidoActualizado.numeroPedido} — ${nombreCliente}`,
+          html: htmlAdmin,
+        });
+      } catch (err: any) {
+        console.error("❌ Error buscando mensaje o enviando email OK-fallback:", err?.message);
+      }
+    }).catch((err: any) => console.error("❌ Error en loadEmailSettings OK-fallback:", err?.message));
 
     return NextResponse.json({ ok: true, alreadyPaid: false });
   } catch (error: any) {

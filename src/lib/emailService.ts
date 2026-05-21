@@ -126,6 +126,7 @@ type AdminOrderEmailData = {
   descuento?: number | string | null;
   totalFinal?: number | string | null;
   notas?: string | null;
+  mensajeCliente?: string | null;
   fechaPedido?: Date | string | null;
   pedidoproducto?: AdminOrderEmailProduct[];
 };
@@ -293,7 +294,7 @@ export function buildAdminOrderEmail(
     <div style="background:#f7f7f7;padding:11px 16px;border-bottom:1px solid #ddd;">
       <strong style="font-size:12px;color:#333;text-transform:uppercase;letter-spacing:.6px;">Mensaje del cliente</strong>
     </div>
-    <div style="padding:14px 16px;font-size:14px;color:#555;">${pedido.notas || "Sin mensajes"}</div>
+    <div style="padding:14px 16px;font-size:14px;color:#555;">${pedido.mensajeCliente || "Sin mensajes"}</div>
   </div>
 
   <!-- Footer -->
