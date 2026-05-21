@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
-import crypto from 'crypto';
 
 const EXCLUDED_PATHS = ['/admin', '/api', '/_next', '/favicon', '/robots.txt', '/sitemap.xml'];
 const STATIC_EXTENSIONS = ['.css', '.js', '.json', '.png', '.jpg', '.jpeg', '.gif', '.svg', '.ico', '.webp', '.woff', '.woff2', '.ttf', '.eot'];
@@ -11,9 +10,13 @@ function isExcludedPath(pathname: string): boolean {
   return false;
 }
 
-function hashIP(ip: string): string {
+async function hashIP(ip: string): Promise<string> {
   const salt = 'visitor_salt_2026';
-  return crypto.createHash('sha256').update(ip + salt).digest('hex').substring(0, 64);
+  const encoder = new TextEncoder();
+  const data = encoder.encode(ip + salt);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('').substring(0, 64);
 }
 
 function detectFuente(referrer: string | null): string {
@@ -45,7 +48,7 @@ function detectDispositivo(userAgent: string | null): string {
   return 'desktop';
 }
 
-export function middleware(req: NextRequest) {
+export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
   // No procesar rutas excluidas
@@ -68,13 +71,13 @@ export function middleware(req: NextRequest) {
     });
   }
 
-  // Obtener IP
+  // Obtener IP (Edge Runtime compatible)
   const ip = req.headers.get('x-forwarded-for')?.split(',')[0].trim() ||
              req.headers.get('x-real-ip') ||
-             req.ip ||
+             req.headers.get('cf-connecting-ip') ||
              '0.0.0.0';
 
-  const ipHash = hashIP(ip);
+  const ipHash = await hashIP(ip);
   const url = pathname;
   const referrer = req.headers.get('referer');
   const userAgent = req.headers.get('user-agent');
