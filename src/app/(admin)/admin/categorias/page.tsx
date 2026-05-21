@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { useAdminFetch } from "@/lib/useAdminFetch";
 
 interface Categoria {
   id:          number;
@@ -22,6 +23,7 @@ const EMPTY = {
 };
 
 export default function AdminCategorias() {
+  const { secureFetch } = useAdminFetch();
   const [categorias, setCategorias]   = useState<Categoria[]>([]);
   const [form, setForm]               = useState({ ...EMPTY });
   const [originalForm, setOriginalForm] = useState<typeof EMPTY | null>(null);
@@ -104,8 +106,10 @@ export default function AdminCategorias() {
 
   async function handleDelete(id: number) {
     if (!confirm("¿Eliminar esta categoría? Las subcategorías pasarán a nivel raíz.")) return;
-    await fetch(`/api/categorias/${id}`, { method: "DELETE" });
-    await fetchCategorias();
+    const result = await secureFetch(`/api/categorias/${id}`, { method: "DELETE" });
+    if (result.ok) {
+      await fetchCategorias();
+    }
   }
 
   // Solo categorías raíz (sin padre) para el selector de padre

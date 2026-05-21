@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import jwt from "jsonwebtoken";
+import { canEdit } from "@/lib/adminAuth";
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -24,13 +25,15 @@ async function verificarAcceso(req: NextRequest, idSolicitado: number) {
 
   try {
     const decodedAdmin: any = jwt.verify(token, adminSecret);
-    if (getRole(decodedAdmin) === "admin") return { autorizado: true as const };
+    const rolAdmin = getRole(decodedAdmin);
+    if (["admin", "superadmin", "auditor"].includes(rolAdmin)) return { autorizado: true as const };
   } catch {}
 
   try {
     const decodedClient: any = jwt.verify(token, clientSecret);
     if (String(decodedClient?.id) === String(idSolicitado)) return { autorizado: true as const };
-    if (getRole(decodedClient) === "admin") return { autorizado: true as const };
+    const rolClient = getRole(decodedClient);
+    if (["admin", "superadmin", "auditor"].includes(rolClient)) return { autorizado: true as const };
     return { autorizado: false, status: 403, error: "No autorizado" };
   } catch {
     return { autorizado: false, status: 403, error: "Token inválido" };
@@ -87,6 +90,10 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 }
 
 export async function POST(req: NextRequest, { params }: RouteParams) {
+  if (!canEdit(req)) {
+    return NextResponse.json({ ok: false, error: "No tienes permiso" }, { status: 403 });
+  }
+
   try {
     const { id: idString } = await params;
     const idCliente = parseInt(idString, 10);
@@ -126,6 +133,10 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
 }
 
 export async function PUT(req: NextRequest, { params }: RouteParams) {
+  if (!canEdit(req)) {
+    return NextResponse.json({ ok: false, error: "No tienes permiso" }, { status: 403 });
+  }
+
   try {
     const { id: idString } = await params;
     const idCliente = parseInt(idString, 10);
@@ -206,6 +217,10 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
 }
 
 export async function DELETE(req: NextRequest, { params }: RouteParams) {
+  if (!canEdit(req)) {
+    return NextResponse.json({ ok: false, error: "No tienes permiso" }, { status: 403 });
+  }
+
   try {
     const { id: idString } = await params;
     const idCliente = parseInt(idString, 10);

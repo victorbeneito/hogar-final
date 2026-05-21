@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
+import { useAdminFetch } from "@/lib/useAdminFetch";
 import {
   Plus, Wrench, Search, ChevronUp, ChevronDown,
   ChevronsUpDown, Eye, Pencil, Trash2, Copy,
@@ -51,6 +52,7 @@ const filtrosVacios: Filtros = {
 
 // ─── Componente principal ─────────────────────────────────────────────────────
 export default function ProductosPage() {
+  const { secureFetch } = useAdminFetch();
   const router = useRouter();
   const [productos,      setProductos]      = useState<Producto[]>([]);
   const [total,          setTotal]          = useState(0);
@@ -158,14 +160,11 @@ export default function ProductosPage() {
 
   const borrarProducto = async () => {
     if (!productoABorrar) return;
-    try {
-      const res = await fetch(`/api/admin/productos/${productoABorrar.id}`, { method: "DELETE" });
-      if (!res.ok) throw new Error();
+    const result = await secureFetch(`/api/admin/productos/${productoABorrar.id}`, { method: "DELETE" });
+    if (result.ok) {
       mostrarToast("Producto eliminado", "ok");
       setShowDeleteModal(false);
       cargarProductos();
-    } catch {
-      mostrarToast("Error al eliminar el producto", "error");
     }
   };
 

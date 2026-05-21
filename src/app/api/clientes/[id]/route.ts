@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
+import { canEdit } from "@/lib/adminAuth";
 import { SPANISH_FISCAL_DOCUMENT_ERROR, isValidSpanishFiscalDocument, normalizeClientNif } from "@/lib/clientNif";
 
 interface RouteParams {
@@ -26,13 +27,15 @@ async function verificarAcceso(req: NextRequest, idSolicitado: number) {
 
   try {
     const decodedAdmin: any = jwt.verify(token, adminSecret);
-    if (getRole(decodedAdmin) === "admin") return { autorizado: true as const };
+    const rol = getRole(decodedAdmin);
+    if (["admin", "superadmin", "auditor"].includes(rol)) return { autorizado: true as const };
   } catch {}
 
   try {
     const decodedClient: any = jwt.verify(token, clientSecret);
     if (String(decodedClient?.id) === String(idSolicitado)) return { autorizado: true as const };
-    if (getRole(decodedClient) === "admin") return { autorizado: true as const };
+    const rol = getRole(decodedClient);
+    if (["admin", "superadmin", "auditor"].includes(rol)) return { autorizado: true as const };
     return { autorizado: false, status: 403, error: "No autorizado" };
   } catch {
     return { autorizado: false, status: 403, error: "Token inválido" };
@@ -155,6 +158,11 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 }
 
 export async function PUT(req: NextRequest, { params }: RouteParams) {
+  // Proteger: solo admin y superadmin pueden editar clientes
+  if (!canEdit(req)) {
+    return NextResponse.json({ error: "No tienes permiso para editar clientes" }, { status: 403 });
+  }
+
   try {
     const { id: idString } = await params;
     const id = parseInt(idString, 10);
@@ -324,6 +332,11 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
 }
 
 export async function DELETE(req: NextRequest, { params }: RouteParams) {
+  // Proteger: solo admin y superadmin pueden eliminar clientes
+  if (!canEdit(req)) {
+    return NextResponse.json({ error: "No tienes permiso para eliminar clientes" }, { status: 403 });
+  }
+
   try {
     const { id: idString } = await params;
     const id = parseInt(idString, 10);
@@ -344,7 +357,11 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
 
       const pedidoIds = pedidos.map((pedido) => pedido.id);
       if (pedidoIds.length > 0) {
+        // Eliminar facturas primero (tienen clave foránea con pedidos)
+        await tx.factura.deleteMany({ where: { pedidoId: { in: pedidoIds } } });
+        // Luego eliminar productos del pedido
         await tx.pedidoproducto.deleteMany({ where: { pedidoId: { in: pedidoIds } } });
+        // Finalmente eliminar los pedidos
         await tx.pedido.deleteMany({ where: { id: { in: pedidoIds } } });
       }
 

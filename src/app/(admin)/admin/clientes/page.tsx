@@ -5,6 +5,7 @@ export const dynamic = "force-dynamic";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useAdminFetch } from "@/lib/useAdminFetch";
 import {
   ArrowLeft,
   BadgeCheck,
@@ -51,6 +52,7 @@ function getInitials(nombre: string, apellidos?: string | null) {
 }
 
 export default function AdminClientes() {
+  const { secureFetch } = useAdminFetch();
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [total, setTotal] = useState(0);
   const [pagina, setPagina] = useState(1);
@@ -133,16 +135,12 @@ export default function AdminClientes() {
     if (!confirm("¿Eliminar este cliente? Esta acción borrará también sus pedidos.")) return;
 
     const token = localStorage.getItem("adminToken") || "";
-    const res = await fetch(`/api/clientes/${id}`, {
+    const result = await secureFetch(`/api/clientes/${id}`, {
       method: "DELETE",
       headers: { Authorization: `Bearer ${token}` },
     });
-    const data = await res.json();
 
-    if (!res.ok || !data.ok) {
-      alert(data.error || "Error al eliminar cliente");
-      return;
-    }
+    if (!result.ok) return;
 
     if (clientes.length === 1 && pagina > 1) {
       setPagina((prev) => Math.max(1, prev - 1));
