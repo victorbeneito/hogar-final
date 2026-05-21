@@ -164,7 +164,7 @@ export async function GET(req: NextRequest) {
       // Listados
       ultimosPedidos,
       ultimosClientes,
-      mensajesPendientes: mensajeCliente,
+      mensajesPendientes: mensajesCliente,
       // Gráficas
       pedidosPorEstado,
       graficaVentas,
