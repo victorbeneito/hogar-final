@@ -550,3 +550,18 @@ model mapeo_producto_ps {
   @@index([referencia], map: "MapeoProductoPS_referencia_idx")
   @@index([productoId], map: "MapeoProductoPS_productoId_idx")
 }
+
+model visita {
+  id          Int      @id @default(autoincrement())
+  sessionId   String   @db.VarChar(64)
+  ipHash      String   @db.VarChar(64)
+  url         String   @db.VarChar(2048)
+  referrer    String?  @db.VarChar(2048)
+  fuente      String?  @db.VarChar(50)
+  dispositivo String?  @db.VarChar(20)
+  timestamp   DateTime @default(now())
+
+  @@index([timestamp])
+  @@index([sessionId])
+  @@index([fuente])
+}

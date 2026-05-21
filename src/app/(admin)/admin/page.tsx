@@ -16,6 +16,7 @@ import UltimosPedidos from "@/components/admin/dashboard/UltimosPedidos";
 import UltimosClientes from "@/components/admin/dashboard/UltimosClientes";
 import PedidosEstado from "@/components/admin/dashboard/PedidosEstado";
 import MensajesPendientes from "@/components/admin/dashboard/MensajesPendientes";
+import TraficoWidget from "@/components/admin/dashboard/TraficoWidget";
 
 interface DashboardData {
   productos: number;
@@ -155,6 +156,14 @@ export default function DashboardPage() {
           mensajes={data.mensajesPendientes}
           total={data.mensajesPendientes.length}
         />
+      </div>
+
+      {/* Tráfico */}
+      <div>
+        <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
+          Tráfico de la tienda
+        </h2>
+        <TraficoWidget token={localStorage.getItem("adminToken") || ""} />
       </div>
 
       {/* Última sección de datos */}

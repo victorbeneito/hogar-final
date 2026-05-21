@@ -52,7 +52,8 @@
     "recharts": "^3.8.1",
     "redsys-easy": "^5.3.2",
     "tsx": "^4.20.3",
-    "use-debounce": "^10.0.6"
+    "use-debounce": "^10.0.6",
+    "uuid": "^14.0.0"
   },
   "devDependencies": {
     "@prisma/client": "^6.19.2",
