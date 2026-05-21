@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getInvoiceSettings } from "@/lib/invoiceGenerator";
 import { spawn } from "child_process";
 import path from "path";
+import type { BodyInit } from "undici";
 
 export const dynamic = "force-dynamic";
 
@@ -45,13 +46,18 @@ export async function GET(req: NextRequest) {
 
     if (fechaDesde || fechaHasta) {
       const fechaFilter: Record<string, Date> = {};
-      if (fechaDesde) fechaFilter.gte = new Date(fechaDesde);
-      if (fechaHasta) {
-        const hasta = new Date(fechaHasta);
-        hasta.setHours(23, 59, 59, 999);
-        fechaFilter.lte = hasta;
+      if (fechaDesde) {
+        const d = new Date(fechaDesde);
+        if (!isNaN(d.getTime())) fechaFilter.gte = d;
       }
-      where.fechaFactura = fechaFilter;
+      if (fechaHasta) {
+        const h = new Date(fechaHasta);
+        if (!isNaN(h.getTime())) {
+          h.setHours(23, 59, 59, 999);
+          fechaFilter.lte = h;
+        }
+      }
+      if (Object.keys(fechaFilter).length) where.fechaFactura = fechaFilter;
     }
 
     const andConditions: Record<string, unknown>[] = [];
@@ -145,7 +151,7 @@ export async function GET(req: NextRequest) {
     const rangePart = parts.length ? `_${parts.join("_")}` : "";
     const filename = `listado-facturas${rangePart}.pdf`;
 
-    return new Response(buffer, {
+    return new Response(buffer as BodyInit, {
       headers: {
         "Content-Type": "application/pdf",
         "Content-Disposition": `attachment; filename="${filename}"`,

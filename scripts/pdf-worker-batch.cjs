@@ -106,8 +106,8 @@ function logoBase64(logoPath) {
   return undefined;
 }
 
-// ── Invoice element builder (pure React.createElement, no JSX) ────────────────
-function buildInvoice(data, settings) {
+// ── Invoice Page builder (pure React.createElement, no JSX) ──────────────────
+function buildPageOnly(data, settings) {
   const iva = data.porcentajeIva;
   const logo = logoBase64(settings.seller.logoPath);
 
@@ -176,8 +176,7 @@ function buildInvoice(data, settings) {
       )
     : null;
 
-  return e(Document, null,
-    e(Page, { size: 'A4', style: styles.page },
+  return e(Page, { size: 'A4', style: styles.page },
       // Header
       e(View, { style: styles.header },
         e(View, null,
@@ -297,8 +296,17 @@ function buildInvoice(data, settings) {
 
       // Footer
       e(Text, { style: styles.footer }, settings.template.footerText),
-    ),
-  );
+    );
+}
+
+// ── Wrappers ──────────────────────────────────────────────────────────────────
+function buildInvoice(data, settings) {
+  return e(Document, null, buildPageOnly(data, settings));
+}
+
+function buildBatch(invoices, settings) {
+  const children = invoices.map((data) => buildPageOnly(data, settings));
+  return e(Document, null, ...children);
 }
 
 // ── Main: read stdin → generate PDF batch → write stdout ─────────────────────
@@ -308,8 +316,7 @@ process.stdin.on('data', (chunk) => { inputData += chunk; });
 process.stdin.on('end', async () => {
   try {
     const { invoices, settings } = JSON.parse(inputData);
-    const pages = invoices.map((data) => buildInvoice(data, settings));
-    const element = e(Document, null, ...pages);
+    const element = buildBatch(invoices, settings);
     const buffer = await renderToBuffer(element);
     process.stdout.write(buffer);
     process.exit(0);
