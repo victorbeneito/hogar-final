@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { canEdit } from "@/lib/adminAuth";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -71,6 +72,10 @@ export async function GET(_req: NextRequest, { params }: Params) {
 
 // ── PUT — actualiza producto ──────────────────────────────────────
 export async function PUT(req: NextRequest, { params }: Params) {
+  if (!canEdit(req)) {
+    return NextResponse.json({ error: "No tienes permiso para editar productos" }, { status: 403 });
+  }
+
   const { id: idStr } = await params;
   const id = Number(idStr);
 
@@ -206,7 +211,10 @@ if (!Number.isInteger(id)) {
 }
 
 // ── DELETE — elimina producto ─────────────────────────────────────
-export async function DELETE(_req: NextRequest, { params }: Params) {
+export async function DELETE(req: NextRequest, { params }: Params) {
+  if (!canEdit(req)) {
+    return NextResponse.json({ error: "No tienes permiso para eliminar productos" }, { status: 403 });
+  }
   const { id: idStr } = await params;
   const id = Number(idStr); 
 if (!Number.isInteger(id)) {

@@ -17,11 +17,11 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    // 2. Comprobar si existe y si es ADMIN
-    const rol = admin?.rol?.toString().toUpperCase();
+    // 2. Comprobar si existe y si tiene rol válido (admin, superadmin o auditor)
+    const rolLower = admin?.rol?.toString().toLowerCase() ?? "";
 
-    if (!admin || rol !== "ADMIN") {
-      console.warn(`❌ Login fallido: Usuario no encontrado o no es ADMIN (${rol})`);
+    if (!admin || !["admin", "superadmin", "auditor"].includes(rolLower)) {
+      console.warn(`❌ Login fallido: Usuario no encontrado o sin permisos (${admin?.rol})`);
       return NextResponse.json(
         { ok: false, error: "Credenciales inválidas o sin permisos" },
         { status: 401 }
@@ -48,11 +48,7 @@ export async function POST(req: NextRequest) {
         id: admin.id, 
         email: admin.email, 
         
-        // 👇 AÑADIMOS "role" (INGLÉS) PORQUE EL DELETE LO BUSCA ASÍ
-        role: "ADMIN", 
-        
-        // Mantenemos "rol" (ESPAÑOL) por si lo usas en el frontend
-        rol: admin.rol, 
+          rol: admin.rol,
         
         nombre: admin.nombre 
       },
@@ -76,7 +72,7 @@ export async function POST(req: NextRequest) {
         path: "/",
     });
 
-    console.log("✅ Admin Login ÉXITO (Token con role: ADMIN generado)");
+    console.log(`✅ Admin Login ÉXITO (rol: ${admin.rol})`);
     return response;
 
   } catch (error: any) {

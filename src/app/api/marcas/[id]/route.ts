@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from "@/lib/prisma";
+import { canEdit } from "@/lib/adminAuth";
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  if (!canEdit(req)) {
+    return NextResponse.json({ ok: false, error: "No tienes permiso" }, { status: 403 });
+  }
+
   try {
     const { id: idString } = await params;
     const id = parseInt(idString);
@@ -19,6 +24,10 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 }
 
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  if (!canEdit(req)) {
+    return NextResponse.json({ ok: false, error: "No tienes permiso" }, { status: 403 });
+  }
+
   try {
     const { id: idString } = await params;
     const id = parseInt(idString);

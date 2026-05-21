@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { sendTemplateEmail } from "@/lib/emailService";
 import { sendReviOrder } from "@/lib/reviService";
 import { createFactura } from "@/lib/invoiceGenerator";
+import { canEdit } from "@/lib/adminAuth";
 
 export const dynamic = "force-dynamic";
 
@@ -243,6 +244,10 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 }
 
 export async function PUT(req: NextRequest, { params }: RouteParams) {
+  if (!canEdit(req)) {
+    return NextResponse.json({ ok: false, error: "No tienes permiso para editar pedidos" }, { status: 403 });
+  }
+
   try {
     const { id: idString } = await params;
     const id = parseInt(idString, 10);
@@ -512,6 +517,10 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
 }
 
 export async function DELETE(req: NextRequest, { params }: RouteParams) {
+  if (!canEdit(req)) {
+    return NextResponse.json({ ok: false, error: "No tienes permiso para eliminar pedidos" }, { status: 403 });
+  }
+
   try {
     const { id: idString } = await params;
     const id = parseInt(idString, 10);

@@ -2,9 +2,10 @@
 // VERSIÓN CON LUCIDE-REACT (ya instalado en tu package.json)
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { jwtDecode } from "jwt-decode";
 import {
   ShoppingCart,
   FileText,
@@ -104,12 +105,29 @@ const navigation = [
   },
 ];
 
+interface TokenPayload {
+  rol?: string;
+}
+
 export function AdminSidebar() {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
+  const [role, setRole] = useState<string | null>(null);
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(
     Object.fromEntries(navigation.map((g) => [g.label, true]))
   );
+
+  useEffect(() => {
+    try {
+      const token = localStorage.getItem("adminToken");
+      if (token) {
+        const decoded = jwtDecode<TokenPayload>(token);
+        setRole(decoded.rol?.toLowerCase() ?? null);
+      }
+    } catch {
+      setRole(null);
+    }
+  }, []);
 
   const toggleGroup = (label: string) =>
     setOpenGroups((prev) => ({ ...prev, [label]: !prev[label] }));
@@ -148,7 +166,12 @@ export function AdminSidebar() {
 
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto py-3">
-        {navigation.map((group) => (
+        {navigation.map((group) => {
+          // Auditors no ven "PERSONALIZAR" ni "PARÁMETROS AVANZADOS"
+          if (role === "auditor" && ["PERSONALIZAR", "PARÁMETROS AVANZADOS"].includes(group.label)) {
+            return null;
+          }
+          return (
           <div key={group.label} className="mb-1">
             {!collapsed && (
               <button
@@ -192,7 +215,8 @@ export function AdminSidebar() {
               </ul>
             )}
           </div>
-        ))}
+          );
+        })}
       </nav>
 
       {!collapsed && (

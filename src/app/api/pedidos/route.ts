@@ -1,8 +1,9 @@
-import { NextResponse } from "next/server";
+import { NextResponse, NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { sendTemplateEmail, sendRawEmail, buildAdminOrderEmail, loadEmailSettings } from "@/lib/emailService";
+import { canEdit } from "@/lib/adminAuth";
 
 async function getEstadoInicialPorMetodo(metodoPago: string, tx: any): Promise<{ nombre: string; color: string; clave: string }> {
   const metodo = (metodoPago || "").toLowerCase().trim();
@@ -365,6 +366,12 @@ export async function GET(req: Request) {
 // POST: CREAR PEDIDO (CON LOGS DE DEPURACIÓN)
 // ======================================================================
 export async function POST(req: Request) {
+  // Solo admin y superadmin pueden crear pedidos desde el admin
+  const nextReq = req as NextRequest;
+  if (nextReq.headers.get("x-admin-create") && !canEdit(nextReq)) {
+    return NextResponse.json({ ok: false, error: "No tienes permiso para crear pedidos" }, { status: 403 });
+  }
+
   console.log("🚨 --- INICIO PROCESO DE PEDIDO ---");
 
   try {

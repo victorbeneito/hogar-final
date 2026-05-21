@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { canEdit } from "@/lib/adminAuth";
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -28,6 +29,10 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
 }
 
 export async function PUT(req: NextRequest, { params }: RouteParams) {
+  if (!canEdit(req)) {
+    return NextResponse.json({ ok: false, error: "No tienes permiso para editar" }, { status: 403 });
+  }
+
   const { id: idString } = await params;
   const id = parseInt(idString);
   if (isNaN(id)) return NextResponse.json({ ok: false, error: "ID inválido" }, { status: 400 });
@@ -70,7 +75,11 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
   }
 }
 
-export async function DELETE(_req: NextRequest, { params }: RouteParams) {
+export async function DELETE(req: NextRequest, { params }: RouteParams) {
+  if (!canEdit(req)) {
+    return NextResponse.json({ ok: false, error: "No tienes permiso para eliminar" }, { status: 403 });
+  }
+
   const { id: idString } = await params;
   const id = parseInt(idString);
   if (isNaN(id)) return NextResponse.json({ ok: false, error: "ID inválido" }, { status: 400 });

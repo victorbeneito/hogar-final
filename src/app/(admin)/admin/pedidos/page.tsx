@@ -3,6 +3,7 @@
 import { useMemo, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useSearchParams } from "next/navigation";
+import { useAdminFetch } from "@/lib/useAdminFetch";
 
 
 interface Pedido {
@@ -169,6 +170,7 @@ function BulkDeleteModal({
 }
 
 export default function AdminPedidos() {
+  const { secureFetch } = useAdminFetch();
   const searchParams = useSearchParams();
   const origenInicial = normalizeSourceFilter(searchParams.get("origen"));
   const [pedidos, setPedidos] = useState<Pedido[]>([]);
@@ -292,11 +294,9 @@ export default function AdminPedidos() {
 
   const handleDelete = async (id: number) => {
     if (!confirm("¿Seguro que deseas eliminar este pedido?")) return;
-    try {
-      await fetch(`/api/pedidos/${id}`, { method: "DELETE" });
+    const result = await secureFetch(`/api/pedidos/${id}`, { method: "DELETE" });
+    if (result.ok) {
       setPedidos((prev) => prev.filter((p) => p.id !== id));
-    } catch (err) {
-      console.error("Error al eliminar pedido:", err);
     }
   };
 
@@ -340,16 +340,16 @@ export default function AdminPedidos() {
   const handleBulkDelete = async () => {
     setBulkLoading(true);
     try {
-      await fetch("/api/pedidos/bulk", {
+      const result = await secureFetch("/api/pedidos/bulk", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ids: Array.from(selectedIds) }),
       });
-      setBulkModal(null);
-      setPedidos((prev) => prev.filter((p) => !selectedIds.has(p.id)));
-      setSelectedIds(new Set());
-    } catch (err) {
-      console.error("Error al eliminar pedidos masivo:", err);
+      if (result.ok) {
+        setBulkModal(null);
+        setPedidos((prev) => prev.filter((p) => !selectedIds.has(p.id)));
+        setSelectedIds(new Set());
+      }
     } finally {
       setBulkLoading(false);
     }

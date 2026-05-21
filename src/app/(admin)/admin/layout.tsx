@@ -40,13 +40,13 @@ export default function AdminLayout({
         return;
       }
 
-      // 3. Verificamos que tenga rol admin (Ignorando mayúsculas/minúsculas)
-      // Convertimos lo que venga a minúsculas para comparar
+      // 3. Verificamos que tenga rol válido (admin, superadmin o auditor)
       const rolUsuario = decoded.rol?.toLowerCase() || "";
-      
-      if (rolUsuario !== "admin") {
-        console.error("Acceso denegado: El usuario no es admin. Rol detectado:", decoded.rol);
-        router.replace("/admin-login"); // ✅ CORREGIDO
+      const rolesValidos = ["admin", "superadmin", "auditor"];
+
+      if (!rolesValidos.includes(rolUsuario)) {
+        console.error("Acceso denegado. Rol detectado:", decoded.rol);
+        router.replace("/admin-login");
         return;
       }
 
