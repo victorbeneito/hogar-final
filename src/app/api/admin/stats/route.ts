@@ -16,8 +16,9 @@ export async function GET(req: NextRequest) {
         const secret = process.env.SECRETO_JWT_ADMIN || "palabra_secreta_emergencia_2026";
         const decodedAdmin: any = jwt.verify(token, secret);
 
-        // Comprobamos roles (acepta mayúsculas o minúsculas)
-        if (decodedAdmin.rol?.toUpperCase() === "ADMIN") esAdmin = true;
+        // Comprobamos roles (acepta admin, superadmin, auditor - con cualquier capitalización)
+        const rolUpper = decodedAdmin.rol?.toUpperCase() ?? "";
+        if (["ADMIN", "SUPERADMIN", "AUDITOR"].includes(rolUpper)) esAdmin = true;
     } catch (e) {}
 
     if (!esAdmin) {
