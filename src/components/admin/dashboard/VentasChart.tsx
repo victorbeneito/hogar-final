@@ -12,21 +12,34 @@ import {
 
 interface VentasChartProps {
   data: Array<{ fecha: string; total: number }>;
+  desde?: string;
+  hasta?: string;
 }
 
-export default function VentasChart({ data }: VentasChartProps) {
+function formatarEtiqueta(fecha: string): string {
+  // Clave horaria: "2026-05-21T08" (13 chars con T)
+  if (fecha.length === 13 && fecha.includes("T")) {
+    return fecha.slice(11, 13) + ":00";
+  }
+  // Clave diaria o semanal: "2026-05-21"
+  const [, mes, dia] = fecha.split("-");
+  return `${dia}/${mes}`;
+}
+
+export default function VentasChart({ data, desde, hasta }: VentasChartProps) {
   const chartData = data.map((item) => ({
     ...item,
-    fecha: new Date(item.fecha).toLocaleDateString("es-ES", {
-      month: "2-digit",
-      day: "2-digit",
-    }),
+    fecha: formatarEtiqueta(item.fecha),
   }));
+
+  const titulo = desde && hasta
+    ? `Ventas - ${desde} → ${hasta}`
+    : "Ventas - Últimos 30 días";
 
   return (
     <div className="p-6 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
       <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-6">
-        Ventas - Últimos 30 días
+        {titulo}
       </h3>
       <ResponsiveContainer width="100%" height={300}>
         <AreaChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>

@@ -7,8 +7,9 @@ import { Users, TrendingUp, Globe } from "lucide-react";
 interface TraficoData {
   visitantesOnline: number;
   visitasHoy: number;
-  visitasAyer: number;
-  porcentajeCambio: number;
+  visitasAyer?: number;
+  porcentajeCambio?: number;
+  tipoGrafica?: 'hora' | 'dia' | 'semana';
   grafica24h: Array<{ hora: string; visitas: number }>;
   topPaginas: Array<{ url: string; visitas: number }>;
   fuentes: Array<{ fuente: string; cantidad: number }>;
@@ -17,6 +18,8 @@ interface TraficoData {
 
 interface TraficoWidgetProps {
   token: string;
+  desde?: string;
+  hasta?: string;
 }
 
 const fuenteColors: { [key: string]: string } = {
@@ -26,14 +29,19 @@ const fuenteColors: { [key: string]: string } = {
   referral: "#8b5cf6",
 };
 
-export default function TraficoWidget({ token }: TraficoWidgetProps) {
+export default function TraficoWidget({ token, desde, hasta }: TraficoWidgetProps) {
   const [data, setData] = useState<TraficoData | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchTrafico = async () => {
       try {
-        const response = await fetch("/api/admin/trafico", {
+        const url = new URL("/api/admin/trafico", window.location.origin);
+        if (desde && hasta) {
+          url.searchParams.append("desde", desde);
+          url.searchParams.append("hasta", hasta);
+        }
+        const response = await fetch(url.toString(), {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (response.ok) {
@@ -50,7 +58,7 @@ export default function TraficoWidget({ token }: TraficoWidgetProps) {
     fetchTrafico();
     const interval = setInterval(fetchTrafico, 60000); // Actualizar cada 60s
     return () => clearInterval(interval);
-  }, [token]);
+  }, [token, desde, hasta]);
 
   if (loading) {
     return (
@@ -94,50 +102,65 @@ export default function TraficoWidget({ token }: TraficoWidgetProps) {
           </p>
         </div>
 
-        {/* Visitas hoy */}
+        {/* Visitas en el período */}
         <div className="p-4 rounded-lg bg-gradient-to-br from-blue-50 to-cyan-50 dark:from-blue-900/20 dark:to-cyan-900/20 border border-blue-200 dark:border-blue-800">
           <p className="text-xs font-medium text-blue-700 dark:text-blue-400 mb-2">
-            Visitas hoy
+            {desde && hasta ? "Visitas en el período" : "Visitas hoy"}
           </p>
           <p className="text-3xl font-bold text-blue-900 dark:text-blue-100">
             {data.visitasHoy}
           </p>
         </div>
 
-        {/* Visitas ayer */}
+        {/* Visitas ayer — solo en modo predeterminado */}
         <div className="p-4 rounded-lg bg-gradient-to-br from-gray-50 to-slate-50 dark:from-gray-900/20 dark:to-slate-900/20 border border-gray-200 dark:border-gray-800">
           <p className="text-xs font-medium text-gray-700 dark:text-gray-400 mb-2">
-            Visitas ayer
+            {desde && hasta ? "Páginas distintas" : "Visitas ayer"}
           </p>
           <p className="text-3xl font-bold text-gray-900 dark:text-gray-100">
-            {data.visitasAyer}
+            {desde && hasta
+              ? data.topPaginas.length
+              : (data.visitasAyer ?? 0)}
           </p>
         </div>
 
-        {/* Cambio porcentual */}
+        {/* Cambio porcentual o promedio diario */}
         <div className="p-4 rounded-lg bg-gradient-to-br from-orange-50 to-amber-50 dark:from-orange-900/20 dark:to-amber-900/20 border border-orange-200 dark:border-orange-800">
-          <p className="text-xs font-medium text-orange-700 dark:text-orange-400 mb-2">
-            Cambio
-          </p>
-          <p
-            className={`text-3xl font-bold ${
-              data.porcentajeCambio >= 0
-                ? "text-green-600"
-                : "text-red-600"
-            }`}
-          >
-            {data.porcentajeCambio >= 0 ? "+" : ""}
-            {data.porcentajeCambio}%
-          </p>
+          {desde && hasta ? (
+            <>
+              <p className="text-xs font-medium text-orange-700 dark:text-orange-400 mb-2">
+                Promedio diario
+              </p>
+              <p className="text-3xl font-bold text-orange-900 dark:text-orange-100">
+                {data.grafica24h.length > 0
+                  ? Math.round(data.visitasHoy / Math.max(1, data.grafica24h.length))
+                  : 0}
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="text-xs font-medium text-orange-700 dark:text-orange-400 mb-2">
+                Cambio vs ayer
+              </p>
+              <p className={`text-3xl font-bold ${(data.porcentajeCambio ?? 0) >= 0 ? "text-green-600" : "text-red-600"}`}>
+                {(data.porcentajeCambio ?? 0) >= 0 ? "+" : ""}
+                {data.porcentajeCambio ?? 0}%
+              </p>
+            </>
+          )}
         </div>
       </div>
 
       {/* Gráfica y fuentes */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Gráfica 24h */}
+        {/* Gráfica de visitas */}
         <div className="lg:col-span-2 p-6 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-            Visitas - Últimas 24 horas
+            {data.tipoGrafica === 'dia'
+              ? `Visitas por día (${desde} → ${hasta})`
+              : data.tipoGrafica === 'semana'
+              ? `Visitas por semana (${desde} → ${hasta})`
+              : "Visitas - Últimas 24 horas"}
           </h3>
           <ResponsiveContainer width="100%" height={250}>
             <BarChart data={data.grafica24h}>

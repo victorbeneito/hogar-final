@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import {
   BarChart,
   Bar,
@@ -8,6 +9,7 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
+  Cell,
 } from "recharts";
 
 interface EstadoData {
@@ -19,15 +21,32 @@ interface PedidosEstadoProps {
   data: EstadoData[];
 }
 
-const estadoColors: { [key: string]: string } = {
-  PENDIENTE: "#6b7280",
+const FALLBACK_COLORS: Record<string, string> = {
+  PENDIENTE:  "#f59e0b",
   PROCESANDO: "#3b82f6",
-  ENVIADO: "#f59e0b",
-  ENTREGADO: "#22c55e",
-  CANCELADO: "#ef4444",
+  ENVIADO:    "#8b5cf6",
+  ENTREGADO:  "#10b981",
+  CANCELADO:  "#ef4444",
+  DEVUELTO:   "#6366f1",
 };
 
 export default function PedidosEstado({ data }: PedidosEstadoProps) {
+  const [colores, setColores] = useState<Record<string, string>>(FALLBACK_COLORS);
+
+  useEffect(() => {
+    fetch("/api/admin/pedidos/estados")
+      .then((r) => r.json())
+      .then(({ estados }) => {
+        if (!Array.isArray(estados)) return;
+        const mapa: Record<string, string> = { ...FALLBACK_COLORS };
+        estados.forEach((e: { clave: string; color: string }) => {
+          if (e.clave && e.color) mapa[e.clave] = e.color;
+        });
+        setColores(mapa);
+      })
+      .catch(() => {});
+  }, []);
+
   const chartData = data.map((item) => ({
     estado: item.estado,
     cantidad: item._count.id,
@@ -63,11 +82,14 @@ export default function PedidosEstado({ data }: PedidosEstadoProps) {
             }}
             formatter={(value) => [`${value} pedidos`, "Cantidad"]}
           />
-          <Bar
-            dataKey="cantidad"
-            radius={[8, 8, 0, 0]}
-            fill="#3b82f6"
-          />
+          <Bar dataKey="cantidad" radius={[8, 8, 0, 0]}>
+            {chartData.map((entry) => (
+              <Cell
+                key={entry.estado}
+                fill={colores[entry.estado] ?? "#6b7280"}
+              />
+            ))}
+          </Bar>
         </BarChart>
       </ResponsiveContainer>
       <div className="mt-6 grid grid-cols-2 gap-2">
@@ -75,9 +97,7 @@ export default function PedidosEstado({ data }: PedidosEstadoProps) {
           <div key={item.estado} className="flex items-center gap-2">
             <div
               className="w-3 h-3 rounded-full"
-              style={{
-                backgroundColor: estadoColors[item.estado] || "#6b7280",
-              }}
+              style={{ backgroundColor: colores[item.estado] ?? "#6b7280" }}
             />
             <span className="text-xs text-gray-600 dark:text-gray-400">
               {item.estado}: {item.cantidad}
