@@ -53,6 +53,7 @@ export default async function ProductoEditPage({ params }: { params: Promise<{ i
           marcaId: true,
           referencia: true,
           slug: true,
+          updatedAt: true,
           productoimagen: {
             orderBy: { orden: "asc" },
             select: { id: true, url: true, orden: true, esPortada: true },

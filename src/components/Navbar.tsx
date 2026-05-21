@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import { useClienteAuth } from "@/context/ClienteAuthContext";
@@ -42,11 +42,23 @@ export default function Navbar() {
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearch] = useDebounce(searchQuery, 400);
   const [categories, setCategories] = useState<Categoria[]>([]);
+  const hasUserTyped = useRef(false);
 
-  // 1. Evitar error de hidratación
+  // 1. Evitar error de hidratación + restaurar búsqueda guardada
   useEffect(() => {
     setMounted(true);
+    const saved = sessionStorage.getItem("productSearch") || "";
+    if (saved) setSearchQuery(saved);
   }, []);
+
+  // Guardar búsqueda en sessionStorage al cambiar
+  useEffect(() => {
+    if (searchQuery.trim()) {
+      sessionStorage.setItem("productSearch", searchQuery.trim());
+    } else {
+      sessionStorage.removeItem("productSearch");
+    }
+  }, [searchQuery]);
 
   // 2. Cerrar menú móvil al cambiar de ruta
   useEffect(() => {
@@ -66,12 +78,30 @@ export default function Navbar() {
       .catch((err) => console.error("Error cargando menú:", err));
   }, []);
 
-  // 4. Buscador
+  // 4. Buscador (solo navega cuando el usuario escribe)
   useEffect(() => {
+    if (!hasUserTyped.current) return;
     const query = debouncedSearch.trim();
-    if (!query) return;
-    router.push(`/productos?q=${encodeURIComponent(query)}`);
-  }, [debouncedSearch, router]);
+    if (query) {
+      router.push(`/productos?q=${encodeURIComponent(query)}`);
+    } else if (pathname.startsWith("/productos")) {
+      router.push("/productos");
+    }
+  }, [debouncedSearch, router, pathname]);
+
+  const handleSearchChange = (value: string) => {
+    hasUserTyped.current = true;
+    setSearchQuery(value);
+  };
+
+  const handleClearSearch = () => {
+    hasUserTyped.current = false;
+    setSearchQuery("");
+    sessionStorage.removeItem("productSearch");
+    if (pathname.startsWith("/productos")) {
+      router.push("/productos");
+    }
+  };
 
   // 5. Contador Carrito
   const actualizarContador = () => {
@@ -191,10 +221,20 @@ export default function Navbar() {
                     type="text"
                     placeholder="Buscar..."
                     value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onChange={(e) => handleSearchChange(e.target.value)}
                     className="pl-3 pr-8 py-1.5 rounded-full bg-gray-100 dark:bg-gray-700 border-none focus:ring-2 focus:ring-primary text-sm w-48 lg:w-64 transition-all text-gray-700 dark:text-gray-200 placeholder:text-gray-400"
                 />
-                <FaSearch className="absolute right-3 top-2.5 text-gray-400 text-xs" />
+                {searchQuery ? (
+                    <button
+                        onClick={handleClearSearch}
+                        className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-xs"
+                        title="Borrar búsqueda"
+                    >
+                        <FaTimes />
+                    </button>
+                ) : (
+                    <FaSearch className="absolute right-3 top-2.5 text-gray-400 text-xs" />
+                )}
             </div>
 
             {/* Icono Lupa (Solo Móvil) */}
@@ -251,14 +291,25 @@ export default function Navbar() {
       {/* --- BUSCADOR EXPANDIBLE (Móvil) --- */}
       {showMobileSearch && (
          <div className="md:hidden px-4 pb-3 animate-fade-in">
-            <input
-                type="text"
-                placeholder="Buscar productos..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 focus:ring-2 focus:ring-primary outline-none"
-                autoFocus
-            />
+            <div className="relative">
+               <input
+                   type="text"
+                   placeholder="Buscar productos..."
+                   value={searchQuery}
+                   onChange={(e) => handleSearchChange(e.target.value)}
+                   className="w-full px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 focus:ring-2 focus:ring-primary outline-none pr-10"
+                   autoFocus
+               />
+               {searchQuery && (
+                   <button
+                       onClick={handleClearSearch}
+                       className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                       title="Borrar búsqueda"
+                   >
+                       <FaTimes />
+                   </button>
+               )}
+            </div>
          </div>
       )}
 

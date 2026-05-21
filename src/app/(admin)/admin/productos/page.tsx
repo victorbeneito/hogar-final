@@ -68,6 +68,23 @@ export default function ProductosPage() {
 
   const [dFiltros] = useDebounce(filtros, 400);
 
+  // Restaurar filtros guardados al montar
+  useEffect(() => {
+    const saved = sessionStorage.getItem("adminProductosFiltros");
+    if (saved) {
+      try { setFiltros(JSON.parse(saved)); } catch {}
+    }
+  }, []);
+
+  // Guardar filtros en sessionStorage al cambiar
+  useEffect(() => {
+    if (Object.values(filtros).some(v => v !== "")) {
+      sessionStorage.setItem("adminProductosFiltros", JSON.stringify(filtros));
+    } else {
+      sessionStorage.removeItem("adminProductosFiltros");
+    }
+  }, [filtros]);
+
   // ── Carga de datos ──────────────────────────────────────────────────────────
   const cargarProductos = useCallback(async () => {
     setLoading(true);
@@ -130,7 +147,11 @@ export default function ProductosPage() {
     setPagina(1);
   };
 
-  const limpiarFiltros = () => { setFiltros(filtrosVacios); setPagina(1); };
+  const limpiarFiltros = () => {
+    setFiltros(filtrosVacios);
+    setPagina(1);
+    sessionStorage.removeItem("adminProductosFiltros");
+  };
 
   // ── Acciones ────────────────────────────────────────────────────────────────
   const confirmarBorrar = (p: Producto) => { setProductoABorrar(p); setShowDeleteModal(true); };
@@ -285,14 +306,6 @@ export default function ProductosPage() {
             <span>por página</span>
           </div>
 
-          {hayFiltros && (
-            <button
-              onClick={limpiarFiltros}
-              className="flex items-center gap-1 text-xs text-red-500 hover:text-red-700 border border-red-200 rounded-md px-2 py-1 hover:bg-red-50 transition-colors"
-            >
-              <X className="w-3 h-3" /> Limpiar filtros
-            </button>
-          )}
         </div>
 
         <div className="overflow-x-auto">
@@ -380,7 +393,17 @@ export default function ProductosPage() {
                     <option value="false">Inactivo</option>
                   </select>
                 </td>
-                <td />
+                {/* Limpiar filtros (Acciones) */}
+                <td className="px-1 py-1.5 text-center">
+                  {hayFiltros && (
+                    <button
+                      onClick={limpiarFiltros}
+                      className="flex items-center gap-1 text-xs text-red-500 hover:text-red-700 border border-red-200 rounded-md px-2 py-1 hover:bg-red-50 transition-colors whitespace-nowrap mx-auto"
+                    >
+                      <X className="w-3 h-3" /> Limpiar filtros
+                    </button>
+                  )}
+                </td>
               </tr>
             </thead>
 

@@ -1,5 +1,7 @@
 "use client";
 import { useState } from "react";
+import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
 import SaveButton from "@/components/admin/SaveButton";
 import TabBasicos       from "./[id]/tabs/TabBasicos";
 import TabPrecio        from "./[id]/tabs/TabPrecio";
@@ -117,10 +119,21 @@ export default function ProductoForm({ producto, categorias, marcas, reglasImpue
             {producto ? producto.nombre : "Nuevo producto"}
           </h1>
           <p className="text-sm text-gray-400 mt-0.5">
-            {producto ? `ID: ${producto.id} · Última edición: ${new Date(producto.updatedAt).toLocaleDateString("es-ES")}` : "Rellena los datos del nuevo producto"}
+            {producto
+  ? `ID: ${producto.id}${producto.updatedAt ? ` · Última edición: ${new Date(producto.updatedAt).toLocaleDateString("es-ES")}` : ""}`
+  : "Rellena los datos del nuevo producto"}
           </p>
         </div>
-        <SaveButton onSave={handleSave} />
+        <div className="flex items-center gap-2 ml-auto">
+          <Link
+            href="/admin/productos"
+            className="flex items-center gap-2 px-4 py-2 text-sm border border-gray-300 rounded-lg bg-white text-gray-700 hover:bg-gray-50 transition-colors"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Volver
+          </Link>
+          <SaveButton onSave={handleSave} />
+        </div>
       </div>
 
       {/* Pestañas */}
