@@ -127,6 +127,9 @@ export default async function CategoryPage({ params, searchParams }: PageProps) 
         stock: true,
         activo: true,
         slug: true,
+        enOferta: true,
+        destacado: true,
+        reglaimpuesto: { select: { porcentaje: true } },
         productoimagen: {
           select: { url: true },
           orderBy: { orden: "asc" },
@@ -142,6 +145,17 @@ export default async function CategoryPage({ params, searchParams }: PageProps) 
   if (!categoria) {
     return notFound();
   }
+
+  const productosConIva = productos.map((p) => {
+    const porcentajeIva = Number(p.reglaimpuesto?.porcentaje ?? 0);
+    const factorIva = 1 + porcentajeIva / 100;
+    return {
+      ...p,
+      precio: Number(p.precio) * factorIva,
+      precioOferta: p.precioOferta != null ? Number(p.precioOferta) * factorIva : null,
+      imagenPortada: p.productoimagen?.[0]?.url ?? null,
+    };
+  });
 
   const totalPages = Math.max(1, Math.ceil(totalProductos / limit));
   const visiblePages = pageNumbers(page, totalPages);
@@ -208,10 +222,10 @@ export default async function CategoryPage({ params, searchParams }: PageProps) 
           </div>
         )}
 
-        {productos.length > 0 ? (
+        {productosConIva.length > 0 ? (
           <>
             <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-              {productos.map((producto) => (
+              {productosConIva.map((producto) => (
                 <ProductCard key={producto.id} producto={producto} />
               ))}
             </div>
