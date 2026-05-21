@@ -120,6 +120,7 @@ export async function GET(req: NextRequest) {
         destacado:   true,
         enOferta:    true,
         createdAt:   true,
+        reglaimpuesto: { select: { porcentaje: true } },
         productoimagen: {                          // ← Imagenes con mayúscula
           where:  { esPortada: true },
           select: { url: true },
@@ -138,11 +139,21 @@ export async function GET(req: NextRequest) {
   ]);
 
   // Normalizar para el frontend
-  const productosNormalizados = productos.map((p) => ({
-    ...p,
-    imagenPortada: p.productoimagen?.[0]?.url ?? null,
-    categoria:     p.productocategoria?.[0]?.categoria ?? null,
-  }));
+  const productosNormalizados = productos.map((p) => {
+    // Aplicar IVA
+    const porcentajeIva = Number(p.reglaimpuesto?.porcentaje ?? 0);
+    const factorIva = 1 + porcentajeIva / 100;
+    const precioConIva = Number(p.precio) * factorIva;
+    const ofertaConIva = p.precioOferta != null ? Number(p.precioOferta) * factorIva : null;
+
+    return {
+      ...p,
+      precio: precioConIva,
+      precioOferta: ofertaConIva,
+      imagenPortada: p.productoimagen?.[0]?.url ?? null,
+      categoria:     p.productocategoria?.[0]?.categoria ?? null,
+    };
+  });
 
   return NextResponse.json({ ok: true, productos: productosNormalizados, total, page, limit, sortBy, sortDir });
 }

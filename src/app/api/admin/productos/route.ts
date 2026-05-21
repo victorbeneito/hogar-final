@@ -84,6 +84,7 @@ export async function GET(req: NextRequest) {
           activo: true,
           destacado: true,
           slug: true,
+          reglaimpuesto: { select: { porcentaje: true } },
           productoimagen: true,
           productocategoria: {
             select: {
@@ -97,12 +98,20 @@ export async function GET(req: NextRequest) {
       prisma.producto.count({ where }),
     ]);
 
-    const productosNormalizados = productos.map(({ productocategoria, marca, _count, ...p }) => {
+    const productosNormalizados = productos.map(({ productocategoria, marca, _count, reglaimpuesto, ...p }) => {
+      // Aplicar IVA
+      const porcentajeIva = Number(reglaimpuesto?.porcentaje ?? 0);
+      const factorIva = 1 + porcentajeIva / 100;
+      const precioConIva = Number(p.precio) * factorIva;
+      const ofertaConIva = p.precioOferta != null ? Number(p.precioOferta) * factorIva : null;
+
       // Preferir la categoría más específica (con parentId) sobre la raíz
       const cats = productocategoria.map(pc => pc.categoria);
       const hoja = cats.find(c => c.parentId !== null) ?? cats[0] ?? null;
       return {
         ...p,
+        precio: precioConIva,
+        precioOferta: ofertaConIva,
         Categoria: hoja ? { id: hoja.id, nombre: hoja.nombre } : null,
         Marca: marca ?? null,
         numVariantes: _count.variante,

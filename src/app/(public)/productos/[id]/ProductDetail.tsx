@@ -104,8 +104,10 @@ export default function ProductDetail({ producto }: { producto: Producto }) {
       .map((v) => v.color)
   );
 
-  const varianteSeleccionada =
-    variantes.find((v) =>
+  const varianteSeleccionada = (() => {
+    if (!colorSeleccionado && !tamanoSeleccionado && !tiradorSeleccionado) return null;
+
+    return variantes.find((v) =>
       (colorSeleccionado ? v.color === colorSeleccionado : true) &&
       (tamanoSeleccionado ? v.tamano === tamanoSeleccionado : true) &&
       (tiradorSeleccionado ? v.tirador === tiradorSeleccionado : true)
@@ -114,6 +116,7 @@ export default function ProductDetail({ producto }: { producto: Producto }) {
     variantes.find((v) => tamanoSeleccionado && v.tamano === tamanoSeleccionado) ||
     variantes.find((v) => tiradorSeleccionado && v.tirador === tiradorSeleccionado) ||
     null;
+  })();
 
   const imagenesVarianteSeleccionada = [
     varianteSeleccionada?.imagen,
