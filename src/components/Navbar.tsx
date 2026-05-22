@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import { useClienteAuth } from "@/context/ClienteAuthContext";
@@ -43,6 +43,12 @@ export default function Navbar() {
   const [debouncedSearch] = useDebounce(searchQuery, 400);
   const [categories, setCategories] = useState<Categoria[]>([]);
   const hasUserTyped = useRef(false);
+  const pathnameRef = useRef(pathname);
+
+  // Mantener pathnameRef actualizado sin incluirlo como dep del efecto de búsqueda
+  useEffect(() => {
+    pathnameRef.current = pathname;
+  }, [pathname]);
 
   // 1. Evitar error de hidratación + restaurar búsqueda guardada
   useEffect(() => {
@@ -60,10 +66,15 @@ export default function Navbar() {
     }
   }, [searchQuery]);
 
-  // 2. Cerrar menú móvil al cambiar de ruta
+  // 2. Cerrar menú móvil al cambiar de ruta + limpiar búsqueda al salir de productos
   useEffect(() => {
     setIsMobileMenuOpen(false);
     setShowMobileSearch(false);
+    if (pathname !== "/productos") {
+      hasUserTyped.current = false;
+      setSearchQuery("");
+      sessionStorage.removeItem("productSearch");
+    }
   }, [pathname]);
 
   // 3. Cargar categorías
@@ -78,16 +89,17 @@ export default function Navbar() {
       .catch((err) => console.error("Error cargando menú:", err));
   }, []);
 
-  // 4. Buscador (solo navega cuando el usuario escribe)
+  // 4. Buscador (solo navega cuando el usuario escribe, no cuando cambia la ruta)
   useEffect(() => {
     if (!hasUserTyped.current) return;
     const query = debouncedSearch.trim();
     if (query) {
       router.push(`/productos?q=${encodeURIComponent(query)}`);
-    } else if (pathname.startsWith("/productos")) {
+    } else if (pathnameRef.current.startsWith("/productos")) {
       router.push("/productos");
     }
-  }, [debouncedSearch, router, pathname]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedSearch, router]);
 
   const handleSearchChange = (value: string) => {
     hasUserTyped.current = true;
