@@ -153,6 +153,16 @@ export default function ProductDetail({ producto }: { producto: Producto }) {
     };
   }, [imagenAmpliada]);
 
+  useEffect(() => {
+    if (tabActiva !== "opiniones") return;
+    const timer = setTimeout(() => {
+      const w = window as any;
+      if (w.ReviWidget?.init) { try { w.ReviWidget.init(); } catch (_) { /* */ } }
+      else if (w.__revilabsEmbeds) { try { w.__revilabsEmbeds(); } catch (_) { /* */ } }
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [tabActiva]);
+
   const limpiarHoverImagen = () => setImagenHover(null);
 
   const mostrarImagenAlternativa = () => {
@@ -469,6 +479,7 @@ export default function ProductDetail({ producto }: { producto: Producto }) {
                 data-revi-widget-lazy=""
                 data-id-product={String(producto.prestashopProductId)}
                 data-lang="es"
+                style={{ minHeight: '50px' }}
               />
             </div>
           )}
@@ -598,6 +609,7 @@ export default function ProductDetail({ producto }: { producto: Producto }) {
                   data-revi-widget-lazy=""
                   data-id-product={String(producto.prestashopProductId)}
                   data-lang="es"
+                  style={{ minHeight: '100px' }}
                 />
               ) : (
                 <div className="bg-yellow-50 p-4 rounded border border-yellow-200 text-sm text-yellow-900">

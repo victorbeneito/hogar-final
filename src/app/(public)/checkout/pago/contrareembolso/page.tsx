@@ -1,80 +1,105 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
 import { clearCart } from "@/lib/cartService";
 import { DEFAULT_PAYMENT_CONFIG, normalizePaymentConfig, inferContrareembolsoBase, type PaymentCheckoutConfig } from "@/lib/paymentSettings";
 
 export default function ContrareembolsoPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
 
   // Estados de importes
   const [basePedido, setBasePedido] = useState(0); // Pedido + Envío - Descuentos
   const [recargoFijo, setRecargoFijo] = useState(0);
   const [recargoVariable, setRecargoVariable] = useState(0);
   const [totalA_Pagar, setTotalA_Pagar] = useState(0);
-  
+
   const [loading, setLoading] = useState(false);
   const [pedidoId, setPedidoId] = useState("");
   const [paymentConfig, setPaymentConfig] = useState<PaymentCheckoutConfig>(DEFAULT_PAYMENT_CONFIG);
+  const [datosPedido, setDatosPedido] = useState<any>(null);
 
   useEffect(() => {
-    // 1. Leer parámetros de la URL
-    const totalUrl = searchParams.get("total");
-    const idUrl = searchParams.get("id");
-
-    if (!totalUrl || !idUrl) {
-        toast.error("Faltan datos del pedido");
+    // Leer datos del pedido del sessionStorage
+    if (typeof window !== "undefined") {
+      const dataStr = sessionStorage.getItem("checkout_pedido_pending");
+      if (!dataStr) {
+        toast.error("Datos del pedido no encontrados");
         router.push("/checkout/pago");
         return;
+      }
+
+      const data = JSON.parse(dataStr);
+      setDatosPedido(data);
+
+      const totalFinal = parseFloat(data.totalFinal || "0");
+
+      fetch("/api/formas-pago/configuracion", { cache: "no-store" })
+        .then((res) => res.json())
+        .then((dataConfig) => {
+          const cfg = normalizePaymentConfig(dataConfig.config);
+          setPaymentConfig(cfg);
+          const desglose = inferContrareembolsoBase(totalFinal, cfg.contrareembolso);
+          setBasePedido(desglose.base);
+          setRecargoFijo(desglose.comisionFija);
+          setRecargoVariable(desglose.variable);
+          setTotalA_Pagar(desglose.total);
+        })
+        .catch(() => {
+          const cfg = DEFAULT_PAYMENT_CONFIG;
+          setPaymentConfig(cfg);
+          const desglose = inferContrareembolsoBase(totalFinal, cfg.contrareembolso);
+          setBasePedido(desglose.base);
+          setRecargoFijo(desglose.comisionFija);
+          setRecargoVariable(desglose.variable);
+          setTotalA_Pagar(desglose.total);
+        });
     }
-
-    setPedidoId(idUrl);
-
-    const totalFinal = parseFloat(totalUrl);
-
-    fetch("/api/formas-pago/configuracion", { cache: "no-store" })
-      .then((res) => res.json())
-      .then((data) => {
-        const cfg = normalizePaymentConfig(data.config);
-        setPaymentConfig(cfg);
-        const desglose = inferContrareembolsoBase(totalFinal, cfg.contrareembolso);
-        setBasePedido(desglose.base);
-        setRecargoFijo(desglose.comisionFija);
-        setRecargoVariable(desglose.variable);
-        setTotalA_Pagar(desglose.total);
-      })
-      .catch(() => {
-        const cfg = DEFAULT_PAYMENT_CONFIG;
-        setPaymentConfig(cfg);
-        const desglose = inferContrareembolsoBase(totalFinal, cfg.contrareembolso);
-        setBasePedido(desglose.base);
-        setRecargoFijo(desglose.comisionFija);
-        setRecargoVariable(desglose.variable);
-        setTotalA_Pagar(desglose.total);
-      });
-
-  }, [searchParams, router]);
+  }, [router]);
 
   const handleConfirmarPedido = async () => {
-    if (!pedidoId) return;
+    if (!datosPedido) return;
     setLoading(true);
     try {
+      // 1. Crear el pedido
+      const response = await fetch("/api/pedidos", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(datosPedido),
+      });
+
+      const data = await response.json();
+
+      if (!data.ok) {
+        toast.error(data.error || "Error al crear el pedido");
+        setLoading(false);
+        return;
+      }
+
+      const newPedidoId = data.pedido.id;
+      setPedidoId(String(newPedidoId));
+
+      // 2. Enviar emails de confirmación
       await fetch("/api/pedidos/confirmar-contrareembolso", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pedidoId: parseInt(pedidoId, 10) }),
+        body: JSON.stringify({ pedidoId: newPedidoId }),
       });
-    } catch {
-      // No bloqueamos la redirección si falla el email
+
+      // 3. Limpiar y redirigir
+      sessionStorage.removeItem("checkout_pedido_pending");
+      clearCart();
+      localStorage.removeItem("checkout_descuento");
+      localStorage.removeItem("checkout_envio");
+      window.dispatchEvent(new Event("storage"));
+      router.push(`/checkout/confirmacion?pedido=${newPedidoId}`);
+    } catch (error) {
+      console.error(error);
+      toast.error("Error al confirmar el pedido");
+    } finally {
+      setLoading(false);
     }
-    clearCart();
-    localStorage.removeItem("checkout_descuento");
-    localStorage.removeItem("checkout_envio");
-    window.dispatchEvent(new Event("storage"));
-    router.push(`/checkout/confirmacion?pedido=${pedidoId}`);
   };
 
   return (

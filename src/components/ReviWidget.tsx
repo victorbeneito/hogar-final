@@ -4,12 +4,18 @@ import { useEffect } from "react";
 
 export default function ReviWidget() {
   useEffect(() => {
-    // Cargar el script de Revi si no está ya cargado
-    if (!window.ReviWidget) {
+    const w = window as any;
+    if (!w.ReviWidget) {
       const script = document.createElement("script");
       script.src = "https://widgets.revi.io/embed/widget.js";
       script.async = true;
       document.body.appendChild(script);
+    } else {
+      const timer = setTimeout(() => {
+        if (w.ReviWidget?.init) { try { w.ReviWidget.init(); } catch (_) { /* */ } }
+        else if (w.__revilabsEmbeds) { try { w.__revilabsEmbeds(); } catch (_) { /* */ } }
+      }, 150);
+      return () => clearTimeout(timer);
     }
   }, []);
 

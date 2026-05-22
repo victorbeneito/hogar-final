@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import BannerDudas from "@/components/BannerDudas";
 
 export default function Header() {
 

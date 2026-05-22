@@ -173,6 +173,7 @@ export default function CategoryProductsModal({ categories }: Props) {
                           data-revi-widget-lazy=""
                           data-id-product={String(p.prestashopProductId)}
                           data-lang="es"
+                          style={{ minHeight: '50px' }}
                         />
                       </div>
                     )}

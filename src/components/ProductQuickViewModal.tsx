@@ -483,6 +483,7 @@ export default function ProductQuickViewModal({ productId, open, onClose }: Prop
                   data-revi-widget-lazy=""
                   data-id-product={String(producto.prestashopProductId)}
                   data-lang="es"
+                  style={{ minHeight: '50px' }}
                 />
               </div>
             )}

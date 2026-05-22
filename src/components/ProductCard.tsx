@@ -198,6 +198,7 @@ export default function ProductCard({ producto }: ProductCardProps) {
               data-revi-widget-lazy=""
               data-id-product={String(producto.prestashopProductId)}
               data-lang="es"
+              style={{ minHeight: '50px' }}
             />
           </div>
         )}

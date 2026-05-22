@@ -113,7 +113,12 @@ export async function GET(req: NextRequest) {
   };
 
   const activo = searchParams.get("activo");
-  if (activo !== null && activo !== "") where.activo = activo === "true";
+  // Filtrar por activo: si no se especifica, mostrar solo productos activos (para tienda pública)
+  if (activo !== null && activo !== "") {
+    where.activo = activo === "true";
+  } else {
+    where.activo = true;
+  }
 
   const destacado = searchParams.get("destacado");
   if (destacado !== null && destacado !== "") where.destacado = destacado === "true";

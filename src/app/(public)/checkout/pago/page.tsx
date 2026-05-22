@@ -118,7 +118,6 @@ export default function PagoPage() {
     if (procesandoRef.current) return;
     procesandoRef.current = true;
     setProcesando(true);
-    const toastId = toast.loading("Registrando pedido...");
 
     // 1. Preparamos los datos para la BD
     const datosPedido = {
@@ -138,7 +137,7 @@ export default function PagoPage() {
             ciudad: cliente.ciudad,
             cp: cliente.codigoPostal
         },
-        
+
         metodoPago: { metodo: metodoPago },
                 metodoEnvio: {
                     metodo: shippingData?.metodo ?? "pickup",
@@ -151,6 +150,18 @@ export default function PagoPage() {
                     gratisAplicado: Boolean(shippingData?.gratisAplicado),
                 }
     };
+
+    // Para métodos diferidos (transferencia, bizum, contrareembolso), guardar en sessionStorage
+    if (metodoPago === 'transferencia' || metodoPago === 'bizum' || metodoPago === 'contrareembolso') {
+        sessionStorage.setItem("checkout_pedido_pending", JSON.stringify(datosPedido));
+        procesandoRef.current = false;
+        setProcesando(false);
+        router.push(`/checkout/pago/${metodoPago}`);
+        return;
+    }
+
+    // Para métodos inmediatos (tarjeta, paypal), crear pedido ahora
+    const toastId = toast.loading("Registrando pedido...");
 
     try {
         // 2. Guardamos en BD
@@ -166,12 +177,12 @@ export default function PagoPage() {
         if (data.ok) {
             const realId = data.pedido.id; // ID REAL DE LA BD
             const numeroPedido = data.pedido.numeroPedido; // EJ: PED-2026-0001
-            
+
             setPedidoTempId(String(realId)); // Actualizamos estado para los popups
-            
+
             // Limpiamos carrito porque ya está guardado en BD (Pendiente de pago)
             // Opcional: Si prefieres borrarlo SOLO tras el pago exitoso, comenta esta línea.
-            // clearCart(); 
+            // clearCart();
             // window.dispatchEvent(new Event("storage"));
 
             // 3. --- ENRUTAMIENTO ---
@@ -202,12 +213,6 @@ export default function PagoPage() {
                     toast.dismiss(toastPaypal);
                     toast.error("Error al conectar con PayPal");
                 }
-            } else if (metodoPago === 'contrareembolso') {
-               router.push(`/checkout/pago/contrareembolso?id=${realId}&total=${datosPedido.totalFinal}`);
-            } else if (metodoPago === 'transferencia') {
-               router.push(`/checkout/pago/transferencia?id=${realId}&total=${datosPedido.totalFinal}`);
-            } else if (metodoPago === 'bizum') {
-               router.push(`/checkout/pago/bizum?id=${realId}&total=${datosPedido.totalFinal}`);
             }
 
         } else {

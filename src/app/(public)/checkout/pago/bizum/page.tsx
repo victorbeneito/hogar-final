@@ -1,30 +1,39 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import { clearCart } from "@/lib/cartService";
 import { DEFAULT_PAYMENT_CONFIG, normalizePaymentConfig, type PaymentCheckoutConfig } from "@/lib/paymentSettings";
 
 export default function BizumPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const [loading, setLoading] = useState(false);
   const [paymentConfig, setPaymentConfig] = useState<PaymentCheckoutConfig>(DEFAULT_PAYMENT_CONFIG);
-
-  const importeFinal = parseFloat(searchParams.get("total") || "0").toFixed(2);
-  const pedidoId = searchParams.get("id");
+  const [pedidoId, setPedidoId] = useState("");
+  const [importeFinal, setImporteFinal] = useState("0.00");
+  const [datosPedido, setDatosPedido] = useState<any>(null);
 
   useEffect(() => {
-    if (!pedidoId) {
-      router.push("/carrito");
-      return;
+    // Leer datos del pedido del sessionStorage
+    if (typeof window !== "undefined") {
+      const dataStr = sessionStorage.getItem("checkout_pedido_pending");
+      if (!dataStr) {
+        toast.error("Datos del pedido no encontrados");
+        router.push("/checkout/pago");
+        return;
+      }
+
+      const data = JSON.parse(dataStr);
+      setDatosPedido(data);
+      setImporteFinal(parseFloat(data.totalFinal || "0").toFixed(2));
     }
+
     fetch("/api/formas-pago/configuracion", { cache: "no-store" })
       .then((res) => res.json())
       .then((data) => setPaymentConfig(normalizePaymentConfig(data.config)))
       .catch(() => setPaymentConfig(DEFAULT_PAYMENT_CONFIG));
-  }, [pedidoId, router]);
+  }, [router]);
 
   const copiarTelefono = () => {
     navigator.clipboard.writeText(paymentConfig.bizum.telefono);
@@ -32,22 +41,47 @@ export default function BizumPage() {
   };
 
   const handleConfirmar = async () => {
-    if (!pedidoId) return;
+    if (!datosPedido) return;
     setLoading(true);
     try {
+      // 1. Crear el pedido
+      const response = await fetch("/api/pedidos", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(datosPedido),
+      });
+
+      const data = await response.json();
+
+      if (!data.ok) {
+        toast.error(data.error || "Error al crear el pedido");
+        setLoading(false);
+        return;
+      }
+
+      const newPedidoId = data.pedido.id;
+      setPedidoId(String(newPedidoId));
+
+      // 2. Enviar emails de confirmación
       await fetch("/api/pedidos/confirmar-bizum", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pedidoId: parseInt(pedidoId, 10) }),
+        body: JSON.stringify({ pedidoId: newPedidoId }),
       });
-    } catch {
-      // No bloqueamos la redirección si falla el email
+
+      // 3. Limpiar y redirigir
+      sessionStorage.removeItem("checkout_pedido_pending");
+      clearCart();
+      localStorage.removeItem("checkout_descuento");
+      localStorage.removeItem("checkout_envio");
+      window.dispatchEvent(new Event("storage"));
+      router.push(`/checkout/confirmacion?pedido=${newPedidoId}`);
+    } catch (error) {
+      console.error(error);
+      toast.error("Error al confirmar el pedido");
+    } finally {
+      setLoading(false);
     }
-    clearCart();
-    localStorage.removeItem("checkout_descuento");
-    localStorage.removeItem("checkout_envio");
-    window.dispatchEvent(new Event("storage"));
-    router.push(`/checkout/confirmacion?pedido=${pedidoId}`);
   };
 
   return (

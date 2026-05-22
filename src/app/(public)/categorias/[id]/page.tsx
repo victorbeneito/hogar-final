@@ -82,6 +82,7 @@ export default async function CategoryPage({ params, searchParams }: PageProps) 
   }
 
   const whereProducto = {
+    activo: true,
     productocategoria: {
       some: {
         categoriaId: idNumero,
