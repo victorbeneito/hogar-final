@@ -130,6 +130,7 @@ export default async function CategoryPage({ params, searchParams }: PageProps) 
         enOferta: true,
         destacado: true,
         reglaimpuesto: { select: { porcentaje: true } },
+        mapeoProductoPs: { select: { idPrestashop: true }, take: 1 },
         productoimagen: {
           select: { url: true },
           orderBy: { orden: "asc" },
@@ -154,6 +155,7 @@ export default async function CategoryPage({ params, searchParams }: PageProps) 
       precio: Number(p.precio) * factorIva,
       precioOferta: p.precioOferta != null ? Number(p.precioOferta) * factorIva : null,
       imagenPortada: p.productoimagen?.[0]?.url ?? null,
+      prestashopProductId: p.mapeoProductoPs?.[0]?.idPrestashop ?? null,
     };
   });
 

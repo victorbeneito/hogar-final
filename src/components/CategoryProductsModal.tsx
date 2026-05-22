@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import clienteAxios from "@/lib/axiosClient";
 
 type Categoria = {
@@ -14,6 +14,7 @@ type Producto = {
   descripcion?: string;
   precio: number;
   imagen?: string;
+  prestashopProductId?: number | null;
 };
 
 type Props = {
@@ -76,6 +77,43 @@ export default function CategoryProductsModal({ categories }: Props) {
     setCategoriaNombre("");
   }
 
+  useEffect(() => {
+    if (productos.length > 0 && typeof window !== 'undefined') {
+      let attempts = 0;
+      const maxAttempts = 5;
+
+      const tryInit = () => {
+        attempts++;
+        const w = window as any;
+
+        if (w.ReviWidget?.init) {
+          try {
+            w.ReviWidget.init();
+            return;
+          } catch (e) {
+            // Continue to next method
+          }
+        }
+
+        if (w.__revilabsEmbeds) {
+          try {
+            w.__revilabsEmbeds();
+            return;
+          } catch (e) {
+            // Continue
+          }
+        }
+
+        if (attempts < maxAttempts) {
+          setTimeout(tryInit, 200);
+        }
+      };
+
+      const timer = setTimeout(tryInit, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [productos]);
+
   return (
     <>
       <div className="flex flex-wrap justify-center gap-6 mb-6">
@@ -124,9 +162,20 @@ export default function CategoryProductsModal({ categories }: Props) {
                       />
                     )}
                     {p.descripcion && (
-                      <p className="mt-1">{p.descripcion}</p>
+                      <p className="mt-1 text-sm">{p.descripcion}</p>
                     )}
-                    <p className="mt-1 font-bold">{p.precio} €</p>
+                    <p className="mt-1 font-bold text-lg">{p.precio} €</p>
+                    {/* REVI Widget */}
+                    {p.prestashopProductId && (
+                      <div className="w-full px-0 py-0 mt-1">
+                        <div
+                          className="revi-widget-KyG01X4Rv5"
+                          data-revi-widget-lazy=""
+                          data-id-product={String(p.prestashopProductId)}
+                          data-lang="es"
+                        />
+                      </div>
+                    )}
                   </div>
                 ))
               ) : (

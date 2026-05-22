@@ -35,12 +35,16 @@ export default function BannersSection({ categories = [] }: Props) {
 
   return (
     <section className="w-full my-10">
-      {/* Banner intermedio */}
-      <div className="mb-10">
+      {/* Banner intermedio - Medidas Personalizadas */}
+      <div
+        onClick={() => router.push('/medidas-personalizadas')}
+        className="mb-10 cursor-pointer group"
+        title="Ver medidas personalizadas"
+      >
         <img
           src="/img/banner-medidas.jpg"
-          alt="Banner intermedio"
-          className="w-full h-[250px] object-cover rounded-lg shadow-md"
+          alt="Banner medidas personalizadas"
+          className="w-full h-[250px] object-cover rounded-lg shadow-md transition-transform group-hover:scale-105"
         />
       </div>
 

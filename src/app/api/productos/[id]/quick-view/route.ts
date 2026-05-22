@@ -24,6 +24,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
         precio: true,
         precioOferta: true,
         stock: true,
+        mapeoProductoPs: { select: { idPrestashop: true }, take: 1 },
         reglaimpuesto: { select: { porcentaje: true } },
         productoimagen: {
           orderBy: { orden: "asc" },
@@ -106,6 +107,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
           ...producto,
           precio: precioConIva,
           precioOferta: ofertaConIva,
+          prestashopProductId: producto.mapeoProductoPs?.[0]?.idPrestashop ?? null,
           categoria: producto.productocategoria?.[0]?.categoria ?? null,
           categorias: producto.productocategoria?.map((pc) => pc.categoria) ?? [],
           imagenPortada: producto.productoimagen?.find((img) => img.esPortada)?.url ?? null,

@@ -5,6 +5,14 @@ import Link from "next/link";
 import { addToCart } from "@/lib/cartService";
 import ProductQuickViewModal from "@/components/ProductQuickViewModal";
 
+declare global {
+  interface Window {
+    ReviWidget?: {
+      init: () => void;
+    };
+  }
+}
+
 interface ProductCardProps {
   producto: any;
 }
@@ -66,6 +74,50 @@ export default function ProductCard({ producto }: ProductCardProps) {
     };
   }, []);
 
+  // Initialize Revi widget when product changes
+  useEffect(() => {
+    if (producto?.prestashopProductId && typeof window !== 'undefined') {
+      // Try multiple times to initialize the widget
+      let attempts = 0;
+      const maxAttempts = 5;
+
+      const tryInit = () => {
+        attempts++;
+        const w = window as any;
+
+        // Try method 1: ReviWidget.init()
+        if (w.ReviWidget?.init) {
+          try {
+            w.ReviWidget.init();
+            return;
+          } catch (e) {
+            // Continue to next method
+          }
+        }
+
+        // Try method 2: Direct call to embeds function
+        if (w.__revilabsEmbeds) {
+          try {
+            w.__revilabsEmbeds();
+            return;
+          } catch (e) {
+            // Continue
+          }
+        }
+
+        // Retry if widget not ready yet
+        if (attempts < maxAttempts) {
+          setTimeout(tryInit, 200);
+        }
+      };
+
+      // Start trying after a short delay to ensure DOM is ready
+      const timer = setTimeout(tryInit, 100);
+
+      return () => clearTimeout(timer);
+    }
+  }, [producto?.prestashopProductId]);
+
   const handleQuickAdd = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -115,22 +167,22 @@ export default function ProductCard({ producto }: ProductCardProps) {
               }`}
             />
 
-            <div className="p-4 text-center">
+            <div className="p-2 text-center">
               <h3 className="text-md font-semibold text-center mb-1 line-clamp-2 min-h-[3rem]">
                 {producto.nombre}
               </h3>
 
               {tieneOferta ? (
-                <div className="mb-3 space-y-1">
+                <div className="mb-0 space-y-0">
                   <p className="text-xs font-bold uppercase tracking-wide text-gray-500 dark:text-gray-300">
                     Precio base <span className="line-through text-gray-400">{precioBase.toFixed(2)} €</span>
                   </p>
-                  <p className="text-accent font-extrabold dark:text-darkNavText text-xl">
+                  <p className="text-accent font-extrabold dark:text-darkNavText text-2xl">
                     {precioActual.toFixed(2)} €
                   </p>
                 </div>
               ) : (
-                <p className="text-accent font-bold mb-3 dark:text-darkNavText text-lg">
+                <p className="text-accent font-bold mb-0 dark:text-darkNavText text-xl">
                   {precioBase ? `${precioBase.toFixed(2)} €` : "Sin precio"}
                 </p>
               )}
@@ -140,18 +192,17 @@ export default function ProductCard({ producto }: ProductCardProps) {
 
         {/* REVI Widget */}
         {producto.prestashopProductId && (
-          <div className="w-full px-2 py-2">
+          <div className="w-full px-0 py-0">
             <div
               className="revi-widget-KyG01X4Rv5"
               data-revi-widget-lazy=""
               data-id-product={String(producto.prestashopProductId)}
               data-lang="es"
-              style={{ minHeight: '50px' }}
             />
           </div>
         )}
 
-        <div className="p-3 w-full">
+        <div className="p-2 w-full">
           <button
             type="button"
             onClick={handleQuickAdd}

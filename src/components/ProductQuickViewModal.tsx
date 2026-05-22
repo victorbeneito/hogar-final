@@ -18,6 +18,7 @@ type QuickViewProducto = {
   marca?: { id: number; nombre: string } | null;
   imagenPortada?: string | null;
   imagenes?: string[];
+  prestashopProductId?: number | null;
   caracteristicas?: Array<{ clave: string; valor: string }>;
   variantes?: Array<{
     id: number;
@@ -110,6 +111,45 @@ export default function ProductQuickViewModal({ productId, open, onClose }: Prop
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [open, onClose]);
+
+  // Initialize Revi widget when product changes
+  useEffect(() => {
+    if (!producto?.prestashopProductId || !open) return;
+
+    let attempts = 0;
+    const maxAttempts = 5;
+
+    const tryInit = () => {
+      attempts++;
+      const w = window as any;
+
+      if (w.ReviWidget?.init) {
+        try {
+          w.ReviWidget.init();
+          return;
+        } catch (e) {
+          // Continue to next method
+        }
+      }
+
+      if (w.__revilabsEmbeds) {
+        try {
+          w.__revilabsEmbeds();
+          return;
+        } catch (e) {
+          // Continue
+        }
+      }
+
+      if (attempts < maxAttempts) {
+        setTimeout(tryInit, 200);
+      }
+    };
+
+    const timer = setTimeout(tryInit, 100);
+
+    return () => clearTimeout(timer);
+  }, [producto?.prestashopProductId, open]);
 
   const variantes = producto?.variantes ?? [];
   const imagenesBase = (producto?.imagenes ?? []).filter(Boolean);
@@ -435,19 +475,17 @@ export default function ProductQuickViewModal({ productId, open, onClose }: Prop
               </button>
             </div>
 
-            <div className="rounded-lg border border-gray-200 p-4 dark:border-gray-800">
-              <div className="mb-2 flex items-center gap-2">
-                <div className="flex text-yellow-400">
-                  {"★★★★★".split("").map((star, idx) => (
-                    <span key={idx}>{star}</span>
-                  ))}
-                </div>
-                <span className="text-sm text-gray-500 dark:text-gray-400">0 opiniones</span>
+            {/* Revi Widget */}
+            {producto?.prestashopProductId && (
+              <div className="w-full">
+                <div
+                  className="revi-widget-KyG01X4Rv5"
+                  data-revi-widget-lazy=""
+                  data-id-product={String(producto.prestashopProductId)}
+                  data-lang="es"
+                />
               </div>
-              <p className="text-sm text-gray-500 dark:text-gray-400">
-                Sin valoraciones todavía.
-              </p>
-            </div>
+            )}
 
             <Link
               href={`/productos/${producto?.id}`}

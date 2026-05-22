@@ -89,9 +89,14 @@ export async function GET(req: NextRequest) {
   if (referencia) where.referencia = { contains: referencia };
 
   const categoria = searchParams.get("categoria");
-  if (categoria) where.productocategoria = {
-    some: { categoria: { nombre: { contains: categoria } } },
-  };
+  if (categoria) {
+    const categoryIds = categoria.split(",").map(id => parseInt(id.trim())).filter(id => !isNaN(id));
+    if (categoryIds.length > 0) {
+      where.productocategoria = {
+        some: { categoriaId: { in: categoryIds } },
+      };
+    }
+  }
 
   const precioMin = searchParams.get("precioMin");
   const precioMax = searchParams.get("precioMax");
@@ -127,6 +132,7 @@ export async function GET(req: NextRequest) {
         destacado:   true,
         enOferta:    true,
         createdAt:   true,
+        mapeoProductoPs: { select: { idPrestashop: true }, take: 1 },
         reglaimpuesto: { select: { porcentaje: true } },
         productoimagen: {                          // ← Imagenes con mayúscula
           where:  { esPortada: true },
@@ -157,6 +163,7 @@ export async function GET(req: NextRequest) {
       ...p,
       precio: precioConIva,
       precioOferta: ofertaConIva,
+      prestashopProductId: p.mapeoProductoPs?.[0]?.idPrestashop ?? null,
       imagenPortada: p.productoimagen?.[0]?.url ?? null,
       categoria:     p.productocategoria?.[0]?.categoria ?? null,
     };
