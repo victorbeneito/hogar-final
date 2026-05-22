@@ -320,21 +320,45 @@ export default function ProductQuickViewModal({ productId, open, onClose }: Prop
             {tiradoresUnicos.length > 0 && (
               <div>
                 <p className="mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">Tirador</p>
-                <div className="grid grid-cols-2 gap-2">
-                  {tiradoresUnicos.map((tirador) => (
-                    <button
-                      key={tirador}
-                      type="button"
-                      onClick={() => setTiradorSeleccionado(tirador)}
-                      className={`rounded border px-3 py-2 text-sm ${
-                        tiradorSeleccionado === tirador
-                          ? "border-primary bg-primary/10 text-primary"
-                          : "border-gray-200 dark:border-gray-700 dark:text-gray-200"
-                      }`}
-                    >
-                      {tirador}
-                    </button>
-                  ))}
+                <div className="grid grid-cols-4 gap-3">
+                  {tiradoresUnicos.map((tirador, idx) => {
+                    const norm = (s: string) =>
+                      s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
+                    const varianteTirador = variantes.find((v) => v.tirador === tirador);
+                    const atributoValorTirador = varianteTirador?.atributovalores?.find(
+                      (av) => norm(av.valor) === norm(tirador)
+                    );
+                    const imagenMuestra = atributoValorTirador?.imagen || varianteTirador?.imagenMuestra;
+                    const seleccionado = tiradorSeleccionado === tirador;
+                    return (
+                      <button
+                        key={`${tirador}-${idx}`}
+                        type="button"
+                        onClick={() => setTiradorSeleccionado(tirador)}
+                        title={tirador}
+                        className={`flex flex-col items-center gap-1 group transition-transform hover:scale-105 ${seleccionado ? "scale-105" : ""}`}
+                      >
+                        <span className={`block w-full aspect-square rounded-md overflow-hidden border-2 transition-colors ${
+                          seleccionado
+                            ? "border-primary shadow-md"
+                            : "border-gray-200 dark:border-gray-600 group-hover:border-primary"
+                        }`}>
+                          {imagenMuestra ? (
+                            <img src={imagenMuestra} alt={tirador} className="w-full h-full object-cover" />
+                          ) : (
+                            <span className="w-full h-full flex items-center justify-center bg-gray-100 dark:bg-gray-700 text-[9px] text-gray-500 text-center leading-tight px-0.5">
+                              {tirador}
+                            </span>
+                          )}
+                        </span>
+                        <span className={`text-[10px] leading-tight text-center w-full break-words ${
+                          seleccionado ? "text-primary font-semibold dark:text-primaryHover" : "text-gray-500 dark:text-gray-400"
+                        }`}>
+                          {tirador}
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             )}

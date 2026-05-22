@@ -24,6 +24,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
         precio: true,
         precioOferta: true,
         stock: true,
+        reglaimpuesto: { select: { porcentaje: true } },
         productoimagen: {
           orderBy: { orden: "asc" },
           select: {
@@ -93,11 +94,18 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       : [];
     const avByValor = new Map(avLookup.map((av) => [av.valor, av]));
 
+    const porcentajeIva = Number(producto.reglaimpuesto?.porcentaje ?? 0);
+    const factorIva = 1 + porcentajeIva / 100;
+    const precioConIva = Number(producto.precio) * factorIva;
+    const ofertaConIva = producto.precioOferta != null ? Number(producto.precioOferta) * factorIva : null;
+
     return NextResponse.json(
       {
         ok: true,
         producto: {
           ...producto,
+          precio: precioConIva,
+          precioOferta: ofertaConIva,
           categoria: producto.productocategoria?.[0]?.categoria ?? null,
           categorias: producto.productocategoria?.map((pc) => pc.categoria) ?? [],
           imagenPortada: producto.productoimagen?.find((img) => img.esPortada)?.url ?? null,

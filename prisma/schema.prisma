@@ -105,6 +105,8 @@ model cliente {
   apellidos               String
   email                   String             @unique(map: "Cliente_email_key")
   password                String
+  googleId                String?            @unique
+  provider                String?
   telefono                String?
   empresa                 String?
   nif                     String?            @unique(map: "Cliente_nif_key")
