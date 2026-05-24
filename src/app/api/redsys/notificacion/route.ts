@@ -84,10 +84,9 @@ export async function POST(req: NextRequest) {
 
       // Registrar en historial
       try {
-        await prisma.$executeRaw`
-          INSERT INTO historialestadopedido (pedidoId, estado, color, fecha)
-          VALUES (${pedidoId}, ${nombreEstado}, ${colorEstado}, NOW())
-        `;
+        await prisma.historialestadopedido.create({
+          data: { pedidoId, estado: nombreEstado, color: colorEstado, fecha: new Date() },
+        });
       } catch (err: any) {
         console.warn("⚠️ No se pudo insertar historial Redsys exitoso:", err?.message);
       }
@@ -160,10 +159,9 @@ export async function POST(req: NextRequest) {
       // Registrar en historial
       if (pedido) {
         try {
-          await prisma.$executeRaw`
-            INSERT INTO historialestadopedido (pedidoId, estado, color, fecha)
-            VALUES (${pedidoId}, ${nombreEstado}, ${colorEstado}, NOW())
-          `;
+          await prisma.historialestadopedido.create({
+            data: { pedidoId, estado: nombreEstado, color: colorEstado, fecha: new Date() },
+          });
         } catch (err: any) {
           console.warn("⚠️ No se pudo insertar historial Redsys fallido:", err?.message);
         }

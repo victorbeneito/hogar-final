@@ -47,10 +47,9 @@ export async function POST(req: NextRequest) {
 
     // Registrar en historial con el color correcto
     try {
-      await prisma.$executeRaw`
-        INSERT INTO historialestadopedido (pedidoId, estado, color, fecha)
-        VALUES (${id}, ${nombreEstadoBizum}, ${colorEstadoBizum}, NOW())
-      `;
+      await prisma.historialestadopedido.create({
+        data: { pedidoId: id, estado: nombreEstadoBizum, color: colorEstadoBizum, fecha: new Date() },
+      });
     } catch (err: any) {
       console.warn("⚠️ No se pudo insertar historial:", err?.message);
     }

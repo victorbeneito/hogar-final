@@ -147,9 +147,14 @@ export function AdminSidebar() {
       {/* Logo / toggle */}
       <div className="flex items-center justify-between px-4 py-4 border-b border-white/10">
         {!collapsed && (
-          <span className="text-base font-bold tracking-wide text-white truncate">
-            🏠 Hogar Admin
-          </span>
+          <div className="flex flex-col min-w-0">
+            <span className="text-base font-bold tracking-wide text-white truncate">
+              🏠 Hogar Admin
+            </span>
+            <span className="text-[10px] text-gray-400 mt-0.5">
+              v{process.env.NEXT_PUBLIC_APP_VERSION ?? "—"}
+            </span>
+          </div>
         )}
         <button
           onClick={() => setCollapsed(!collapsed)}
@@ -221,7 +226,7 @@ export function AdminSidebar() {
 
       {!collapsed && (
         <div className="px-4 py-3 border-t border-white/10 text-xs text-gray-500">
-          Hogar Admin v1.0
+          Hogar Admin v{process.env.NEXT_PUBLIC_APP_VERSION ?? "—"}
         </div>
       )}
     </aside>

@@ -239,28 +239,20 @@ export async function GET(req: Request) {
 
     const total = await prisma.pedido.count({ where: whereClause });
 
-    // Obtener el color del historial para TODOS los pedidos en una sola query (fuente de verdad)
-    const colorMap: Record<number, string> = {};
-    if (pedidosRaw.length > 0) {
-      const pedidoIds = pedidosRaw.map((p: any) => p.id);
-      const historials = await prisma.$queryRaw`
-        SELECT h.pedidoId, h.color
-        FROM historialestadopedido h
-        INNER JOIN (
-          SELECT pedidoId, MAX(fecha) as maxFecha
-          FROM historialestadopedido
-          WHERE pedidoId IN (${Prisma.join(pedidoIds)})
-          GROUP BY pedidoId
-        ) grouped ON h.pedidoId = grouped.pedidoId AND h.fecha = grouped.maxFecha
-      `;
-
-      for (const h of historials as any[]) {
-        colorMap[h.pedidoId] = h.color || "#6b7280";
-      }
+    // Cargar config de estados para resolver color y nombre correctamente
+    const allEstados = await prisma.estadopedido.findMany({
+      select: { clave: true, nombre: true, color: true },
+    });
+    const estadoByKey = new Map<string, { nombre: string; color: string }>();
+    for (const e of allEstados) {
+      estadoByKey.set(e.clave.toLowerCase(), { nombre: e.nombre, color: e.color });
+      estadoByKey.set(e.nombre.toLowerCase(), { nombre: e.nombre, color: e.color });
     }
 
     const pedidosFormateados = pedidosRaw.map((p: any) => {
-      const colorEstado = colorMap[p.id] || "#6b7280"; // Gris por defecto
+      const configMatch = estadoByKey.get((p.estado || "").toLowerCase());
+      const colorEstado = configMatch?.color || "#6b7280";
+      const nombreEstado = configMatch?.nombre || p.estado || "";
 
       return {
         id: p.id,
@@ -318,6 +310,7 @@ export async function GET(req: Request) {
         totalFinal: Number(p.totalFinal),
         estado: p.estado,
         colorEstado: colorEstado,
+        nombreEstado: nombreEstado,
         cuponCodigo: p.cuponCodigo,
         cuponDescuento: p.cuponDescuento ? Number(p.cuponDescuento) : null,
         notas: p.notas,
@@ -495,6 +488,10 @@ export async function POST(req: Request) {
     const refIncluirAno = (refMap["pedidos.refIncluirAno"] ?? "true") !== "false";
     const refUltimo    = refMap["pedidos.refUltimoNumero"] ? parseInt(refMap["pedidos.refUltimoNumero"]) : 0;
 
+    // Obtener estado inicial ANTES de la transacción para que sea accesible después
+    const metodoPagoStr = String(body.metodoPago?.metodo || body.pagoMetodo?.metodo || "tarjeta");
+    const estadoInicial = await getEstadoInicialPorMetodo(metodoPagoStr, prisma);
+
     const result = await prisma.$transaction(async (tx: any) => {
       // Generar numeroPedido usando la configuración
       const anio = new Date().getFullYear();
@@ -511,12 +508,8 @@ export async function POST(req: Request) {
       }
       const sec = Math.max(maxSeq + 1, refUltimo + 1);
       const numeroGenerado = `${fullPrefix}${sec.toString().padStart(refPadding, '0')}`;
-      
-      console.log("🔢 Número de pedido generado:", numeroGenerado);
 
-      // Crear - Obtener estado inicial del método de pago
-        const metodoPagoStr = String(body.metodoPago?.metodo || body.pagoMetodo?.metodo || "tarjeta");
-        const estadoInicial = await getEstadoInicialPorMetodo(metodoPagoStr, tx);
+      console.log("🔢 Número de pedido generado:", numeroGenerado);
 
         const pedido = await tx.pedido.create({
           data: {
@@ -585,12 +578,11 @@ export async function POST(req: Request) {
       return pedido;
     });
 
-    // Insertar estado inicial en historial - Usar el estado dinámico obtenido
+    // Insertar estado inicial en historial
     try {
-      await prisma.$executeRaw`
-        INSERT INTO historialestadopedido (pedidoId, estado, color, fecha)
-        VALUES (${result.id}, ${estadoInicial.nombre}, ${estadoInicial.color}, NOW())
-      `;
+      await prisma.historialestadopedido.create({
+        data: { pedidoId: result.id, estado: estadoInicial.nombre, color: estadoInicial.color, fecha: new Date() },
+      });
       console.log("✅ Historial inicial creado para estado:", estadoInicial.nombre, "Color:", estadoInicial.color);
     } catch (err: any) {
       console.warn("⚠️ No se pudo insertar historial inicial:", err?.message);
@@ -629,7 +621,6 @@ export async function POST(req: Request) {
 
     // Emails diferidos: todos los métodos esperan confirmación del usuario excepto ninguno directo.
     // tarjeta/paypal: webhook/capture confirma. transferencia/bizum/contrareembolso: usuario confirma en pantalla.
-    const metodoPagoStr = String(body.metodoPago?.metodo || body.pagoMetodo?.metodo || "");
     const esPasarela = ["tarjeta", "paypal", "transferencia", "bizum", "contrareembolso"].includes(metodoPagoStr);
 
     if (!esPasarela) {

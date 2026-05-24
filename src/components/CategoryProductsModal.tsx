@@ -77,41 +77,15 @@ export default function CategoryProductsModal({ categories }: Props) {
     setCategoriaNombre("");
   }
 
+
   useEffect(() => {
-    if (productos.length > 0 && typeof window !== 'undefined') {
-      let attempts = 0;
-      const maxAttempts = 5;
-
-      const tryInit = () => {
-        attempts++;
-        const w = window as any;
-
-        if (w.ReviWidget?.init) {
-          try {
-            w.ReviWidget.init();
-            return;
-          } catch (e) {
-            // Continue to next method
-          }
-        }
-
-        if (w.__revilabsEmbeds) {
-          try {
-            w.__revilabsEmbeds();
-            return;
-          } catch (e) {
-            // Continue
-          }
-        }
-
-        if (attempts < maxAttempts) {
-          setTimeout(tryInit, 200);
-        }
-      };
-
-      const timer = setTimeout(tryInit, 100);
-      return () => clearTimeout(timer);
-    }
+    if (!productos.length) return;
+    const timer = setTimeout(() => {
+      const w = window as any;
+      if (w.ReviWidget?.init) { try { w.ReviWidget.init(); } catch (_) { /* */ } }
+      else if (w.__revilabsEmbeds) { try { w.__revilabsEmbeds(); } catch (_) { /* */ } }
+    }, 300);
+    return () => clearTimeout(timer);
   }, [productos]);
 
   return (

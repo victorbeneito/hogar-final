@@ -65,10 +65,9 @@ export async function POST(req: NextRequest) {
         // Registrar en historial
         if (pedido) {
           try {
-            await prisma.$executeRaw`
-              INSERT INTO historialestadopedido (pedidoId, estado, color, fecha)
-              VALUES (${id}, ${nombreEstado}, ${colorEstado}, NOW())
-            `;
+            await prisma.historialestadopedido.create({
+              data: { pedidoId: id, estado: nombreEstado, color: colorEstado, fecha: new Date() },
+            });
           } catch (err: any) {
             console.warn("⚠️ No se pudo insertar historial PayPal exitoso:", err?.message);
           }
@@ -149,10 +148,9 @@ export async function POST(req: NextRequest) {
           // Registrar en historial
           if (pedidoFallido) {
             try {
-              await prisma.$executeRaw`
-                INSERT INTO historialestadopedido (pedidoId, estado, color, fecha)
-                VALUES (${id}, ${nombreEstado}, ${colorEstado}, NOW())
-              `;
+              await prisma.historialestadopedido.create({
+                data: { pedidoId: id, estado: nombreEstado, color: colorEstado, fecha: new Date() },
+              });
             } catch (err: any) {
               console.warn("⚠️ No se pudo insertar historial PayPal fallido:", err?.message);
             }

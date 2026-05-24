@@ -17,10 +17,10 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    // 2. Comprobar si existe y si tiene rol válido (admin, superadmin o auditor)
+    // 2. Comprobar si existe y si tiene rol válido (superadmin, admin, support, auditor)
     const rolLower = admin?.rol?.toString().toLowerCase() ?? "";
 
-    if (!admin || !["admin", "superadmin", "auditor"].includes(rolLower)) {
+    if (!admin || !["superadmin", "admin", "support", "auditor"].includes(rolLower)) {
       console.warn(`❌ Login fallido: Usuario no encontrado o sin permisos (${admin?.rol})`);
       return NextResponse.json(
         { ok: false, error: "Credenciales inválidas o sin permisos" },

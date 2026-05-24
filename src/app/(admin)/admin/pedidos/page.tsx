@@ -18,6 +18,8 @@ interface Pedido {
   transportistaNombre?: string;
   numeroSeguimiento?: string;
   estado: string;
+  colorEstado?: string;
+  nombreEstado?: string;
   fecha?: string;
   fechaPedido?: string;
   createdAt?: string;
@@ -195,18 +197,6 @@ export default function AdminPedidos() {
   const [total, setTotal] = useState(0);
   const totalPaginas = Math.max(1, Math.ceil(total / porPagina));
 
-  // Colores de estados desde la BD
-  const [estadoColors, setEstadoColors] = useState<Record<string, string>>({});
-  useEffect(() => {
-    fetch("/api/admin/pedidos/estados")
-      .then((r) => r.json())
-      .then((d) => {
-        const map: Record<string, string> = {};
-        for (const e of d.estados ?? []) map[e.clave] = e.color;
-        setEstadoColors(map);
-      })
-      .catch(() => {});
-  }, []);
 
   // Selección masiva
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
@@ -608,9 +598,9 @@ export default function AdminPedidos() {
                       <td className="px-4 py-2.5">
                         <span
                           className="px-3 py-1.5 rounded-full text-xs font-semibold text-white"
-                          style={{ backgroundColor: estadoColors[pedido.estado] ?? "#6b7280" }}
+                          style={{ backgroundColor: pedido.colorEstado || "#6b7280" }}
                         >
-                          {pedido.estado}
+                          {pedido.nombreEstado || pedido.estado}
                         </span>
                       </td>
                       <td className="px-4 py-2.5 text-sm text-[#6BAEC9]">
@@ -678,9 +668,9 @@ export default function AdminPedidos() {
                         </div>
                         <span
                           className="px-3 py-1 rounded-full text-xs font-semibold text-white"
-                          style={{ backgroundColor: estadoColors[pedido.estado] ?? "#6b7280" }}
+                          style={{ backgroundColor: pedido.colorEstado || "#6b7280" }}
                         >
-                          {pedido.estado}
+                          {pedido.nombreEstado || pedido.estado}
                         </span>
                       </div>
                     </div>

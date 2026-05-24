@@ -12,7 +12,6 @@ export default function ChatWidgets() {
     // reconcilia el árbol durante la navegación, removeChild falla porque
     // esos nodos externos alteran el orden de hijos que React espera.
     const origRemoveChild = Node.prototype.removeChild;
-    // @ts-expect-error — parche tipado manual
     Node.prototype.removeChild = function <T extends Node>(child: T): T {
       if (child.parentNode !== this) return child;
       return origRemoveChild.call(this, child) as T;
@@ -22,8 +21,10 @@ export default function ChatWidgets() {
     console.error = (...args: unknown[]) => {
       // Silenciar ruido de Tawk.to (booleanos, strings propios del widget)
       if (typeof args[0] === "boolean") return;
-      const msg = args[0]?.toString() ?? "";
-      if (msg.includes("tawk.to") || msg.includes("twk-")) return;
+      const full = args.map((a) => a?.toString() ?? "").join(" ");
+      if (full.includes("tawk.to") || full.includes("twk-")) return;
+      if (full.includes("Swiper container not found")) return;
+      if (full.includes("[revi]")) return;
       original(...args);
     };
     return () => {

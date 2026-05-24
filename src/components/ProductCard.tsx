@@ -5,14 +5,6 @@ import Link from "next/link";
 import { addToCart } from "@/lib/cartService";
 import ProductQuickViewModal from "@/components/ProductQuickViewModal";
 
-declare global {
-  interface Window {
-    ReviWidget?: {
-      init: () => void;
-    };
-  }
-}
-
 interface ProductCardProps {
   producto: any;
 }
@@ -74,48 +66,15 @@ export default function ProductCard({ producto }: ProductCardProps) {
     };
   }, []);
 
-  // Initialize Revi widget when product changes
+
   useEffect(() => {
-    if (producto?.prestashopProductId && typeof window !== 'undefined') {
-      // Try multiple times to initialize the widget
-      let attempts = 0;
-      const maxAttempts = 5;
-
-      const tryInit = () => {
-        attempts++;
-        const w = window as any;
-
-        // Try method 1: ReviWidget.init()
-        if (w.ReviWidget?.init) {
-          try {
-            w.ReviWidget.init();
-            return;
-          } catch (e) {
-            // Continue to next method
-          }
-        }
-
-        // Try method 2: Direct call to embeds function
-        if (w.__revilabsEmbeds) {
-          try {
-            w.__revilabsEmbeds();
-            return;
-          } catch (e) {
-            // Continue
-          }
-        }
-
-        // Retry if widget not ready yet
-        if (attempts < maxAttempts) {
-          setTimeout(tryInit, 200);
-        }
-      };
-
-      // Start trying after a short delay to ensure DOM is ready
-      const timer = setTimeout(tryInit, 100);
-
-      return () => clearTimeout(timer);
-    }
+    if (!producto?.prestashopProductId) return;
+    const timer = setTimeout(() => {
+      const w = window as any;
+      if (w.ReviWidget?.init) { try { w.ReviWidget.init(); } catch (_) { /* */ } }
+      else if (w.__revilabsEmbeds) { try { w.__revilabsEmbeds(); } catch (_) { /* */ } }
+    }, 300);
+    return () => clearTimeout(timer);
   }, [producto?.prestashopProductId]);
 
   const handleQuickAdd = (e: React.MouseEvent) => {

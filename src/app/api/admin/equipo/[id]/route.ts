@@ -30,7 +30,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     return NextResponse.json({ error: "Faltan campos obligatorios" }, { status: 400 });
   }
 
-  if (!["admin", "superadmin"].includes(rol)) {
+  if (!["superadmin", "admin", "support", "auditor"].includes(rol)) {
     return NextResponse.json({ error: "Rol no válido" }, { status: 400 });
   }
 

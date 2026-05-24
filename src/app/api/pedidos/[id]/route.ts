@@ -221,12 +221,53 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ ok: false, error: "Pedido no encontrado" }, { status: 404 });
     }
 
-    const historial: any[] = await prisma.$queryRaw`
-      SELECT h.id, h.estado, h.color, h.fecha
-      FROM historialestadopedido h
-      WHERE h.pedidoId = ${id}
-      ORDER BY h.fecha ASC
-    `;
+    let historial: any[] = await prisma.historialestadopedido.findMany({
+      where: { pedidoId: id },
+      orderBy: { fecha: "asc" },
+    });
+
+    // Auto-reparar: insertar historial si está vacío, o corregir colores grises incorrectos
+    const needsRepair =
+      historial.length === 0 ||
+      historial.some((h: any) => !h.color || h.color === "#6b7280");
+
+    if (needsRepair && pedidoRaw.estado) {
+      const allEstados = await prisma.estadopedido.findMany({
+        select: { clave: true, nombre: true, color: true },
+      });
+      const match = allEstados.find(
+        (e) =>
+          e.clave.toLowerCase() === pedidoRaw.estado.toLowerCase() ||
+          e.nombre.toLowerCase() === pedidoRaw.estado.toLowerCase()
+      );
+      if (match && match.color !== "#6b7280") {
+        try {
+          if (historial.length === 0) {
+            const entry = await prisma.historialestadopedido.create({
+              data: {
+                pedidoId: id,
+                estado: match.nombre,
+                color: match.color,
+                fecha: pedidoRaw.fechaPedido ?? new Date(),
+              },
+            });
+            historial = [entry];
+          } else {
+            // Corregir entradas con color gris incorrecto
+            for (const h of historial.filter((h: any) => !h.color || h.color === "#6b7280")) {
+              await prisma.historialestadopedido.update({
+                where: { id: h.id },
+                data: { color: match.color, estado: match.nombre },
+              });
+            }
+            historial = await prisma.historialestadopedido.findMany({
+              where: { pedidoId: id },
+              orderBy: { fecha: "asc" },
+            });
+          }
+        } catch {}
+      }
+    }
 
     const pedidoMapeado = mapPedido(pedidoRaw);
     pedidoMapeado.estadoHistorial = historial.map((h: any) => ({
@@ -446,10 +487,14 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
         where: { clave: body.estado },
         select: { nombre: true, color: true },
       });
-      await prisma.$executeRaw`
-        INSERT INTO historialestadopedido (pedidoId, estado, color, fecha)
-        VALUES (${id}, ${estadoInfo?.nombre ?? body.estado}, ${estadoInfo?.color ?? "#6b7280"}, NOW())
-      `;
+      await prisma.historialestadopedido.create({
+        data: {
+          pedidoId: id,
+          estado: estadoInfo?.nombre ?? body.estado,
+          color: estadoInfo?.color ?? "#6b7280",
+          fecha: new Date(),
+        },
+      });
     }
 
     // Emails automáticos al cambiar el estado del pedido

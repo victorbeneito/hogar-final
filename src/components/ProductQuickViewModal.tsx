@@ -112,42 +112,14 @@ export default function ProductQuickViewModal({ productId, open, onClose }: Prop
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [open, onClose]);
 
-  // Initialize Revi widget when product changes
+
   useEffect(() => {
     if (!producto?.prestashopProductId || !open) return;
-
-    let attempts = 0;
-    const maxAttempts = 5;
-
-    const tryInit = () => {
-      attempts++;
+    const timer = setTimeout(() => {
       const w = window as any;
-
-      if (w.ReviWidget?.init) {
-        try {
-          w.ReviWidget.init();
-          return;
-        } catch (e) {
-          // Continue to next method
-        }
-      }
-
-      if (w.__revilabsEmbeds) {
-        try {
-          w.__revilabsEmbeds();
-          return;
-        } catch (e) {
-          // Continue
-        }
-      }
-
-      if (attempts < maxAttempts) {
-        setTimeout(tryInit, 200);
-      }
-    };
-
-    const timer = setTimeout(tryInit, 100);
-
+      if (w.ReviWidget?.init) { try { w.ReviWidget.init(); } catch (_) { /* */ } }
+      else if (w.__revilabsEmbeds) { try { w.__revilabsEmbeds(); } catch (_) { /* */ } }
+    }, 300);
     return () => clearTimeout(timer);
   }, [producto?.prestashopProductId, open]);
 
