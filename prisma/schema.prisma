@@ -1,0 +1,578 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model admin {
+  id        Int      @id @default(autoincrement())
+  nombre    String
+  email     String   @unique(map: "Admin_email_key")
+  password  String
+  rol       String   @default("admin")
+  activo    Boolean  @default(true)
+  avatar    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime
+}
+
+model atributo {
+  id            Int             @id @default(autoincrement())
+  nombre        String          @unique(map: "Atributo_nombre_key")
+  tipo          String          @default("desplegable")
+  orden         Int             @default(0)
+  atributovalor atributovalor[]
+}
+
+model atributovalor {
+  id               Int                @id @default(autoincrement())
+  valor            String
+  colorHex         String?
+  imagen           String?            @db.LongText
+  orden            Int                @default(0)
+  atributoId       Int
+  atributo         atributo           @relation(fields: [atributoId], references: [id], onDelete: Cascade, map: "AtributoValor_atributoId_fkey")
+  varianteatributo varianteatributo[]
+
+  @@index([atributoId], map: "AtributoValor_atributoId_idx")
+}
+
+model caracteristica {
+  id         Int      @id @default(autoincrement())
+  clave      String
+  valor      String
+  orden      Int      @default(0)
+  productoId Int
+  producto   producto @relation(fields: [productoId], references: [id], onDelete: Cascade, map: "Caracteristica_productoId_fkey")
+
+  @@index([productoId], map: "Caracteristica_productoId_idx")
+}
+
+model carritocompra {
+  id          Int           @id @default(autoincrement())
+  sessionId   String?       @unique(map: "CarritoCompra_sessionId_key")
+  clienteId   Int?
+  total       Float         @default(0)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime
+  carritoitem carritoitem[]
+  pedido      pedido?
+  cliente     cliente?      @relation(fields: [clienteId], references: [id], onDelete: SetNull, map: "CarritoCompra_clienteId_fkey")
+
+  @@index([clienteId], map: "CarritoCompra_clienteId_idx")
+}
+
+model carritoitem {
+  id            Int           @id @default(autoincrement())
+  carritoId     Int
+  productoId    Int
+  varianteId    Int?
+  nombre        String
+  precio        Float
+  cantidad      Int
+  imagen        String?
+  carritocompra carritocompra @relation(fields: [carritoId], references: [id], onDelete: Cascade, map: "CarritoItem_carritoId_fkey")
+
+  @@index([carritoId], map: "CarritoItem_carritoId_idx")
+}
+
+model categoria {
+  id                Int                 @id @default(autoincrement())
+  nombre            String              @unique(map: "Categoria_nombre_key")
+  slug              String              @unique(map: "Categoria_slug_key")
+  descripcion       String?             @db.Text
+  imagen            String?
+  activa            Boolean             @default(true)
+  orden             Int                 @default(0)
+  parentId          Int?
+  metaTitulo        String?             @db.VarChar(70)
+  metaDescripcion   String?             @db.Text
+  textoSeo          String?             @db.LongText
+  categoria         categoria?          @relation("categoriaTocategoria", fields: [parentId], references: [id], map: "Categoria_parentId_fkey")
+  other_categoria   categoria[]         @relation("categoriaTocategoria")
+  productocategoria productocategoria[]
+
+  @@index([parentId], map: "Categoria_parentId_idx")
+}
+
+model cliente {
+  id                      Int                @id @default(autoincrement())
+  nombre                  String
+  apellidos               String
+  email                   String             @unique(map: "Cliente_email_key")
+  password                String
+  googleId                String?            @unique
+  provider                String?
+  telefono                String?
+  empresa                 String?
+  nif                     String?            @unique(map: "Cliente_nif_key")
+  direccion               String?
+  direccionComplementaria String?
+  codigoPostal            String?
+  ciudad                  String?
+  provincia               String?
+  pais                    String             @default("España")
+  activo                  Boolean            @default(true)
+  aceptaMarketing         Boolean            @default(false)
+  role                    String             @default("cliente")
+  createdAt               DateTime           @default(now())
+  updatedAt               DateTime
+  cupon_uso               cupon_uso[]
+  pedido                  pedido[]
+  carritos                carritocompra[]
+  Direcciones direccion[]
+  precioespecifico        precioespecifico[]
+}
+
+model configuracion {
+  id        Int      @id @default(autoincrement())
+  clave     String   @unique(map: "Configuracion_clave_key")
+  valor     String?  @db.Text
+  grupo     String   @default("general")
+  updatedAt DateTime
+}
+
+model cupon {
+  id               Int                 @id @default(autoincrement())
+  codigo           String              @unique(map: "Cupon_codigo_key")
+  descripcion      String?
+  tipoDescuento    cupon_tipoDescuento @default(PORCENTAJE)
+  valorDescuento   Float
+  pedidoMinimo     Float?              @default(0)
+  cantidadTotal    Int                 @default(100)
+  cantidadUsada    Int                 @default(0)
+  limitePorUsuario Int                 @default(1)
+  fechaInicio      DateTime
+  fechaFin         DateTime
+  activo           Boolean             @default(true)
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime
+  cupon_uso        cupon_uso[]
+}
+
+model cupon_uso {
+  id        Int      @id @default(autoincrement())
+  cuponId   Int
+  clienteId Int
+  veces     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime
+  cliente   cliente  @relation(fields: [clienteId], references: [id])
+  cupon     cupon    @relation(fields: [cuponId], references: [id])
+
+  @@unique([cuponId, clienteId])
+  @@index([clienteId])
+}
+
+model direccion {
+  id             Int      @id @default(autoincrement())
+  clienteId      Int
+  alias          String
+  nombre         String
+  apellidos      String
+  empresa        String?
+  nif            String?
+  telefono       String?
+  direccion      String
+  complemento    String?
+  codigoPostal   String
+  ciudad         String
+  provincia      String
+  pais           String   @default("España")
+  predeterminada Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime
+  cliente        cliente  @relation(fields: [clienteId], references: [id], onDelete: Cascade, map: "Direccion_clienteId_fkey")
+
+  @@index([clienteId], map: "Direccion_clienteId_idx")
+}
+
+model factura {
+  id            Int      @id @default(autoincrement())
+  numeroFactura String   @unique(map: "Factura_numeroFactura_key")
+  pedidoId      Int      @unique(map: "Factura_pedidoId_key")
+  fechaFactura  DateTime @default(now())
+  baseImponible Float
+  porcentajeIva Float    @default(21)
+  totalIva      Float
+  total         Float
+  pdf_url       String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime
+  pedido        pedido   @relation(fields: [pedidoId], references: [id], map: "Factura_pedidoId_fkey")
+}
+
+model formapago {
+  id          Int      @id @default(autoincrement())
+  nombre      String   @unique(map: "FormaPago_nombre_key")
+  descripcion String?
+  recargo     Float    @default(0)
+  activa      Boolean  @default(true)
+  orden       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime
+}
+
+model marca {
+  id          Int         @id @default(autoincrement())
+  nombre      String      @unique(map: "Marca_nombre_key")
+  descripcion String?     @db.Text
+  logo_url    String?
+  imagen      String?
+  activa      Boolean     @default(true)
+  producto    producto[]
+  proveedor   proveedor[]
+}
+
+model pedido {
+  id             Int               @id @default(autoincrement())
+  numeroPedido   String            @unique(map: "Pedido_numeroPedido_key")
+  clienteId      Int
+  nombre         String
+  apellidos      String?
+  email          String
+  telefono       String?
+  nif            String?
+  direccion      String?
+  direccionComplementaria String?
+  ciudad         String?
+  provincia      String?
+  cp             String?
+  pais           String?           @default("España")
+  facturacionNombre         String?
+  facturacionApellidos      String?
+  facturacionEmpresa        String?
+  facturacionNif            String?
+  facturacionTelefono       String?
+  facturacionDireccion      String?
+  facturacionDireccionComplementaria String?
+  facturacionCodigoPostal   String?
+  facturacionCiudad         String?
+  facturacionProvincia      String?
+  facturacionPais           String?           @default("España")
+  envioMetodo    String
+  envioCoste     Float             @default(0)
+  transportistaNombre String?
+  numeroSeguimiento String?
+  trackingUrl   String?
+  fechaEnvio    DateTime?
+  fechaEntrega  DateTime?
+  pagoMetodo     String
+  pagoRecargo    Float             @default(0)
+  estadoPago     pedido_estadoPago @default(PENDIENTE)
+  subtotal       Float
+  descuento      Float             @default(0)
+  totalFinal     Float
+  estado         String            @default("PENDIENTE")
+  cuponCodigo    String?
+  cuponDescuento Float?
+  notas          String?           @db.Text
+  fechaPedido    DateTime          @default(now())
+  updatedAt      DateTime
+  carritoId      Int?              @unique
+  factura        factura?
+  cliente        cliente           @relation(fields: [clienteId], references: [id], map: "Pedido_clienteId_fkey")
+  pedidoproducto pedidoproducto[]
+  mensajes        pedido_mensaje[]
+  estadoHistorial historialestadopedido[]
+  carrito        carritocompra?    @relation(fields: [carritoId], references: [id], onDelete: SetNull, map: "Pedido_carritoId_fkey")
+
+  @@index([clienteId], map: "Pedido_clienteId_idx")
+}
+
+model pedidoproducto {
+  id             Int       @id @default(autoincrement())
+  pedidoId       Int
+  productoIdRef  Int?
+  varianteIdRef  Int?
+  nombre         String
+  varianteInfo   String?
+  cantidad       Int
+  precioUnitario Float
+  subtotal       Float
+  pedido         pedido    @relation(fields: [pedidoId], references: [id], onDelete: Cascade, map: "PedidoProducto_pedidoId_fkey")
+  producto       producto? @relation(fields: [productoIdRef], references: [id], map: "PedidoProducto_productoIdRef_fkey")
+  variante       variante? @relation(fields: [varianteIdRef], references: [id], map: "PedidoProducto_varianteIdRef_fkey")
+
+  @@index([pedidoId], map: "PedidoProducto_pedidoId_idx")
+  @@index([productoIdRef], map: "PedidoProducto_productoIdRef_idx")
+  @@index([varianteIdRef], map: "PedidoProducto_varianteIdRef_idx")
+}
+
+model pedido_mensaje {
+  id          Int      @id @default(autoincrement())
+  pedidoId    Int
+  autor       String   @default("admin")
+  autorNombre String?
+  mensaje     String   @db.Text
+  privado     Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime
+  pedido      pedido   @relation(fields: [pedidoId], references: [id], onDelete: Cascade, map: "PedidoMensaje_pedidoId_fkey")
+
+  @@index([pedidoId], map: "PedidoMensaje_pedidoId_idx")
+}
+
+model precioespecifico {
+  id          Int       @id @default(autoincrement())
+  productoId  Int
+  clienteId   Int?
+  pais        String?
+  desde       DateTime?
+  hasta       DateTime?
+  cantidadMin Int       @default(1)
+  tipoImpacto String    @default("porcentaje")
+  impacto     Float
+  precioFinal Float?
+  activo      Boolean   @default(true)
+  cliente     cliente?  @relation(fields: [clienteId], references: [id], map: "PrecioEspecifico_clienteId_fkey")
+  producto    producto  @relation(fields: [productoId], references: [id], onDelete: Cascade, map: "PrecioEspecifico_productoId_fkey")
+
+  @@index([clienteId], map: "PrecioEspecifico_clienteId_idx")
+  @@index([productoId], map: "PrecioEspecifico_productoId_idx")
+}
+
+model producto {
+  id                   Int                 @id @default(autoincrement())
+  nombre               String
+  resumen              String?             @db.Text
+  descripcion          String?             @db.Text
+  descripcion_html     String?             @db.Text
+  precio               Float
+  precioOferta         Float?
+  precioCoste          Float?
+  reglaImpuestoId      Int?
+  stock                Int                 @default(0)
+  stockMinimo          Int                 @default(0)
+  tieneVariantes       Boolean             @default(false)
+  activo               Boolean             @default(true)
+  destacado            Boolean             @default(false)
+  enOferta             Boolean             @default(false)
+  visibilidad          String              @default("tienda")
+  disponiblePedidos    Boolean             @default(true)
+  soloWeb              Boolean             @default(false)
+  condicion            String              @default("nuevo")
+  mostrarCondicion     Boolean             @default(false)
+  etiquetas            String?             @db.LongText
+  isbn                 String?
+  ean13                String?
+  upc                  String?
+  anchura              Float?
+  altura               Float?
+  profundidad          Float?
+  peso                 Float?
+  plazoEntregaStock    String?
+  plazoEntregaSinStock String?
+  gastosEnvioExtra     Float?              @default(0)
+  metaTitulo           String?
+  metaDescripcion      String?             @db.Text
+  marcaId              Int?
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime
+  referencia           String?             @unique(map: "Producto_referencia_key")
+  slug                 String?             @unique(map: "Producto_slug_key")
+  caracteristica       caracteristica[]
+  pedidoproducto       pedidoproducto[]
+  precioespecifico     precioespecifico[]
+  mapeoProductoPs      mapeo_producto_ps[]
+  marca                marca?              @relation(fields: [marcaId], references: [id], map: "Producto_marcaId_fkey")
+  reglaimpuesto        reglaimpuesto?      @relation(fields: [reglaImpuestoId], references: [id], map: "Producto_reglaImpuestoId_fkey")
+  productocategoria    productocategoria[]
+  productoimagen       productoimagen[]
+  variante             variante[]
+
+  @@index([marcaId], map: "Producto_marcaId_idx")
+  @@index([reglaImpuestoId], map: "Producto_reglaImpuestoId_idx")
+}
+
+model productocategoria {
+  id          Int       @id @default(autoincrement())
+  productoId  Int
+  categoriaId Int
+  esPrincipal Boolean   @default(false)
+  categoria   categoria @relation(fields: [categoriaId], references: [id], onDelete: Cascade, map: "ProductoCategoria_categoriaId_fkey")
+  producto    producto  @relation(fields: [productoId], references: [id], onDelete: Cascade, map: "ProductoCategoria_productoId_fkey")
+
+  @@unique([productoId, categoriaId], map: "ProductoCategoria_productoId_categoriaId_key")
+  @@index([categoriaId], map: "ProductoCategoria_categoriaId_idx")
+  @@index([productoId], map: "ProductoCategoria_productoId_idx")
+}
+
+model productoimagen {
+  id         Int      @id @default(autoincrement())
+  url        String
+  orden      Int      @default(0)
+  esPortada  Boolean  @default(false)
+  productoId Int
+  producto   producto @relation(fields: [productoId], references: [id], onDelete: Cascade, map: "ProductoImagen_productoId_fkey")
+
+  @@index([productoId], map: "ProductoImagen_productoId_idx")
+}
+
+model proveedor {
+  id          Int      @id @default(autoincrement())
+  nombre      String   @unique(map: "Proveedor_nombre_key")
+  descripcion String?  @db.Text
+  imagen      String?
+  contacto    String?
+  email       String?
+  telefono    String?
+  direccion   String?
+  nif         String?
+  activo      Boolean  @default(true)
+  marcaId     Int?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime
+  marca       marca?   @relation(fields: [marcaId], references: [id], map: "Proveedor_marcaId_fkey")
+
+  @@index([marcaId], map: "Proveedor_marcaId_idx")
+}
+
+model reglaimpuesto {
+  id         Int        @id @default(autoincrement())
+  nombre     String     @unique(map: "ReglaImpuesto_nombre_key")
+  porcentaje Float
+  activa     Boolean    @default(true)
+  producto   producto[]
+}
+
+model transporte {
+  id            Int      @id @default(autoincrement())
+  nombre        String   @unique(map: "Transporte_nombre_key")
+  descripcion   String?
+  precio        Float    @default(0)
+  precioGratis  Float?
+  tiempoEntrega String?
+  activo        Boolean  @default(true)
+  orden         Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime
+}
+
+model variante {
+  id               Int                @id @default(autoincrement())
+  productoId       Int
+  referencia       String?
+  stock            Int                @default(0)
+  imagen           String?
+  color            String?
+  imagenMuestra    String?
+  imagenesVariante String?            @db.Text
+  precio_extra     Float?             @default(0)
+  tamano           String?
+  tirador          String?
+  pedidoproducto   pedidoproducto[]
+  producto         producto           @relation(fields: [productoId], references: [id], onDelete: Cascade, map: "Variante_productoId_fkey")
+  varianteatributo varianteatributo[]
+
+  @@index([productoId], map: "Variante_productoId_idx")
+}
+
+model varianteatributo {
+  id              Int           @id @default(autoincrement())
+  varianteId      Int
+  atributoValorId Int
+  atributovalor   atributovalor @relation(fields: [atributoValorId], references: [id], onDelete: Cascade, map: "VarianteAtributo_atributoValorId_fkey")
+  variante        variante      @relation(fields: [varianteId], references: [id], onDelete: Cascade, map: "VarianteAtributo_varianteId_fkey")
+
+  @@unique([varianteId, atributoValorId], map: "VarianteAtributo_varianteId_atributoValorId_key")
+  @@index([atributoValorId], map: "VarianteAtributo_atributoValorId_idx")
+  @@index([varianteId], map: "VarianteAtributo_varianteId_idx")
+}
+
+enum cupon_tipoDescuento {
+  PORCENTAJE
+  FIJO
+}
+
+enum pedido_estadoPago {
+  PENDIENTE
+  PAGADO
+  FALLIDO
+  REEMBOLSADO
+}
+
+model estadopedido {
+  id                 Int      @id @default(autoincrement())
+  clave              String   @unique
+  nombre             String
+  color              String   @default("#6b7280")
+  icono              String?
+  orden              Int      @default(0)
+  activo             Boolean  @default(true)
+  enviarEmail        Boolean  @default(false)
+  plantillaEmail     String?
+  esEntrega          Boolean  @default(false)
+  esFactura          Boolean  @default(false)
+  considerarValidado Boolean  @default(false)
+  permitirFacturaPDF Boolean  @default(false)
+  ocultarEstado      Boolean  @default(false)
+  adjuntarFacturaPDF Boolean  @default(false)
+  adjuntarAlbaranPDF Boolean  @default(false)
+  establecerEnviado  Boolean  @default(false)
+  establecerPagado   Boolean  @default(false)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime
+}
+
+enum pedido_estado {
+  PENDIENTE
+  PROCESANDO
+  ENVIADO
+  ENTREGADO
+  CUESTIONARIO
+  CANCELADO
+  DEVUELTO
+}
+
+model historialestadopedido {
+  id       Int      @id @default(autoincrement())
+  pedidoId Int
+  estado   String
+  color    String?
+  fecha    DateTime @default(now())
+  pedido   pedido   @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+
+  @@index([pedidoId])
+}
+
+model mapeo_producto_ps {
+  id           Int      @id @default(autoincrement())
+  idPrestashop Int      @unique
+  referencia   String
+  productoId   Int?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime
+  producto     producto? @relation(fields: [productoId], references: [id], onDelete: SetNull, map: "MapeoProductoPS_productoId_fkey")
+
+  @@index([referencia], map: "MapeoProductoPS_referencia_idx")
+  @@index([productoId], map: "MapeoProductoPS_productoId_idx")
+}
+
+model visita {
+  id          Int      @id @default(autoincrement())
+  sessionId   String   @db.VarChar(64)
+  ipHash      String   @db.VarChar(64)
+  url         String   @db.VarChar(2048)
+  referrer    String?  @db.VarChar(2048)
+  fuente      String?  @db.VarChar(50)
+  dispositivo String?  @db.VarChar(20)
+  timestamp   DateTime @default(now())
+
+  @@index([timestamp])
+  @@index([sessionId])
+  @@index([fuente])
+}
+
+model busqueda_log {
+  id        Int      @id @default(autoincrement())
+  termino   String   @db.VarChar(255)
+  timestamp DateTime @default(now())
+
+  @@index([timestamp])
+  @@index([termino])
+}

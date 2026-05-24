@@ -1,0 +1,100 @@
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Ocultar barra superior de Google Translate */
+.goog-te-banner-frame { display: none !important; }
+body { top: 0 !important; }
+.goog-logo-link { display: none !important; }
+.goog-te-gadget { font-size: 0 !important; }
+
+/* 🎨 VARIABLES CSS (Opcional, pero Tailwind ya usa config) */
+:root {
+  --primary: #6BAEC9;
+  --secondary: #4A4A4A;
+  --tertiary: #DDC9A3;
+  --accent: #F7A38B;
+  /* Quitamos --background de aquí para que no confunda */
+}
+
+* {
+  box-sizing: border-box;
+  padding: 0;
+  margin: 0;
+}
+
+html,
+body {
+  max-width: 100vw;
+  overflow-x: hidden;
+  font-family: 'Poppins', sans-serif;
+  
+  /* ❌ BORRADO: background-color: var(--background); */
+  /* ❌ BORRADO: color: var(--secondary); */
+  /* Dejamos que las clases de Tailwind en layout.tsx controlen esto */
+}
+
+a {
+  text-decoration: none;
+}
+
+.product-description p:has(> img:only-child),
+.product-description p:has(> a:only-child) {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 1rem;
+  width: 100%;
+  max-width: 1100px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.product-description p:has(> img + img),
+.product-description p:has(> a + a) {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 1rem;
+  flex-wrap: wrap;
+  width: 100%;
+  max-width: 1100px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.product-description p:has(> img),
+.product-description p:has(> a > img) {
+  margin-top: 1.25rem;
+  margin-bottom: 1.25rem;
+}
+
+.product-description p > img,
+.product-description p > a,
+.product-description p > a > img {
+  max-width: 100%;
+}
+
+.product-description p > img,
+.product-description p > a > img {
+  display: block;
+  height: auto;
+}
+
+.product-description p:has(> img:only-child) > img,
+.product-description p:has(> a:only-child) > a > img {
+  max-width: 100%;
+}
+
+.product-description p:has(> img + img) > img,
+.product-description p:has(> a + a) > a > img {
+  max-width: 100%;
+}
+
+.product-description p:has(> a:only-child) > a {
+  display: block;
+  width: fit-content;
+}
+

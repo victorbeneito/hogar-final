@@ -1,0 +1,10 @@
+User-agent: *
+Allow: /
+
+Disallow: /admin/
+Disallow: /api/
+Disallow: /account/
+Disallow: /checkout/
+Disallow: /carrito/
+
+Sitemap: https://www.elhogardetusuenos.com/sitemap.xml
