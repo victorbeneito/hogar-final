@@ -1,0 +1,10 @@
+# Servir archivos estáticos de Next.js (carpeta public/) directamente por Apache
+# Esto es necesario porque Plesk sirve estáticos desde httpdocs/ no desde httpdocs/public/
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /
+
+  # Si el archivo existe físicamente en httpdocs/public/, servirlo directamente
+  # (Esto es manejado automáticamente por Apache al estar este .htaccess en public/)
+</IfModule>

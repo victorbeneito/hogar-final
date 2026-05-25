@@ -31,7 +31,11 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const url = producto.slug
     ? `https://www.elhogardetusuenos.com/productos/${producto.slug}`
     : `https://www.elhogardetusuenos.com/productos/${idNumero}`;
-  const image = producto.productoimagen[0]?.url;
+  const imageRaw = producto.productoimagen[0]?.url;
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://www.elhogardetusuenos.com";
+  const image = imageRaw
+    ? imageRaw.startsWith("http") ? imageRaw : `${baseUrl}${imageRaw}`
+    : undefined;
 
   return {
     title,
