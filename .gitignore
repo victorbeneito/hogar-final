@@ -50,6 +50,8 @@ importacion/
 *.tmp
 .tmp-*
 
+/public/img/p
+
 /prestashop
 
 /db_backups

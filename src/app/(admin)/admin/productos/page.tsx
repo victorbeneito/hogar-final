@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useAdminFetch } from "@/lib/useAdminFetch";
 import {
@@ -441,7 +440,7 @@ export default function ProductosPage() {
                       <td className="px-3 py-2.5">
                         <div className="w-10 h-10 rounded-md overflow-hidden bg-gray-100 dark:bg-gray-700 flex items-center justify-center border border-gray-200 dark:border-gray-600">
                           {imagenUrl ? (
-                            <Image src={imagenUrl} alt={p.nombre} width={40} height={40} className="object-cover w-full h-full" />
+                            <img src={imagenUrl} alt={p.nombre} className="object-cover w-full h-full" />
                           ) : (
                             <span className="text-gray-300 text-lg">📦</span>
                           )}

@@ -1,0 +1,17 @@
+name: Deploy to Plesk
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Trigger Plesk deployment
+        run: |
+          curl -s -o /dev/null -w "%{http_code}" \
+            "https://ns3.ev22.com:8443/modules/git/public/web-hook.php?uuid=8f183662-70dd-2588-9fa2-fd6c39ba30fe"

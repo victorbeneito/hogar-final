@@ -1,0 +1,7 @@
+RewriteEngine On
+
+# Servir archivos estáticos de Next.js (carpeta public/) directamente por Apache.
+# Necesario porque Apache sirve desde httpdocs/ pero los estáticos están en httpdocs/public/
+RewriteCond %{REQUEST_URI} ^/img/
+RewriteCond %{DOCUMENT_ROOT}/public%{REQUEST_URI} -f
+RewriteRule ^(img/.+)$ /public/$1 [L]
