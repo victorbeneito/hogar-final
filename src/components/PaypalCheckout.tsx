@@ -1,6 +1,6 @@
 "use client";
 
-import { PayPalButtons, usePayPalScriptContext } from "@paypal/react-paypal-js";
+import { PayPalButtons, usePayPalScriptReducer } from "@paypal/react-paypal-js";
 import toast from "react-hot-toast";
 import type { OnApproveData, CreateOrderData } from "@paypal/checkout-server-sdk";
 
@@ -19,7 +19,7 @@ export function PaypalCheckout({
   onSuccess,
   onError,
 }: PaypalCheckoutProps) {
-  const { isPending } = usePayPalScriptContext();
+  const [{ isPending }] = usePayPalScriptReducer();
 
   if (isPending) {
     return <div className="text-center py-4 text-gray-500">Cargando PayPal...</div>;
