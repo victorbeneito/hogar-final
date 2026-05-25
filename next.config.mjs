@@ -7,12 +7,7 @@ const nextConfig = {
   env: {
     NEXT_PUBLIC_APP_VERSION: version,
   },
-    output: 'standalone',
-    distDir: 'build',
     serverExternalPackages: ['@prisma/client', 'bcrypt', '@react-pdf/renderer'],
-  outputFileTracingIncludes: {
-    '/api/facturas/**': ['./scripts/*.cjs'],
-  },
 typescript: {
     // !! ATENCIÓN !!
     // Ignoramos errores para que Azure pueda desplegar aunque el seed.ts tenga fallos
