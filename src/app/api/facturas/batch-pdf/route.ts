@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 
 function runPdfWorkerBatch(invoices: any[], settings: any): Promise<Buffer> {
   return new Promise((resolve, reject) => {
-    const workerPath = path.join(process.cwd(), "scripts", "pdf-worker-batch.cjs");
+    const workerPath = path.join(process.cwd(), "scripts", "pdf-worker-batch" + ".cjs");
     const child = spawn("node", [workerPath], { stdio: ["pipe", "pipe", "pipe"] });
 
     const chunks: Buffer[] = [];

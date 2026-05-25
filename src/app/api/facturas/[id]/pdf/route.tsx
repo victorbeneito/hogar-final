@@ -10,7 +10,7 @@ type RouteParams = { params: Promise<{ id: string }> };
 
 function runPdfWorker(payload: object): Promise<Buffer> {
   return new Promise((resolve, reject) => {
-    const workerPath = path.join(process.cwd(), "scripts", "pdf-worker.cjs");
+    const workerPath = path.join(process.cwd(), "scripts", "pdf-worker" + ".cjs");
     const child = spawn("node", [workerPath], { stdio: ["pipe", "pipe", "pipe"] });
 
     const chunks: Buffer[] = [];
