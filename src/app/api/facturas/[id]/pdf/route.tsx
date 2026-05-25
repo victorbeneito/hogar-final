@@ -10,8 +10,9 @@ type RouteParams = { params: Promise<{ id: string }> };
 
 function runPdfWorker(payload: object): Promise<Buffer> {
   return new Promise((resolve, reject) => {
-    // Buffer.from prevents Turbopack from statically resolving this as a module import
-    const workerPath = path.join(process.cwd(), "scripts", `pdf-worker.${Buffer.from([99,106,115]).toString()}`);
+    // eval makes the path fully opaque to Turbopack's static analyzer (process.cwd resolves to /ROOT/ at build time)
+    // eslint-disable-next-line no-eval
+    const workerPath: string = (0, eval)('require("path").join(process.cwd(), "scripts", "pdf-worker.cjs")');
     const child = spawn("node", [workerPath], { stdio: ["pipe", "pipe", "pipe"] });
 
     const chunks: Buffer[] = [];
