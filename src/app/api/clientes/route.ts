@@ -112,7 +112,7 @@ export async function GET(req: NextRequest) {
 
   } catch (error: any) {
     console.error("❌ Error API Clientes:", error.message);
-    return NextResponse.json({ ok: false, error: "Error de servidor", debug: error.message, code: error.code }, { status: 500 });
+    return NextResponse.json({ ok: false, error: "Error de servidor" }, { status: 500 });
   }
 }
 
