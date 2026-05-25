@@ -29,7 +29,7 @@ type PrestashopStateMeta = {
   logable: boolean;
 };
 
-type OrderStatus = "PENDIENTE" | "PROCESANDO" | "ENVIADO" | "ENTREGADO" | "CANCELADO" | "DEVUELTO";
+type OrderStatus = "PENDIENTE" | "PROCESANDO" | "ENVIADO" | "ENTREGADO" | "CUESTIONARIO" | "CANCELADO" | "DEVUELTO";
 type OrderPaymentStatus = "PENDIENTE" | "PAGADO" | "FALLIDO" | "REEMBOLSADO";
 
 type ImportSummary = {
@@ -383,13 +383,64 @@ function buildStateMeta(stateRows: CsvRow[], stateLangRows: CsvRow[]) {
   return meta;
 }
 
+// Mapeo explícito de IDs de estado PrestaShop a estados de la aplicación.
+// Cubre los estados estándar y los personalizados detectados en los CSV exportados.
+const PRESTASHOP_ESTADO_MAP: Record<number, { estado: OrderStatus; estadoPago: OrderPaymentStatus }> = {
+  1:  { estado: "PENDIENTE",    estadoPago: "PENDIENTE"   }, // En espera de pago por cheque
+  2:  { estado: "PROCESANDO",   estadoPago: "PAGADO"      }, // Pago aceptado
+  3:  { estado: "PROCESANDO",   estadoPago: "PAGADO"      }, // Preparación en curso
+  4:  { estado: "ENVIADO",      estadoPago: "PAGADO"      }, // Enviado
+  5:  { estado: "ENTREGADO",    estadoPago: "PAGADO"      }, // Entregado
+  6:  { estado: "CANCELADO",    estadoPago: "PENDIENTE"   }, // Cancelado
+  7:  { estado: "DEVUELTO",     estadoPago: "REEMBOLSADO" }, // Reembolsado
+  8:  { estado: "PENDIENTE",    estadoPago: "FALLIDO"     }, // Error en pago
+  9:  { estado: "PROCESANDO",   estadoPago: "PAGADO"      }, // Sin stock (pagado)
+  10: { estado: "PENDIENTE",    estadoPago: "PENDIENTE"   }, // En espera de transferencia
+  11: { estado: "PROCESANDO",   estadoPago: "PAGADO"      }, // Pago remoto aceptado
+  12: { estado: "PENDIENTE",    estadoPago: "PENDIENTE"   }, // Sin stock (no pagado)
+  13: { estado: "PENDIENTE",    estadoPago: "PENDIENTE"   }, // Contra reembolso pendiente
+  17: { estado: "ENTREGADO",    estadoPago: "PAGADO"      }, // Pedido finalizado
+  18: { estado: "CUESTIONARIO", estadoPago: "PAGADO"      }, // Cuestionario
+  19: { estado: "PENDIENTE",    estadoPago: "PENDIENTE"   }, // CONFLICTO
+  20: { estado: "DEVUELTO",     estadoPago: "REEMBOLSADO" }, // Devolución
+  21: { estado: "CANCELADO",    estadoPago: "PENDIENTE"   }, // Aliexpress Cancelado
+  22: { estado: "PROCESANDO",   estadoPago: "PAGADO"      }, // Aliexpress Esperando Envío
+  23: { estado: "PROCESANDO",   estadoPago: "PAGADO"      }, // Aliexpress Esperando Envío parcial
+  24: { estado: "ENVIADO",      estadoPago: "PAGADO"      }, // Aliexpress Esperando recepción
+  25: { estado: "PENDIENTE",    estadoPago: "PENDIENTE"   }, // Aliexpress Incidencia
+  26: { estado: "CANCELADO",    estadoPago: "PENDIENTE"   }, // Aliexpress Bloqueado
+  29: { estado: "ENTREGADO",    estadoPago: "PAGADO"      }, // Aliexpress Finalizado
+  30: { estado: "ENTREGADO",    estadoPago: "PAGADO"      }, // Aliexpress Completado
+  31: { estado: "PROCESANDO",   estadoPago: "PAGADO"      }, // Pago Tarjeta
+  33: { estado: "PROCESANDO",   estadoPago: "PAGADO"      }, // Aliexpress Pago aceptado
+  34: { estado: "ENVIADO",      estadoPago: "PAGADO"      }, // Aliexpress Enviado pedido
+  35: { estado: "CANCELADO",    estadoPago: "PENDIENTE"   }, // Aliexpress Cancelado pedido
+  36: { estado: "ENTREGADO",    estadoPago: "PAGADO"      }, // Aliexpress Pedido recibido
+  37: { estado: "PENDIENTE",    estadoPago: "PENDIENTE"   }, // Bizum (pendiente confirmación)
+};
+
 function mapPrestashopStatus(orderRow: CsvRow, stateMeta: PrestashopStateMeta | undefined) {
   const label = stateMeta?.name || `Estado ${normalizeText(orderRow.current_state) || "desconocido"}`;
   const normalized = label.toLowerCase();
-  const valid = parseBool(orderRow.valid, false);
+  const stateId = Number(normalizeText(orderRow.current_state));
 
+  // Primero intentar mapeo explícito por ID
+  const explicit = Number.isInteger(stateId) ? PRESTASHOP_ESTADO_MAP[stateId] : undefined;
+  if (explicit) {
+    return {
+      estado: explicit.estado,
+      estadoPago: explicit.estadoPago,
+      label,
+      color: stateMeta?.color ?? null,
+    };
+  }
+
+  // Fallback por palabras clave en el nombre del estado
+  const valid = parseBool(orderRow.valid, false);
   let estado: OrderStatus = "PENDIENTE";
-  if (normalized.includes("entreg")) {
+  if (normalized.includes("cuestionario")) {
+    estado = "CUESTIONARIO";
+  } else if (normalized.includes("entreg") || normalized.includes("finalizado") || normalized.includes("completado")) {
     estado = "ENTREGADO";
   } else if (normalized.includes("enviad") || stateMeta?.shipped) {
     estado = "ENVIADO";

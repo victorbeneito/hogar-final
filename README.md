@@ -1,152 +1,259 @@
-﻿\# El Hogar de tus Sueños 🏡
+# El Hogar de tus Sueños
 
-Tienda online especializada en la venta de ropa de hogar, ofreciendo una amplia gama de productos como estores, fundas de sofá, manteles y artículos de decoración para transformar y dar vida a cualquier espacio.
+Tienda online especializada en ropa de hogar: estores, fundas de sofá, manteles, artículos de decoración y medidas personalizadas. Arquitectura full-stack moderna con Next.js App Router, panel de administración completo y pasarelas de pago reales integradas.
 
-Este proyecto utiliza una arquitectura moderna basada en Next.js, con una base de datos MariaDB (gestionada localmente mediante Docker) y un flujo de despliegue continuo (CI/CD) hacia Azure Web App Services.
+**Producción:** [www.elhogardetusuenos.com](https://www.elhogardetusuenos.com)
 
-\## 🛠️ Stack Tecnológico
+---
 
-\* \*\*Framework:\*\* Next.js 16 (App Router)
+## Stack Tecnológico
 
-\* \*\*Lenguaje:\*\* TypeScript
+| Capa | Tecnología |
+|---|---|
+| Framework | Next.js 16 (App Router) |
+| Lenguaje | TypeScript 5 |
+| Base de datos | MariaDB (Docker local) / Azure en producción |
+| ORM | Prisma 6 |
+| Estilos | Tailwind CSS 3 |
+| Componentes UI | Heroicons, Lucide React, React Icons |
+| Gráficas | Recharts |
+| Editor de texto | Tiptap (con extensiones: color, fuentes, imágenes, links) |
+| PDFs | @react-pdf/renderer |
+| Estado / Caché | TanStack React Query v5 |
+| Autenticación | JWT + bcryptjs + OAuth Google |
+| Email | Nodemailer |
+| Pasarelas de pago | Redsys (TPV virtual), PayPal SDK |
+| Infraestructura local | Docker & Docker Compose |
+| Despliegue | Servidor Plesk+ GitHub Actions (CI/CD) |
+| Analítica | Google Analytics 4 (GA4) + tracking de tráfico propio |
 
-\* \*\*Base de Datos:\*\* MariaDB (Elegida por paridad con el entorno de prácticas empresariales)
+---
 
-\* \*\*ORM:\*\* Prisma
+## Funcionalidades Principales
 
-\* \*\*Estilos:\*\* Tailwind CSS
+### Tienda pública
+- Catálogo de productos con filtros, ordenación y búsqueda en tiempo real
+- Ficha de producto con galería de imágenes, combinaciones (tallas, colores, etc.) y vista rápida (quick view modal)
+- Categorías jerárquicas con páginas SEO optimizadas
+- Carrito de compra persistente con modal lateral
+- Proceso de checkout multipaso: direcciones → envío → pago → confirmación
+- Página de medidas personalizadas
+- Sistema de cupones de descuento con validación en tiempo real
+- Páginas CMS dinámicas (aviso legal, política de cookies, etc.)
+- Formulario de suscripción a newsletter
+- Widget de chat integrado
+- Banner de cookies con gestión de consentimiento (CookieConsent)
+- Traductor Google integrado (multiidioma)
+- Modo oscuro / claro (next-themes)
 
-\* \*\*Autenticación y Seguridad:\*\* JSON Web Tokens (JWT) y bcryptjs
+### Pasarelas de pago integradas
+- **Redsys (TPV Virtual):** tarjeta bancaria con notificación segura (redsys-easy)
+- **PayPal:** flujo completo con SDK oficial (@paypal/react-paypal-js)
+- **Transferencia bancaria**
+- **Bizum**
+- **Contrareembolso**
 
-\* \*\*Infraestructura Local:\*\* Docker & Docker Compose (para DB y phpMyAdmin)
+### Cuenta de cliente
+- Registro, login y autenticación con Google OAuth
+- Gestión de datos personales, email y contraseña
+- Libro de direcciones múltiples
+- Historial de pedidos con seguimiento de estado
+- Cupones disponibles
+- Preferencias de alertas y cookies
 
-\* \*\*Despliegue:\*\* Azure Web App Service vía GitHub Actions
+### Panel de administración (`/admin`)
+- **Dashboard** con estadísticas en tiempo real: ventas, pedidos, clientes, visitas
+- Gráfica de ventas por período (Recharts) con selector de rango
+- Widget de tráfico propio + integración Google Analytics GA4
+- Tabla de últimos pedidos y clientes
+- Gestión completa de **productos**: creación, edición por tabs (básicos, precio, combinaciones, opciones, SEO, transporte), duplicar, activar/desactivar
+- Gestión de **categorías** con árbol jerárquico
+- Gestión de **marcas**
+- Gestión de **atributos** y valores (tallas, colores, materiales...)
+- Gestión de **pedidos**: estados configurables, mensajes internos, referencia automática
+- Creación manual de pedidos desde admin
+- **Facturas** en PDF: generación individual y batch, configuración de datos fiscales
+- Gestión de **clientes**: creación, edición, direcciones
+- Gestión de **carritos** activos
+- **Cupones de descuento**: creación y control de uso
+- **Formas de pago**: configuración y activación/desactivación por canal
+- **Transportes**: reglas de precio y configuración
+- **Correos transaccionales**: plantillas editables con editor Tiptap, previsualización y configuración SMTP
+- **Módulos**: activación de integraciones (Revi.io, widgets externos)
+- **Integración Revi.io**: sincronización de valoraciones, mapeo de estados, widget en frontend
+- **Sistema CMS**: gestión de páginas estáticas con editor rico
+- **Importación desde PrestaShop**: migración de clientes, pedidos y facturas desde CSV
+- Gestión de equipo (usuarios admin)
+- Configuración global de clientes, pedidos y productos
 
-\## 📋 Requisitos Previos
+---
 
-Asegúrate de tener instalado en tu equipo:
+## Arquitectura del Proyecto
 
-\* [Node.js](https://nodejs.org/) (v18 o superior).
+```
+src/
+├── app/
+│   ├── (admin)/          # Panel de administración (route group)
+│   │   ├── admin-login/
+│   │   └── admin/        # Todas las secciones del backoffice
+│   ├── (public)/         # Tienda pública (route group)
+│   │   ├── productos/
+│   │   ├── categorias/
+│   │   ├── carrito/
+│   │   ├── checkout/     # Multipaso con pasarelas
+│   │   └── cms/
+│   ├── account/          # Área privada del cliente
+│   ├── api/              # API Routes (Next.js Route Handlers)
+│   └── Providers.tsx     # Context providers globales
+├── components/
+│   ├── admin/            # Componentes exclusivos del backoffice
+│   │   └── dashboard/    # Widgets del dashboard (charts, stats, tráfico)
+│   └── *.tsx             # Componentes de la tienda pública
+└── lib/                  # Utilidades, helpers, configuración Prisma
+```
 
-\* [Docker Desktop](https://www.docker.com/products/docker-desktop/).
+---
 
-\* [Git](https://git-scm.com/).
+## Requisitos Previos
 
-\---
+- [Node.js](https://nodejs.org/) v18 o superior
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/)
+- [Git](https://github.com/)
 
-\## 🚀 Instalación y Entorno Local
+---
 
-Para levantar el entorno de desarrollo en tu máquina, sigue estos pasos:
+## Instalación y Entorno Local
 
-\### 1. Clonar el repositorio
+### 1. Clonar el repositorio
 
-El proyecto utiliza un flujo de trabajo basado en ramas. El desarrollo activo ocurre en la rama `develop`.
-
-\```bash
-
-git clone [https://github.com/victorbeneito/projecte\_nextjs\_mariadb.git](https://github.com/victorbeneito/projecte\_nextjs\_mariadb.git)
-
-cd projecte\_nextjs\_mariadb
-
+```bash
+git clone https://github.com/victorbeneito/projecte_nextjs_mariadb.git
+cd projecte_nextjs_mariadb
 git checkout develop
+```
 
-**2. Configurar Variables de Entorno**
+### 2. Configurar variables de entorno
 
-Crea un archivo .env en la raíz del proyecto basándote en el archivo de ejemplo (.env.example) o configurando tu conexión a la base de datos local:
+Crea un archivo `.env.local` en la raíz con al menos estas variables:
 
-Bash
+```env
+DATABASE_URL="mysql://root:root@localhost:3306/elhogardetussuenos"
+JWT_SECRET="tu_secreto_jwt"
+NEXTAUTH_URL="http://localhost:3000"
 
-\# Ejemplo de variable de entorno para Prisma y MariaDB local
+# Google OAuth
+GOOGLE_CLIENT_ID="..."
+GOOGLE_CLIENT_SECRET="..."
 
-DATABASE\_URL="mysql://root:root@localhost:3306/elhogardetussuenos"
+# PayPal
+PAYPAL_CLIENT_ID="..."
+PAYPAL_CLIENT_SECRET="..."
 
-**3. Levantar los Servicios de Base de Datos (Docker)**
+# Redsys
+REDSYS_MERCHANT_CODE="..."
+REDSYS_TERMINAL="001"
+REDSYS_SECRET_KEY="..."
 
-La base de datos y el gestor phpMyAdmin se ejecutan en contenedores. Levántalos con:
+# Email (SMTP)
+SMTP_HOST="..."
+SMTP_PORT="587"
+SMTP_USER="..."
+SMTP_PASS="..."
 
-Bash
+# Google Analytics
+NEXT_PUBLIC_GA_ID="G-XXXXXXXXXX"
+```
 
+### 3. Levantar la base de datos con Docker
+
+```bash
 docker compose up -d
+```
 
-**4. Instalar Dependencias y Preparar la Base de Datos**
+Accede a phpMyAdmin en `http://localhost:8080`.
 
-Instala los paquetes de Node e inicializa Prisma para generar los clientes y sincronizar las tablas con MariaDB:
+### 4. Instalar dependencias y preparar Prisma
 
-Bash
-
+```bash
 npm install
-
 npx prisma generate
-
 npx prisma db push
+```
 
-**5. Iniciar el Servidor de Desarrollo**
+### 5. Iniciar el servidor de desarrollo
 
-Una vez que la base de datos está lista, levanta la aplicación de Next.js en local:
-
-Bash
-
+```bash
 npm run dev
+```
 
-La aplicación estará disponible en http://localhost:3000. Para acceder a la gestión de la base de datos, entra en phpMyAdmin a través del puerto configurado en tu Docker (generalmente http://localhost:8080).
+La aplicación estará disponible en `http://localhost:3000`.
 
------
-**🌿 Flujo de Trabajo y Despliegue (Git & Azure)**
+---
 
-El proyecto cuenta con integración y despliegue continuo (CI/CD) configurado mediante GitHub Actions.
+## Flujo de Trabajo y Despliegue
 
-- **Rama develop:** Utilizada para integrar nuevas funcionalidades, pruebas y desarrollo diario.
-- **Rama main:** Representa el entorno de producción.
+```
+develop  →  (PR / merge)  →  main  →  GitHub Actions  →  Azure Web App
+```
 
-**¿Cómo desplegar?** Cualquier Merge o Push realizado sobre la rama main disparará automáticamente un workflow de GitHub Actions que construirá la aplicación y subirá los cambios directamente a la infraestructura de Azure.
+- **`develop`**: desarrollo activo, integración de features y correcciones
+- **`main`**: producción — cualquier push o merge dispara el workflow de CI/CD
 
------
-**🌐 Entorno de Producción**
+El pipeline de GitHub Actions construye la aplicación con `next build` (modo standalone), copia los assets estáticos y el engine de Prisma, y despliega en Azure Web App Service (France Central).
 
-La aplicación está desplegada en Azure y es accesible públicamente a través del dominio personalizado:
+---
 
-- **Web Pública:** [www.elhogardetusuenos.com](https://www.elhogardetusuenos.com)
-- *(URL interna original de Azure: https://tenda-hogar-fwhfaxhee9ftche9.francecentral-01.azurewebsites.net/)*
------
-**🔧 Resolución de Problemas Frecuentes (Troubleshooting)**
+## Entorno de Producción
 
-Durante el desarrollo en local, podrías enfrentarte a algunos de estos escenarios comunes. Aquí tienes cómo solucionarlos rápidamente:
+| | |
+|---|---|
+| Dominio | [www.elhogardetusuenos.com](https://www.elhogardetusuenos.com) |
+| Plataforma | Servidor Plesk www.ev22.com |
+| Base de datos | MariaDB  |
+| CI/CD | GitHub Actions |
 
-**1. Los estilos de Tailwind CSS no cargan en local:** Esto suele deberse a un problema de caché de Next.js.
+---
 
-- **Solución:** Detén el servidor (Ctrl + C), elimina la carpeta oculta .next ejecutando rm -rf .next (en Mac/Linux) o borrándola manualmente, y vuelve a ejecutar npm run dev.
+## Importación histórica desde PrestaShop
 
-**2. Problemas con la carpeta de Prisma o "Client no encontrado":** Si el cliente de Prisma falla o no reconoce los últimos cambios de tu esquema tras hacer un pull.
-
-- **Solución:** Regenera los artefactos de Prisma forzando la creación en los módulos locales:
-
-Bash
-
-npx prisma generate
-
-**3. Errores de permisos al ejecutar scripts o Docker (Linux/WSL):** Si obtienes un error de "Permission denied" al intentar levantar los contenedores o modificar archivos generados.
-
-- **Solución Docker:** Asegúrate de ejecutar Docker con sudo o añade tu usuario al grupo de docker (sudo usermod -aG docker $USER).
-- **Solución Archivos:** Corrige los permisos de la carpeta del proyecto con sudo chown -R $USER:$USER .
-
------
-**📦 Importación histórica de Prestashop**
-
-Para importar clientes, direcciones, pedidos y facturas desde CSV exportados de DBeaver, usa el script `scripts/importar-pedidos-prestashop.ts`.
-
-Ejemplo de uso:
+Para migrar clientes, direcciones, pedidos y facturas desde CSVs exportados de PrestaShop/DBeaver:
 
 ```bash
 npm run import:prestashop -- --inputDir "importacion/Archivos prestashop/pedidos" --since 2021-01-01
 ```
 
-No uses `--skip-project` con este importador; hace que `ts-node` coja una combinación de opciones incompatible con este proyecto y aparece el error TS5109.
-
 Archivos esperados en la carpeta de entrada:
 
-- `ps_customer*.csv`
-- `ps_address*.csv`
-- `ps_orders*.csv`
-- `ps_order_detail*.csv` opcional, si quieres también las líneas de pedido
-- `ps_order_state*.csv` y `ps_order_state_lang*.csv` opcionales, para conservar el estado original
+| Archivo | Descripción |
+|---|---|
+| `ps_customer*.csv` | Datos de clientes |
+| `ps_address*.csv` | Direcciones |
+| `ps_orders*.csv` | Cabeceras de pedidos |
+| `ps_order_detail*.csv` | Líneas de pedido (opcional) |
+| `ps_order_state*.csv` + `ps_order_state_lang*.csv` | Estados originales (opcional) |
 
+> No uses `--skip-project` con este importador; genera una incompatibilidad de opciones con `ts-node` (error TS5109).
+
+---
+
+## Resolución de Problemas
+
+**Tailwind CSS no carga en local**
+Elimina la caché de Next.js y reinicia:
+```bash
+rm -rf .next && npm run dev
+```
+
+**"Prisma Client no encontrado" tras un pull**
+Regenera los artefactos:
+```bash
+npx prisma generate
+```
+
+**Errores de permisos con Docker (Linux/WSL)**
+```bash
+# Añadir usuario al grupo docker
+sudo usermod -aG docker $USER
+# Corregir permisos del proyecto
+sudo chown -R $USER:$USER .
+```

@@ -11,7 +11,8 @@ interface Pedido {
   referencia?: string;
   numeroPedido?: string;
   nombre: string;
-  cliente: { nombre: string; email: string; };
+  apellidos?: string;
+  cliente: { nombre: string; apellidos?: string; email: string; };
   pago?: { metodo?: string; totalFinal?: number; };
   totalFinal?: number;
   pagoMetodo?: string;
@@ -579,9 +580,13 @@ export default function AdminPedidos() {
                         {pedido.referencia || pedido.numeroPedido || "—"}
                       </td>
                       <td className="px-4 py-2.5 font-semibold text-[#4A4A4A]">
-                        {pedido.nombre && pedido.nombre !== "Cliente Importado"
-                          ? pedido.nombre
-                          : (pedido.cliente?.nombre || "Sin nombre")}
+                        {(() => {
+                          const nombre = (pedido.nombre && pedido.nombre !== "Cliente Importado")
+                            ? pedido.nombre
+                            : (pedido.cliente?.nombre || "");
+                          const apellidos = pedido.apellidos || pedido.cliente?.apellidos || "";
+                          return [nombre, apellidos].filter(Boolean).join(" ") || "Sin nombre";
+                        })()}
                       </td>
                       <td className="px-4 py-2.5">
                         <p className="text-sm font-semibold text-[#6BAEC9]">
@@ -678,7 +683,9 @@ export default function AdminPedidos() {
                   <div className="grid grid-cols-2 gap-3 text-sm">
                     <div>
                       <p className="text-xs text-gray-400 mb-1">Cliente</p>
-                      <p className="font-semibold text-gray-800">{pedido.nombre || pedido.cliente?.nombre || "Sin nombre"}</p>
+                      <p className="font-semibold text-gray-800">
+                        {[pedido.nombre || pedido.cliente?.nombre, pedido.apellidos || pedido.cliente?.apellidos].filter(Boolean).join(" ") || "Sin nombre"}
+                      </p>
                     </div>
                     <div>
                       <p className="text-xs text-gray-400 mb-1">Total</p>
