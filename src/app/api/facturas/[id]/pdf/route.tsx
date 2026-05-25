@@ -10,7 +10,8 @@ type RouteParams = { params: Promise<{ id: string }> };
 
 function runPdfWorker(payload: object): Promise<Buffer> {
   return new Promise((resolve, reject) => {
-    const workerPath = path.join(process.cwd(), "scripts", "pdf-worker" + ".cjs");
+    // Buffer.from prevents Turbopack from statically resolving this as a module import
+    const workerPath = path.join(process.cwd(), "scripts", `pdf-worker.${Buffer.from([99,106,115]).toString()}`);
     const child = spawn("node", [workerPath], { stdio: ["pipe", "pipe", "pipe"] });
 
     const chunks: Buffer[] = [];
