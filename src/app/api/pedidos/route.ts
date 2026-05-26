@@ -506,7 +506,10 @@ export async function POST(req: Request) {
         const n = parseInt(p.numeroPedido.slice(fullPrefix.length), 10);
         if (!isNaN(n) && n > maxSeq) maxSeq = n;
       }
-      const sec = Math.max(maxSeq + 1, refUltimo + 1);
+      // Si hay override manual, respetarlo; si el número ya existe, caer de nuevo en maxSeq+1
+      const secDeseada = refUltimo > 0 ? refUltimo + 1 : maxSeq + 1;
+      const secExists = todos.some((p: any) => parseInt(p.numeroPedido?.slice(fullPrefix.length), 10) === secDeseada);
+      const sec = secExists ? maxSeq + 1 : secDeseada;
       const numeroGenerado = `${fullPrefix}${sec.toString().padStart(refPadding, '0')}`;
 
       console.log("🔢 Número de pedido generado:", numeroGenerado);
