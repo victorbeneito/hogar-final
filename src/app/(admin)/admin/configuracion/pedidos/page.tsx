@@ -513,7 +513,7 @@ export default function ConfiguracionPedidosPage() {
                 {refDraft.prefijo || "PED"}
                 {refDraft.separador}
                 {refDraft.incluirAno ? `${new Date().getFullYear()}${refDraft.separador}` : ""}
-                {String(Math.max((refInfo?.maxSecuencia ?? 0) + 1, (refDraft.ultimoNumero ?? 0) + 1)).padStart(refDraft.padding, "0")}
+                {String(refDraft.ultimoNumero != null ? refDraft.ultimoNumero + 1 : (refInfo?.maxSecuencia ?? 0) + 1).padStart(refDraft.padding, "0")}
               </p>
             </div>
           </section>
@@ -533,7 +533,7 @@ export default function ConfiguracionPedidosPage() {
               <div className="rounded-2xl bg-green-50 dark:bg-green-900/20 border border-green-100 dark:border-green-800 px-5 py-4">
                 <p className="text-xs text-green-500 font-semibold uppercase tracking-wide mb-1">Próximo pedido</p>
                 <p className="text-2xl font-bold text-green-700 dark:text-green-300">
-                  {Math.max((refInfo?.maxSecuencia ?? 0) + 1, (refDraft.ultimoNumero ?? 0) + 1)}
+                  {refDraft.ultimoNumero != null ? refDraft.ultimoNumero + 1 : (refInfo?.maxSecuencia ?? 0) + 1}
                 </p>
                 <p className="text-xs text-green-400 mt-1">Número de secuencia</p>
               </div>
