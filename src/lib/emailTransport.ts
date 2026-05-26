@@ -92,8 +92,6 @@ async function sendViaSmtp(config: EmailTransportConfig, email: OutboundEmail): 
     tls: {
       rejectUnauthorized: config.smtp.rejectUnauthorized,
     },
-    // Deshabilita PLAIN y LOGIN para forzar CRAM-MD5 (como Thunderbird con "Contraseña cifrada")
-    disabledCommands: ["AUTH PLAIN", "AUTH LOGIN"],
     debug: process.env.NODE_ENV === "development",
     logger: process.env.NODE_ENV === "development",
   } as TransportOptions;
