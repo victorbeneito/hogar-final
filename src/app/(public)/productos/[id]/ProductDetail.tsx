@@ -44,17 +44,19 @@ interface Producto {
   id: number;
   nombre: string;
   descripcion: string;
-  descripcion_html_cruda?: string; // Nombre corregido
+  descripcion_html_cruda?: string;
   precio: number;
   precio_descuento?: number | null;
   descuento_porcentaje?: number | null;
   imagenes?: string[];
   variantes?: Variante[];
   categoria?: CategoriaProducto;
-  prestashopProductId?: number | null; // REVI
+  prestashopProductId?: number | null;
   referencia?: string | null;
   marca?: Marca | null;
   stock?: number;
+  tieneVariantes?: boolean;
+  disponiblePedidos?: boolean;
 }
 
 export default function ProductDetail({ producto }: { producto: Producto }) {
@@ -177,6 +179,17 @@ export default function ProductDetail({ producto }: { producto: Producto }) {
     }
   };
 
+  // Stock disponible: por variante seleccionada o por producto base
+  const hayVariantes = variantes.length > 0;
+  const stockDisponible: number | null = hayVariantes
+    ? (varianteSeleccionada ? (varianteSeleccionada.stock ?? 0) : null)
+    : (producto.stock ?? 0);
+  const permiteBackorder = producto.disponiblePedidos ?? true;
+  const puedeComprar = permiteBackorder
+    ? stockDisponible !== null  // si backorder: solo bloquea si no ha elegido variante
+    : (stockDisponible !== null && stockDisponible > 0);
+  const maxCantidad = permiteBackorder ? 999 : (stockDisponible ?? 1);
+
   const precioVariante = calcularPrecioVariante({
     precioOriginal: producto.precio,
     precioDescuento: producto.precio_descuento,
@@ -186,8 +199,8 @@ export default function ProductDetail({ producto }: { producto: Producto }) {
 
   const [modalAbierto, setModalAbierto] = useState(false);
 
-  const handleAddToCart = async () => {
-    await addToCart({
+  const handleAddToCart = () => {
+    addToCart({
       id: Number(producto.id),
       nombre: producto.nombre,
       precio: producto.precio,
@@ -436,6 +449,23 @@ export default function ProductDetail({ producto }: { producto: Producto }) {
             )}
           </div>
 
+          {/* Indicador de stock */}
+          {stockDisponible !== null && (
+            <div className={`text-xs font-medium ${
+              stockDisponible === 0
+                ? permiteBackorder ? "text-amber-600" : "text-red-600"
+                : stockDisponible <= 5
+                  ? "text-amber-600"
+                  : "text-green-600"
+            }`}>
+              {stockDisponible === 0
+                ? permiteBackorder ? "Disponible por encargo" : "Agotado"
+                : stockDisponible <= 5
+                  ? `Pocas unidades disponibles`
+                  : `En stock`}
+            </div>
+          )}
+
           {/* Cantidad + Botón */}
           <div className="flex items-center gap-4 mt-2">
             <div className="flex items-center border dark:border-gray-600 rounded overflow-hidden">
@@ -449,14 +479,16 @@ export default function ProductDetail({ producto }: { producto: Producto }) {
               <input
                 type="number"
                 min={1}
+                max={maxCantidad}
                 value={cantidad}
-                onChange={(e) => setCantidad(Math.max(1, Number(e.target.value) || 1))}
+                onChange={(e) => setCantidad(Math.max(1, Math.min(maxCantidad, Number(e.target.value) || 1)))}
                 className="w-14 text-center border-x dark:border-gray-600 text-sm bg-white dark:bg-darkBg dark:text-white py-2"
               />
               <button
                 type="button"
-                onClick={() => setCantidad((c) => c + 1)}
-                className="px-3 py-2 text-sm bg-gray-50 dark:bg-gray-700 dark:text-white hover:bg-gray-100"
+                onClick={() => setCantidad((c) => Math.min(maxCantidad, c + 1))}
+                disabled={cantidad >= maxCantidad}
+                className="px-3 py-2 text-sm bg-gray-50 dark:bg-gray-700 dark:text-white hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 +
               </button>
@@ -465,9 +497,18 @@ export default function ProductDetail({ producto }: { producto: Producto }) {
             <button
               type="button"
               onClick={handleAddToCart}
-              className="flex-1 bg-primary text-white py-2 rounded font-semibold hover:bg-primaryHover transition-colors dark:bg-gray-700 dark:hover:bg-gray-600"
+              disabled={!puedeComprar}
+              className={`flex-1 py-2 rounded font-semibold transition-colors ${
+                puedeComprar
+                  ? "bg-primary text-white hover:bg-primaryHover dark:bg-gray-700 dark:hover:bg-gray-600"
+                  : "bg-gray-200 text-gray-400 cursor-not-allowed dark:bg-gray-600 dark:text-gray-500"
+              }`}
             >
-              Añadir al carrito
+              {stockDisponible === null
+                ? "Selecciona una opción"
+                : stockDisponible === 0 && !permiteBackorder
+                  ? "Agotado"
+                  : "Añadir al carrito"}
             </button>
           </div>
 

@@ -70,6 +70,9 @@ export default async function ProductoPage({ params }: PageProps) {
       referencia: true,
       precio: true,
       precioOferta: true,
+      stock: true,
+      tieneVariantes: true,
+      disponiblePedidos: true,
       reglaimpuesto: { select: { porcentaje: true } },
       productoimagen: {
         orderBy: { orden: "asc" },
@@ -167,7 +170,9 @@ export default async function ProductoPage({ params }: PageProps) {
     prestashopProductId, // REVI
     referencia: productoRaw.referencia,
     marca: productoRaw.marca,
-    stock: productoRaw.stock,
+    stock: productoRaw.stock ?? 0,
+    tieneVariantes: productoRaw.tieneVariantes ?? false,
+    disponiblePedidos: productoRaw.disponiblePedidos ?? true,
   };
 
   const BASE_URL = "https://www.elhogardetusuenos.com";
