@@ -83,6 +83,7 @@ export async function POST(req: NextRequest) {
     if (body.incluirAno !== undefined) formatKeys["pedidos.refIncluirAno"] = body.incluirAno ? "true" : "false";
 
     // Guardar override del último número con validación
+    let advertencia: string | null = null;
     if (body.ultimoNumero !== undefined && body.ultimoNumero !== null && body.ultimoNumero !== "") {
       const nuevoUltimo = parseInt(body.ultimoNumero);
       if (isNaN(nuevoUltimo) || nuevoUltimo < 0) {
@@ -95,11 +96,8 @@ export async function POST(req: NextRequest) {
       const incluirAno = body.incluirAno !== undefined ? !!body.incluirAno       : (await getRefSettings()).incluirAno;
 
       const maxExistente = await getMaxSecuencia(prefijo, separador, incluirAno, year);
-
       if (nuevoUltimo < maxExistente) {
-        return NextResponse.json({
-          error: `No puedes establecer el último número en ${nuevoUltimo} porque ya existe el pedido ${maxExistente} para este año. El mínimo permitido es ${maxExistente}.`,
-        }, { status: 400 });
+        advertencia = `Atención: ya existe el pedido ${maxExistente} para este año. Si estableces el contador en ${nuevoUltimo}, los próximos pedidos podrían generar referencias duplicadas con pedidos existentes.`;
       }
 
       formatKeys["pedidos.refUltimoNumero"] = String(nuevoUltimo);
@@ -125,7 +123,7 @@ export async function POST(req: NextRequest) {
     const nextSeq = Math.max(maxSecuencia + 1, (settings.ultimoNumero ?? 0) + 1);
     const preview = `${fullPrefix}${String(nextSeq).padStart(settings.padding, "0")}`;
 
-    return NextResponse.json({ ok: true, settings, maxSecuencia, proximoNumero: nextSeq, preview });
+    return NextResponse.json({ ok: true, settings, maxSecuencia, proximoNumero: nextSeq, preview, advertencia: advertencia ?? null });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
   }

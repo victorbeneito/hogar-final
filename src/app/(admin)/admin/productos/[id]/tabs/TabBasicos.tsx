@@ -1,6 +1,6 @@
 "use client";
-import { useState } from "react";
-import { X, Upload, Star } from "lucide-react";
+import { useState, useRef } from "react";
+import { X, Upload, Star, Link, FolderOpen } from "lucide-react";
 import RichTextEditor from "@/components/admin/RichTextEditor";
 import CategoriaSelectorArbol from "@/components/admin/CategoriaSelectorArbol";
 
@@ -18,13 +18,43 @@ type Props = {
 
 export default function TabBasicos({ producto, categorias, marcas, onChange, data }: Props) {
   const [imagenes, setImagenes] = useState<Imagen[]>(data.imagenes ?? []);
+  const [showImageModal, setShowImageModal] = useState(false);
+  const [urlInput, setUrlInput] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  function addImagenUrl() {
-    const url = prompt("URL de la imagen:");
+  function addImageFromUrl() {
+    const url = urlInput.trim();
     if (!url) return;
     const nuevas = [...imagenes, { url, esPortada: imagenes.length === 0, orden: imagenes.length }];
     setImagenes(nuevas);
     onChange("imagenes", nuevas);
+    setUrlInput("");
+    setShowImageModal(false);
+  }
+
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    setUploadError("");
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch("/api/admin/upload/imagen", { method: "POST", body: fd });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Error desconocido");
+      const nuevas = [...imagenes, { url: data.url, esPortada: imagenes.length === 0, orden: imagenes.length }];
+      setImagenes(nuevas);
+      onChange("imagenes", nuevas);
+      setShowImageModal(false);
+    } catch (err: any) {
+      setUploadError(err.message);
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
   }
 
   function removeImagen(idx: number) {
@@ -133,7 +163,7 @@ export default function TabBasicos({ producto, categorias, marcas, onChange, dat
               </div>
             ))}
             {/* Botón añadir */}
-            <button type="button" onClick={addImagenUrl}
+            <button type="button" onClick={() => { setShowImageModal(true); setUploadError(""); setUrlInput(""); }}
               className="aspect-square rounded-lg border-2 border-dashed border-gray-300 flex flex-col items-center justify-center gap-1 text-gray-400 hover:border-blue-400 hover:text-blue-500 transition">
               <Upload size={20} />
               <span className="text-xs">Añadir</span>
@@ -141,6 +171,74 @@ export default function TabBasicos({ producto, categorias, marcas, onChange, dat
           </div>
           <p className="text-xs text-gray-400">La primera imagen es la portada. Pulsa "Portada" para cambiarla.</p>
         </div>
+
+        {/* Modal añadir imagen */}
+        {showImageModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+            <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
+              <div className="flex items-center justify-between mb-5">
+                <h3 className="text-base font-semibold text-gray-800">Añadir imagen</h3>
+                <button type="button" onClick={() => setShowImageModal(false)} className="text-gray-400 hover:text-gray-600">
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* Subir archivo */}
+              <div className="mb-4">
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Desde tu ordenador</p>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/jpeg,image/jpg,image/png,image/webp,image/gif"
+                  onChange={handleFileChange}
+                  className="hidden"
+                  id="imagen-file-input"
+                />
+                <label
+                  htmlFor="imagen-file-input"
+                  className={`flex items-center justify-center gap-2 w-full py-3 rounded-lg border-2 border-dashed cursor-pointer transition text-sm font-medium
+                    ${uploading ? "border-gray-200 text-gray-400 bg-gray-50 cursor-not-allowed" : "border-blue-300 text-blue-600 hover:border-blue-500 hover:bg-blue-50"}`}
+                >
+                  <FolderOpen size={18} />
+                  {uploading ? "Subiendo..." : "Seleccionar archivo (JPG, PNG, WEBP, GIF · máx. 5MB)"}
+                </label>
+                {uploadError && <p className="text-xs text-red-500 mt-1">{uploadError}</p>}
+              </div>
+
+              <div className="flex items-center gap-3 my-4">
+                <div className="flex-1 h-px bg-gray-200" />
+                <span className="text-xs text-gray-400">o</span>
+                <div className="flex-1 h-px bg-gray-200" />
+              </div>
+
+              {/* URL */}
+              <div>
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Desde una URL</p>
+                <div className="flex gap-2">
+                  <div className="flex-1 relative">
+                    <Link size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                    <input
+                      type="url"
+                      value={urlInput}
+                      onChange={(e) => setUrlInput(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && addImageFromUrl()}
+                      placeholder="https://ejemplo.com/imagen.jpg"
+                      className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={addImageFromUrl}
+                    disabled={!urlInput.trim()}
+                    className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                  >
+                    Añadir
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Referencia */}
         <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">

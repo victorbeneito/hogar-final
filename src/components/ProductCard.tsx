@@ -2,7 +2,6 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { addToCart } from "@/lib/cartService";
 import ProductQuickViewModal from "@/components/ProductQuickViewModal";
 
 interface ProductCardProps {
@@ -10,7 +9,6 @@ interface ProductCardProps {
 }
 
 export default function ProductCard({ producto }: ProductCardProps) {
-  const [isAdded, setIsAdded] = useState(false);
   const [quickViewOpen, setQuickViewOpen] = useState(false);
   const hoverTimerRef = useRef<number | null>(null);
   const closeTimerRef = useRef<number | null>(null);
@@ -76,25 +74,6 @@ export default function ProductCard({ producto }: ProductCardProps) {
     }, 300);
     return () => clearTimeout(timer);
   }, [producto?.prestashopProductId]);
-
-  const handleQuickAdd = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-
-    addToCart({
-      id: producto.id,
-      nombre: producto.nombre,
-      precio: precioActual,
-      imagen: urlImagen,
-      cantidad: 1,
-      atributo: "Estándar",
-    });
-
-    setIsAdded(true);
-    window.dispatchEvent(new Event("storage"));
-
-    setTimeout(() => setIsAdded(false), 1500);
-  };
 
   return (
     <>
@@ -163,18 +142,12 @@ export default function ProductCard({ producto }: ProductCardProps) {
         )}
 
         <div className="p-2 w-full">
-          <button
-            type="button"
-            onClick={handleQuickAdd}
-            disabled={isAdded}
-            className={`w-full mt-auto px-6 py-3 rounded font-bold transition-all duration-300 shadow-md flex justify-center items-center gap-2 ${
-              isAdded
-                ? "bg-gray-400 text-white scale-105"
-                : "bg-primary text-white hover:bg-primaryHover dark:bg-gray-700 dark:hover:bg-gray-600"
-            }`}
+          <Link
+            href={`/productos/${producto.id}`}
+            className="w-full mt-auto px-6 py-3 rounded font-bold transition-all duration-300 shadow-md flex justify-center items-center gap-2 bg-primary text-white hover:bg-primaryHover dark:bg-gray-700 dark:hover:bg-gray-600"
           >
-            {isAdded ? "¡Añadido!" : "Comprar"}
-          </button>
+            Ver opciones
+          </Link>
         </div>
       </div>
 
