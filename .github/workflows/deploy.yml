@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-     - name: Trigger Plesk deployment
+      - name: Trigger Plesk deployment
         run: |
           curl -s -o /dev/null -w "%{http_code}" \
             --insecure \
