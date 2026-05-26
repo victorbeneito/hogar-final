@@ -179,6 +179,45 @@ export default function TabPrecio({ data, onChange, reglasImpuesto }: Props) {
         </div>
       </section>
 
+      {/* ── Stock ── */}
+      <section>
+        <h3 className="text-base font-semibold text-gray-800 mb-4 pb-2 border-b">Stock</h3>
+        {data.tieneVariantes ? (
+          <p className="text-sm text-blue-800 bg-blue-50 border border-blue-200 rounded px-3 py-2">
+            ℹ️ Este producto tiene combinaciones. El stock se gestiona individualmente en la pestaña <strong>Combinaciones</strong>.
+          </p>
+        ) : (
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-sm">
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Cantidad disponible</label>
+                <input
+                  type="number" step="1" min="0"
+                  value={data.stock ?? 0}
+                  onChange={e => onChange("stock", parseInt(e.target.value) || 0)}
+                  className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Stock mínimo (alerta)</label>
+                <input
+                  type="number" step="1" min="0"
+                  value={data.stockMinimo ?? 0}
+                  onChange={e => onChange("stockMinimo", parseInt(e.target.value) || 0)}
+                  className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+                <p className="text-xs text-gray-400 mt-1">Alerta cuando el stock baje de este valor</p>
+              </div>
+            </div>
+            {(data.stock ?? 0) === 0 && (
+              <p className="mt-3 text-xs text-red-700 bg-red-50 border border-red-200 rounded px-3 py-2">
+                ⚠️ Stock en 0. Los clientes no podrán añadir este producto al carrito (salvo que &quot;Disponible para pedidos&quot; esté activo en la pestaña Opciones).
+              </p>
+            )}
+          </>
+        )}
+      </section>
+
       {/* ── Precio de oferta ── */}
       <section>
         <h3 className="text-base font-semibold text-gray-800 mb-4 pb-2 border-b">Precio de oferta</h3>
