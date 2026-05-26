@@ -55,12 +55,13 @@ export async function GET() {
     const maxSecuencia = await getMaxSecuencia(settings.prefijo, settings.separador, settings.incluirAno, year);
 
     const fullPrefix = buildFullPrefix(settings.prefijo, settings.separador, settings.incluirAno, year);
-    const preview = `${fullPrefix}${String(maxSecuencia + 1).padStart(settings.padding, "0")}`;
+    const proximoNumero = settings.ultimoNumero != null ? settings.ultimoNumero + 1 : maxSecuencia + 1;
+    const preview = `${fullPrefix}${String(proximoNumero).padStart(settings.padding, "0")}`;
 
     return NextResponse.json({
       settings,
       maxSecuencia,
-      proximoNumero: maxSecuencia + 1,
+      proximoNumero,
       preview,
       year,
     });
@@ -120,7 +121,7 @@ export async function POST(req: NextRequest) {
     const settings = await getRefSettings();
     const maxSecuencia = await getMaxSecuencia(settings.prefijo, settings.separador, settings.incluirAno, year);
     const fullPrefix = buildFullPrefix(settings.prefijo, settings.separador, settings.incluirAno, year);
-    const nextSeq = Math.max(maxSecuencia + 1, (settings.ultimoNumero ?? 0) + 1);
+    const nextSeq = settings.ultimoNumero != null ? settings.ultimoNumero + 1 : maxSecuencia + 1;
     const preview = `${fullPrefix}${String(nextSeq).padStart(settings.padding, "0")}`;
 
     return NextResponse.json({ ok: true, settings, maxSecuencia, proximoNumero: nextSeq, preview, advertencia: advertencia ?? null });
