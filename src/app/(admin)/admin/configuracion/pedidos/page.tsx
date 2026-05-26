@@ -170,7 +170,13 @@ export default function ConfiguracionPedidosPage() {
         ...data.settings,
         ultimoNumeroDraft: data.settings.ultimoNumero != null ? String(data.settings.ultimoNumero) : "",
       });
-      toast.success("Configuración de numeración guardada");
+      if (data.advertencia) {
+        setRefError(data.advertencia);
+        toast.success("Configuración guardada (revisa la advertencia)");
+      } else {
+        setRefError("");
+        toast.success("Configuración de numeración guardada");
+      }
     } catch (e: any) {
       setRefError(e.message);
     } finally {
@@ -539,7 +545,7 @@ export default function ConfiguracionPedidosPage() {
               </label>
               <input
                 type="number"
-                min={refInfo?.maxSecuencia ?? 0}
+                min={1}
                 value={refDraft.ultimoNumeroDraft}
                 onChange={(e) => {
                   const v = e.target.value;
@@ -555,13 +561,17 @@ export default function ConfiguracionPedidosPage() {
               <p className="text-xs text-gray-400 mt-1">
                 Dejar en blanco para usar la detección automática.
                 {refInfo && refInfo.maxSecuencia > 0 && (
-                  <> El mínimo permitido es <strong>{refInfo.maxSecuencia}</strong> (último pedido existente).</>
+                  <> Último pedido detectado: <strong>{refInfo.maxSecuencia}</strong>.</>
                 )}
               </p>
             </div>
 
             {refError && (
-              <div className="mt-3 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 px-4 py-3 text-sm text-red-600 dark:text-red-400">
+              <div className={`mt-3 rounded-xl px-4 py-3 text-sm border ${
+                refError.startsWith("Atención")
+                  ? "bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-400"
+                  : "bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-red-600 dark:text-red-400"
+              }`}>
                 {refError}
               </div>
             )}
