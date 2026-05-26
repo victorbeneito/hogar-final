@@ -14,4 +14,5 @@ jobs:
       - name: Trigger Plesk deployment
         run: |
           curl -s -o /dev/null -w "%{http_code}" \
+            -u "elhogardetusuenos.com:${{ secrets.PLESK_WEBHOOK_PASSWORD }}" \
             "https://ns3.ev22.com:8443/modules/git/public/web-hook.php?uuid=8f183662-70dd-2588-9fa2-fd6c39ba30fe"
