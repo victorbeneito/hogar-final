@@ -13,7 +13,7 @@ export default function Header() {
   }
   return (
     <header className="bg-white dark:bg-darkBg transition-colors duration-300 w-full border-b border-gray-100 dark:border-gray-800">
-      <div className="max-w-[1400px] mx-auto px-4 sm:px-8 py-4 md:py-6">
+      <div className="max-w-[1400px] mx-auto px-4 sm:px-8 py-5 md:py-8">
         
         <div className="flex flex-col md:flex-row justify-between items-center gap-4 md:gap-8">
           
@@ -35,14 +35,14 @@ export default function Header() {
 
           {/* --- 2. BANNERS (Ocultos en Móvil) --- */}
           {/* Usamos 'hidden md:flex' para que desaparezcan en pantallas pequeñas */}
-          <div className="hidden md:flex items-center gap-4 lg:gap-8">
-            
+          <div className="hidden md:flex flex-1 items-center justify-around lg:justify-end gap-6 lg:gap-12">
+
             {/* Banner Dudas */}
             <div className="flex-shrink-0 transform hover:scale-105 transition-transform duration-300">
               <img
                 src="/img/banner-dudas.jpg"
                 alt="Banner Dudas y Consultas"
-                className="h-16 lg:h-24 w-auto rounded-lg shadow-sm object-contain"
+                className="h-24 lg:h-28 w-auto rounded-lg shadow-sm object-contain"
               />
             </div>
 
@@ -53,7 +53,6 @@ export default function Header() {
                 data-revi-widget-lazy=""
                 data-id-product=""
                 data-lang="es"
-                style={{ minHeight: '60px', minWidth: '120px' }}
               />
             </div>
 

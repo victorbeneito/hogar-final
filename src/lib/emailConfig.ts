@@ -49,7 +49,7 @@ const EMAIL_SHELL_OPEN = `<!DOCTYPE html>
 
 <!-- CABECERA: fondo blanco con logo oscuro -->
 <tr><td style="background:${C_WHITE};border-radius:8px 8px 0 0;padding:24px 40px;text-align:center;border-bottom:3px solid ${C_TERCIARY};">
-<img src="{{appUrl}}/img/logo-hogar-dark.jpg" alt="{{brandName}}" style="max-height:64px;max-width:220px;display:block;margin:0 auto;">
+<img src="{{appUrl}}/img/logo-hogar.jpg" alt="{{brandName}}" style="max-height:64px;max-width:220px;display:block;margin:0 auto;">
 </td></tr>
 
 <!-- FRANJA BEIS (como la nav de la web) -->
