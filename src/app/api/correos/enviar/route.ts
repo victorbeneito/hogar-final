@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAdminFromRequest } from "@/lib/adminAuth";
+import { canEdit } from "@/lib/adminAuth";
 import { sendRawEmail, sendTemplateEmail } from "@/lib/emailService";
 import type { EmailTemplateSlug } from "@/lib/emailConfig";
 
@@ -18,9 +18,8 @@ type SendEmailBody = {
 };
 
 export async function POST(req: NextRequest) {
-  const admin = getAdminFromRequest(req);
-  if (!admin) {
-    return NextResponse.json({ ok: false, error: "No autorizado" }, { status: 401 });
+  if (!canEdit(req)) {
+    return NextResponse.json({ ok: false, error: "Sin permiso para enviar correos" }, { status: 403 });
   }
 
   try {
@@ -39,7 +38,7 @@ export async function POST(req: NextRequest) {
         from: body.from,
       });
 
-      return NextResponse.json({ ok: true, result, adminEmail: admin.email });
+      return NextResponse.json({ ok: true, result });
     }
 
     if (!body.subject || !body.html) {
@@ -55,7 +54,7 @@ export async function POST(req: NextRequest) {
       from: body.from,
     });
 
-    return NextResponse.json({ ok: true, result, adminEmail: admin.email });
+    return NextResponse.json({ ok: true, result });
   } catch (error: any) {
     console.error("❌ [correos/enviar] Error:", error);
     return NextResponse.json({

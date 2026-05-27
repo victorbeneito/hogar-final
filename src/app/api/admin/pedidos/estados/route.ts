@@ -1,5 +1,6 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { canEdit } from "@/lib/adminAuth";
 
 export const dynamic = "force-dynamic";
 
@@ -31,7 +32,10 @@ export async function GET() {
   }
 }
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
+  if (!canEdit(req)) {
+    return NextResponse.json({ error: "Sin permiso para crear estados de pedido" }, { status: 403 });
+  }
   try {
     const data = await req.json();
 

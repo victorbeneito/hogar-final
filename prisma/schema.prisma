@@ -131,7 +131,7 @@ model cliente {
 model configuracion {
   id        Int      @id @default(autoincrement())
   clave     String   @unique(map: "Configuracion_clave_key")
-  valor     String?  @db.Text
+  valor     String?  @db.LongText
   grupo     String   @default("general")
   updatedAt DateTime
 }

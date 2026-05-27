@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { resolveAtributoTipo } from "@/lib/atributoTipo";
+import { canEdit } from "@/lib/adminAuth";
 
 export async function GET() {
   try {
@@ -20,6 +21,9 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  if (!canEdit(req)) {
+    return NextResponse.json({ ok: false, error: "Sin permiso para crear atributos" }, { status: 403 });
+  }
   try {
     const body = await req.json();
     const nombre = String(body.nombre ?? "").trim();

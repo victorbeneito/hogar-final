@@ -1,38 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import jwt from "jsonwebtoken";
 import { prisma } from "@/lib/prisma";
+import { canEdit } from "@/lib/adminAuth";
 import { createDefaultTransportConfig, normalizeShippingConfig, shippingConfigToSerializable } from "@/lib/transportes";
 
 export const dynamic = "force-dynamic";
 
 const CONFIG_KEY = "transportes_configuracion";
-
-type AdminTokenPayload = {
-  id?: number | string;
-  email?: string;
-  rol?: string;
-  role?: string;
-};
-
-function getAdminSecret() {
-  return process.env.SECRETO_JWT_ADMIN || "palabra_secreta_emergencia_2026";
-}
-
-function getAdminFromRequest(req: NextRequest) {
-  const token = req.cookies.get("admin_token")?.value || req.headers.get("authorization")?.split(" ")[1];
-  if (!token) return null;
-
-  try {
-    const decoded = jwt.verify(token, getAdminSecret()) as AdminTokenPayload;
-    const adminId = Number(decoded.id);
-    const role = String(decoded.rol ?? decoded.role ?? "").toLowerCase();
-
-    if (!Number.isInteger(adminId) || role !== "admin") return null;
-    return { adminId, email: decoded.email ?? null };
-  } catch {
-    return null;
-  }
-}
 
 export async function GET() {
   const configuracion = await prisma.configuracion.findUnique({ where: { clave: CONFIG_KEY } });
@@ -47,12 +20,10 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  if (!canEdit(req)) {
+    return NextResponse.json({ ok: false, error: "Sin permiso para modificar configuración de transportes" }, { status: 403 });
+  }
   try {
-    const admin = getAdminFromRequest(req);
-    if (!admin) {
-      return NextResponse.json({ ok: false, error: "No autorizado" }, { status: 401 });
-    }
-
     const body = await req.json();
     const config = normalizeShippingConfig(body.config ?? body);
 
@@ -71,7 +42,7 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    return NextResponse.json({ ok: true, config: shippingConfigToSerializable(config), adminEmail: admin.email });
+    return NextResponse.json({ ok: true, config: shippingConfigToSerializable(config) });
   } catch (error: any) {
     return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
   }

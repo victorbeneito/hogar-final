@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { canEdit } from "@/lib/adminAuth";
 
 export const dynamic = "force-dynamic";
 
@@ -72,6 +73,9 @@ export async function GET() {
 
 // POST — valida y guarda el override "último número" + ajustes de formato
 export async function POST(req: NextRequest) {
+  if (!canEdit(req)) {
+    return NextResponse.json({ error: "Sin permiso para modificar la configuración de referencias" }, { status: 403 });
+  }
   try {
     const body = await req.json();
     const year = new Date().getFullYear();

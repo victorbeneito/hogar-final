@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { canEdit } from "@/lib/adminAuth";
 
 type Params = { params: { id: string } };
 
 export async function POST(_req: NextRequest, { params }: Params) {
+  if (!canEdit(_req)) {
+    return NextResponse.json({ error: "Sin permiso para duplicar productos" }, { status: 403 });
+  }
   const id = parseInt(params.id);
   if (isNaN(id)) {
     return NextResponse.json({ error: "ID inválido" }, { status: 400 });

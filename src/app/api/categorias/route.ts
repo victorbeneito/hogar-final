@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { canEdit } from "@/lib/adminAuth";
 
 // Genera slug a partir del nombre
 function toSlug(texto: string): string {
@@ -28,6 +29,9 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  if (!canEdit(req)) {
+    return NextResponse.json({ ok: false, error: "Sin permiso para crear categorías" }, { status: 403 });
+  }
   try {
     const body = await req.json();
     const { nombre, descripcion, imagen, activa, orden, parentId } = body;

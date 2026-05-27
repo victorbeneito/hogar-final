@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { sendReviOrder } from '@/lib/reviService';
+import { canEdit } from '@/lib/adminAuth';
 
 export async function GET(req: NextRequest) {
   try {
@@ -24,6 +25,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  if (!canEdit(req)) {
+    return NextResponse.json({ ok: false, error: "Sin permiso para sincronizar" }, { status: 403 });
+  }
   try {
     const pedidos = await prisma.pedido.findMany({
       where: { estado: 'CUESTIONARIO' },

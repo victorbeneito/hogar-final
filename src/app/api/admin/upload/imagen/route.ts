@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { writeFile, mkdir } from "fs/promises";
 import path from "path";
+import { canEdit } from "@/lib/adminAuth";
 
 export async function POST(req: NextRequest) {
+  if (!canEdit(req)) {
+    return NextResponse.json({ error: "Sin permiso para subir imágenes" }, { status: 403 });
+  }
   try {
     const formData = await req.formData();
     const file = formData.get("file") as File | null;

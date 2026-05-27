@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { canEdit } from "@/lib/adminAuth";
 import bcrypt from "bcryptjs";
 import { buildFallbackNif, isPlausibleClientNif, normalizeClientNif } from "@/lib/clientNif";
 import { resolveAtributoTipo } from "@/lib/atributoTipo";
@@ -1351,6 +1352,9 @@ async function runImportJob(jobId: string) {
 }
 
 export async function POST(req: NextRequest) {
+  if (!canEdit(req)) {
+    return NextResponse.json({ ok: false, error: "Sin permiso para realizar importaciones" }, { status: 403 });
+  }
   try {
     const body = await req.json();
     const tipo = String(body.tipo ?? "").trim() as ImportType;

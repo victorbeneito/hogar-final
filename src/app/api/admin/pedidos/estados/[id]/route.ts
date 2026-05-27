@@ -1,5 +1,6 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { canEdit } from "@/lib/adminAuth";
 
 export const dynamic = "force-dynamic";
 
@@ -20,7 +21,10 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
   }
 }
 
-export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  if (!canEdit(req)) {
+    return NextResponse.json({ error: "Sin permiso para modificar estados de pedido" }, { status: 403 });
+  }
   try {
     const { id } = await params;
     const estadoId = parseInt(id);
@@ -41,7 +45,10 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
   }
 }
 
-export async function DELETE(_: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  if (!canEdit(req)) {
+    return NextResponse.json({ error: "Sin permiso para eliminar estados de pedido" }, { status: 403 });
+  }
   try {
     const { id } = await params;
     const estadoId = parseInt(id);
