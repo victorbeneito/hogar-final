@@ -17,7 +17,9 @@ export async function generateMetadata({ params }: PageProps) {
   if (!definition) return {};
 
   const configuracion = await prisma.configuracion.findUnique({ where: { clave: CMS_CONFIG_KEY } });
-  const settings = normalizeCmsSettings(configuracion?.valor ? JSON.parse(configuracion.valor) : null);
+  let parsed = null;
+  try { parsed = configuracion?.valor ? JSON.parse(configuracion.valor) : null; } catch {}
+  const settings = normalizeCmsSettings(parsed);
   const page = settings.pages[definition.slug];
 
   return {
@@ -35,7 +37,9 @@ export default async function CmsPublicPage({ params }: PageProps) {
   }
 
   const configuracion = await prisma.configuracion.findUnique({ where: { clave: CMS_CONFIG_KEY } });
-  const settings = normalizeCmsSettings(configuracion?.valor ? JSON.parse(configuracion.valor) : null);
+  let parsedValor = null;
+  try { parsedValor = configuracion?.valor ? JSON.parse(configuracion.valor) : null; } catch {}
+  const settings = normalizeCmsSettings(parsedValor);
   const page = settings.pages[definition.slug];
 
   if (!page?.active) {

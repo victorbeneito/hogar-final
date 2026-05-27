@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { canEdit } from "@/lib/adminAuth";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -126,6 +127,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  if (!canEdit(req)) {
+    return NextResponse.json({ ok: false, error: "Sin permiso para crear productos" }, { status: 403 });
+  }
   const body = await req.json();
   const { imagenes, variantes, categoriaId, ...campos } = body;
   if (!campos.referencia) {

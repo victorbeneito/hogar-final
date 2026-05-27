@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getAdminFromRequest } from "@/lib/adminAuth";
+import { canEdit } from "@/lib/adminAuth";
 
 export const dynamic = "force-dynamic";
 
@@ -36,12 +36,10 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  if (!canEdit(req)) {
+    return NextResponse.json({ ok: false, error: "Sin permiso para modificar formas de pago" }, { status: 403 });
+  }
   try {
-    const admin = getAdminFromRequest(req);
-    if (!admin) {
-      return NextResponse.json({ ok: false, error: "No autorizado" }, { status: 401 });
-    }
-
     const body = await req.json();
     const items = Array.isArray(body.formasPago) ? body.formasPago : [];
 
@@ -60,7 +58,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    return NextResponse.json({ ok: true, adminEmail: admin.email });
+    return NextResponse.json({ ok: true });
   } catch (error: any) {
     return NextResponse.json({ ok: false, error: error.message || "Error de servidor" }, { status: 500 });
   }

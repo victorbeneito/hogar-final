@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { canEdit } from "@/lib/adminAuth";
 
 type RouteParams = { params: Promise<{ id: string }> };
 
 export async function POST(req: NextRequest, { params }: RouteParams) {
+  if (!canEdit(req)) {
+    return NextResponse.json({ ok: false, error: "Sin permiso para crear valores de atributo" }, { status: 403 });
+  }
   try {
     const { id: idString } = await params;
     const atributoId = Number(idString);

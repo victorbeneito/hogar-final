@@ -1,5 +1,6 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { canEdit } from "@/lib/adminAuth";
 
 export const dynamic = "force-dynamic";
 
@@ -40,7 +41,10 @@ export async function GET() {
 // ============================================================================
 // POST: Crear Cupón
 // ============================================================================
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
+  if (!canEdit(req)) {
+    return NextResponse.json({ error: "Sin permiso para crear cupones" }, { status: 403 });
+  }
   try {
     const body = await req.json();
     console.log("📨 Recibiendo datos:", body); 
@@ -98,7 +102,10 @@ export async function POST(req: Request) {
 // ============================================================================
 // PUT: Actualizar Cupón
 // ============================================================================
-export async function PUT(req: Request) {
+export async function PUT(req: NextRequest) {
+  if (!canEdit(req)) {
+    return NextResponse.json({ error: "Sin permiso para modificar cupones" }, { status: 403 });
+  }
   try {
     const body = await req.json();
     const id = Number(body.id);
@@ -144,7 +151,10 @@ export async function PUT(req: Request) {
 }
 
 // DELETE: Borrar
-export async function DELETE(req: Request) {
+export async function DELETE(req: NextRequest) {
+  if (!canEdit(req)) {
+    return NextResponse.json({ error: "Sin permiso para eliminar cupones" }, { status: 403 });
+  }
   try {
     const { id } = await req.json();
     await prisma.cupon.delete({ where: { id: Number(id) } });

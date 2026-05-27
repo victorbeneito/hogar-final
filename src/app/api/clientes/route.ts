@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import { SPANISH_FISCAL_DOCUMENT_ERROR, isValidSpanishFiscalDocument, normalizeClientNif } from "@/lib/clientNif";
+import { canEdit } from "@/lib/adminAuth";
 
 export const dynamic = "force-dynamic";
 
@@ -117,12 +118,10 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  if (!canEdit(req)) {
+    return NextResponse.json({ ok: false, error: "Sin permiso para crear clientes" }, { status: 403 });
+  }
   try {
-    const permiso = await verificarAdmin(req);
-    if (!permiso.autorizado) {
-      return NextResponse.json({ ok: false, error: permiso.error }, { status: permiso.status });
-    }
-
     const body = await req.json();
     const { nombre, apellidos, email, password, telefono, empresa, nif, direccion, direccionComplementaria, codigoPostal, ciudad, provincia, pais } = body;
 

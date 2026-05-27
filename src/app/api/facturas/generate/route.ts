@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createFactura } from "@/lib/invoiceGenerator";
+import { canEdit } from "@/lib/adminAuth";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
+  if (!canEdit(req)) {
+    return NextResponse.json({ error: "Sin permiso para generar facturas" }, { status: 403 });
+  }
   try {
     const { pedidoId } = await req.json();
     if (!pedidoId || isNaN(Number(pedidoId))) {

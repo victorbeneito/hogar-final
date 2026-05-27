@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+﻿import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import jwt from "jsonwebtoken";
 
@@ -51,7 +51,7 @@ function getAdminFromRequest(req: NextRequest) {
     const adminId = Number(decoded.id);
     const role = String(decoded.rol ?? decoded.role ?? "").toLowerCase();
 
-    if (!Number.isInteger(adminId) || role !== "admin") return null;
+    if (!Number.isInteger(adminId) || !["admin", "superadmin"].includes(role)) return null;
     return { adminId, email: decoded.email ?? null };
   } catch {
     return null;
@@ -79,8 +79,8 @@ async function savePresets(tipo: ImportType, adminId: number, presets: NamedPres
   });
 }
 
-// GET /api/importaciones/mapeo?tipo=productos          → default mapping + presets list
-// GET /api/importaciones/mapeo?tipo=productos&preset=nombre → load a named preset
+// GET /api/importaciones/mapeo?tipo=productos          â†’ default mapping + presets list
+// GET /api/importaciones/mapeo?tipo=productos&preset=nombre â†’ load a named preset
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const tipo = normalizeTipo(searchParams.get("tipo"));
@@ -88,7 +88,7 @@ export async function GET(req: NextRequest) {
   const admin = getAdminFromRequest(req);
 
   if (!tipo) {
-    return NextResponse.json({ ok: false, error: "Falta el tipo de importación" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: "Falta el tipo de importaciÃ³n" }, { status: 400 });
   }
 
   if (!admin) {
@@ -126,8 +126,8 @@ export async function GET(req: NextRequest) {
   });
 }
 
-// POST /api/importaciones/mapeo  { tipo, mapping }              → save default mapping
-// POST /api/importaciones/mapeo  { tipo, mapping, nombre }      → save named preset
+// POST /api/importaciones/mapeo  { tipo, mapping }              â†’ save default mapping
+// POST /api/importaciones/mapeo  { tipo, mapping, nombre }      â†’ save named preset
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -137,7 +137,7 @@ export async function POST(req: NextRequest) {
     const admin = getAdminFromRequest(req);
 
     if (!tipo) {
-      return NextResponse.json({ ok: false, error: "Falta el tipo de importación" }, { status: 400 });
+      return NextResponse.json({ ok: false, error: "Falta el tipo de importaciÃ³n" }, { status: 400 });
     }
 
     if (!admin) {
@@ -145,7 +145,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (!mapping || typeof mapping !== "object" || Array.isArray(mapping)) {
-      return NextResponse.json({ ok: false, error: "El mapeo no es válido" }, { status: 400 });
+      return NextResponse.json({ ok: false, error: "El mapeo no es vÃ¡lido" }, { status: 400 });
     }
 
     if (nombre) {
@@ -181,7 +181,7 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// DELETE /api/importaciones/mapeo?tipo=productos&preset=nombre → delete a named preset
+// DELETE /api/importaciones/mapeo?tipo=productos&preset=nombre â†’ delete a named preset
 export async function DELETE(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const tipo = normalizeTipo(searchParams.get("tipo"));
@@ -189,7 +189,7 @@ export async function DELETE(req: NextRequest) {
   const admin = getAdminFromRequest(req);
 
   if (!tipo || !presetName) {
-    return NextResponse.json({ ok: false, error: "Faltan parámetros" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: "Faltan parÃ¡metros" }, { status: 400 });
   }
 
   if (!admin) {

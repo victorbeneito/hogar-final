@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { canEdit } from '@/lib/adminAuth';
 
 export async function POST(req: NextRequest) {
+  if (!canEdit(req)) {
+    return NextResponse.json({ ok: false, error: "Sin permiso para modificar mapeos" }, { status: 403 });
+  }
   try {
     const body = await req.json();
     const mapeos = body.mapeos || [];
