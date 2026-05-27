@@ -154,7 +154,7 @@ const TYPES: Record<ImportType, TypeConfig> = {
   productos: {
     label: "Productos",
     description: "Importa o actualiza productos básicos con imágenes y categorías.",
-    fields: ["accion", "referencia", "nombre", "descripcion", "descripcion_html", "precio", "precioOferta", "descuento", "precioCoste", "reglaImpuesto", "reglaImpuestoId", "stock", "stockMinimo", "activo", "destacado", "enOferta", "marca", "categoria", "categorias", "imagenes", "slug"],
+    fields: ["accion", "referencia", "nombre", "descripcion", "descripcion_html", "precio", "precioOferta", "descuento", "precioCoste", "reglaImpuesto", "reglaImpuestoId", "stock", "stockMinimo", "activo", "destacado", "enOferta", "marca", "categoria", "categorias", "imagenes", "slug", "metaTitulo", "metaDescripcion"],
     requiredFields: ["nombre", "referencia"],
     hint: "Usa accion con upsert o delete. La referencia es obligatoria y única. Usa precioOferta o descuento. Si rellenas descuento, se calculará el precio oferta automáticamente. Si no indicas reglaImpuesto, se usará IVA GENERAL 21%. categorias e imagenes admiten listas separadas por |, ; o coma.",
     sampleRows: [
