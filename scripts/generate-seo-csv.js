@@ -78,6 +78,21 @@ const META = {
   ]
 };
 
+function cleanMetaTitle(nombre) {
+  let title = nombre
+    .replace(/\b[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+\b/g, '')  // códigos con guiones: T2-I-60856
+    .replace(/\b[A-Z]{2,}[0-9]+[A-Z0-9]*\b/g, '')        // códigos tipo HSCC7380
+    .replace(/\bTejido\b/gi, '')                           // elimina "Tejido"
+    .replace(/\bBasic\b/gi, '')                            // elimina "Basic"
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (title.length > 70)
+    title = title.replace(/\bEnrollable\b/gi, '').replace(/\s+/g, ' ').trim();
+  if (title.length > 70)
+    title = title.replace(/\b(Traslúcido|Translúcido|Opaco)\b/gi, '').replace(/\s+/g, ' ').trim();
+  return title;
+}
+
 function getCategory(categorias, categoria, nombre) {
   const t = ((categorias || '') + ' ' + (categoria || '') + ' ' + (nombre || '')).toLowerCase();
   if (t.includes('infantil')) return 'infantil';
@@ -120,10 +135,11 @@ function processFile(filePath, counters, outputLines) {
     if (!counters[cat]) counters[cat] = 0;
     const metaDesc = META[cat][counters[cat] % META[cat].length];
     counters[cat]++;
-    const metaTitle = nombre.trim();
+    const originalNombre = nombre.trim();
+    const metaTitle = cleanMetaTitle(nombre);
     const slug = `${referencia}-${slugify(nombre)}`;
     const esc = s => (s.includes(';') || s.includes('"')) ? `"${s.replace(/"/g, '""')}"` : s;
-    outputLines.push(`upsert;${referencia};${esc(metaTitle)};${esc(metaTitle)};${esc(metaDesc)};${slug}`);
+    outputLines.push(`upsert;${referencia};${esc(originalNombre)};${esc(metaTitle)};${esc(metaDesc)};${slug}`);
     count++;
   }
   console.log(`  ✓ ${path.basename(filePath)}: ${count} productos`);

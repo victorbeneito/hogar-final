@@ -95,7 +95,7 @@ export default function ProductCard({ producto }: ProductCardProps) {
           </>
         )}
 
-        <Link href={`/productos/${producto.id}`} className="w-full">
+        <Link href={`/productos/${producto.slug || producto.id}`} className="w-full">
           <div className="w-full">
             <img
               src={urlImagen}
@@ -143,7 +143,7 @@ export default function ProductCard({ producto }: ProductCardProps) {
 
         <div className="p-2 w-full">
           <Link
-            href={`/productos/${producto.id}`}
+            href={`/productos/${producto.slug || producto.id}`}
             className="w-full mt-auto px-6 py-3 rounded font-bold transition-all duration-300 shadow-md flex justify-center items-center gap-2 bg-primary text-white hover:bg-primaryHover dark:bg-gray-700 dark:hover:bg-gray-600"
           >
             Ver opciones
