@@ -61,38 +61,58 @@ export async function GET(req: NextRequest) {
       distinct: ['sessionId'],
     });
 
-    // Visitas en el período seleccionado
-    const visitasEnPeriodo = await prisma.visita.count({
+    // Sesiones únicas en el período seleccionado (no page views)
+    const sesionesEnPeriodo = await prisma.visita.findMany({
       where: {
         timestamp: { gte: periodoDesde, lte: periodoHasta },
       },
+      select: { sessionId: true },
+      distinct: ['sessionId'],
     });
+    const visitasEnPeriodo = sesionesEnPeriodo.length;
 
     // Para mantener compatibilidad: si no hay período custom, calcular ayer también
     let visitasAyer = 0;
     let porcentajeCambio = 0;
     if (!usandoPeriodoCustom) {
-      visitasAyer = await prisma.visita.count({
+      const sesionesAyer = await prisma.visita.findMany({
         where: {
           timestamp: { gte: ayerInicio, lt: ayerFin },
         },
+        select: { sessionId: true },
+        distinct: ['sessionId'],
       });
+      visitasAyer = sesionesAyer.length;
       porcentajeCambio = visitasAyer === 0
         ? (visitasEnPeriodo > 0 ? 100 : 0)
         : Math.round(((visitasEnPeriodo - visitasAyer) / visitasAyer) * 100);
     }
 
-    // Gráfica del período (por hora si < 2 días, por día si < 90 días, por semana si ≥ 90)
+    // Gráfica del período — se usa primera visita de cada sesión para contar sesiones únicas por intervalo
     const visitasEnPeriodoData = await prisma.visita.findMany({
       where: {
         timestamp: { gte: periodoDesde, lte: periodoHasta },
       },
-      select: { timestamp: true },
+      select: { timestamp: true, sessionId: true },
       orderBy: { timestamp: 'asc' },
     });
 
     const diasEnPeriodo = Math.ceil((periodoHasta.getTime() - periodoDesde.getTime()) / (1000 * 60 * 60 * 24));
     const graficaMap = new Map<string, number>();
+    // Rastrear sesiones ya contadas por bucket para evitar duplicados en la gráfica
+    const sesionesContadasPorBucket = new Map<string, Set<string>>();
+
+    function contarSesionEnBucket(bucket: string, sessionId: string) {
+      if (!graficaMap.has(bucket)) return;
+      if (!sesionesContadasPorBucket.has(bucket)) {
+        sesionesContadasPorBucket.set(bucket, new Set());
+      }
+      const set = sesionesContadasPorBucket.get(bucket)!;
+      if (!set.has(sessionId)) {
+        set.add(sessionId);
+        graficaMap.set(bucket, (graficaMap.get(bucket) || 0) + 1);
+      }
+    }
 
     if (!usandoPeriodoCustom) {
       // Gráfica 24h por hora (comportamiento por defecto)
@@ -104,9 +124,7 @@ export async function GET(req: NextRequest) {
       }
       visitasEnPeriodoData.forEach((visita: any) => {
         const horaStr = new Date(visita.timestamp).toISOString().slice(0, 13);
-        if (graficaMap.has(horaStr)) {
-          graficaMap.set(horaStr, (graficaMap.get(horaStr) || 0) + 1);
-        }
+        contarSesionEnBucket(horaStr, visita.sessionId);
       });
     } else if (diasEnPeriodo < 2) {
       // Por hora
@@ -120,9 +138,7 @@ export async function GET(req: NextRequest) {
       }
       visitasEnPeriodoData.forEach((visita: any) => {
         const horaStr = new Date(visita.timestamp).toISOString().substring(0, 13);
-        if (graficaMap.has(horaStr)) {
-          graficaMap.set(horaStr, (graficaMap.get(horaStr) || 0) + 1);
-        }
+        contarSesionEnBucket(horaStr, visita.sessionId);
       });
     } else if (diasEnPeriodo < 90) {
       // Por día
@@ -134,9 +150,7 @@ export async function GET(req: NextRequest) {
       }
       visitasEnPeriodoData.forEach((visita: any) => {
         const fechaStr = new Date(visita.timestamp).toISOString().split('T')[0];
-        if (graficaMap.has(fechaStr)) {
-          graficaMap.set(fechaStr, (graficaMap.get(fechaStr) || 0) + 1);
-        }
+        contarSesionEnBucket(fechaStr, visita.sessionId);
       });
     } else {
       // Por semana
@@ -155,9 +169,7 @@ export async function GET(req: NextRequest) {
         inicioSemanaVenta.setDate(inicioSemanaVenta.getDate() - inicioSemanaVenta.getDay());
         inicioSemanaVenta.setHours(0, 0, 0, 0);
         const semanaStr = inicioSemanaVenta.toISOString().split('T')[0];
-        if (graficaMap.has(semanaStr)) {
-          graficaMap.set(semanaStr, (graficaMap.get(semanaStr) || 0) + 1);
-        }
+        contarSesionEnBucket(semanaStr, visita.sessionId);
       });
     }
 
@@ -189,13 +201,26 @@ export async function GET(req: NextRequest) {
       take: 10,
     });
 
-    // Fuentes de tráfico en el período
-    const fuentes = await prisma.visita.groupBy({
-      by: ['fuente'],
-      _count: { id: true },
+    // Fuentes de tráfico: una sesión cuenta solo por su primera fuente detectada
+    const fuentesRaw = await prisma.visita.findMany({
       where: { timestamp: { gte: periodoDesde, lte: periodoHasta } },
-      orderBy: { _count: { id: 'desc' } },
+      select: { sessionId: true, fuente: true, timestamp: true },
+      orderBy: { timestamp: 'asc' },
     });
+    // Primera fuente de cada sesión
+    const fuentePorSesion = new Map<string, string>();
+    fuentesRaw.forEach((v: any) => {
+      if (!fuentePorSesion.has(v.sessionId)) {
+        fuentePorSesion.set(v.sessionId, v.fuente || 'directo');
+      }
+    });
+    const fuenteConteo = new Map<string, number>();
+    fuentePorSesion.forEach((fuente) => {
+      fuenteConteo.set(fuente, (fuenteConteo.get(fuente) || 0) + 1);
+    });
+    const fuentes = Array.from(fuenteConteo.entries())
+      .sort((a, b) => b[1] - a[1])
+      .map(([fuente, cantidad]) => ({ fuente, cantidad }));
 
     // Dispositivos en el período
     const dispositivos = await prisma.visita.groupBy({
@@ -216,10 +241,7 @@ export async function GET(req: NextRequest) {
         url: p.url,
         visitas: p._count.id,
       })),
-      fuentes: fuentes.map((f: any) => ({
-        fuente: f.fuente || 'directo',
-        cantidad: f._count.id,
-      })),
+      fuentes,
       dispositivos: dispositivos.map((d: any) => ({
         dispositivo: d.dispositivo || 'desktop',
         cantidad: d._count.id,

@@ -233,9 +233,27 @@ export default function DashboardPage() {
 
       {/* Tráfico */}
       <div>
-        <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
-          Tráfico de la tienda
-        </h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+            Tráfico de la tienda
+          </h2>
+          <button
+            onClick={async () => {
+              if (!confirm("¿Seguro que quieres borrar TODOS los datos de visitas? Esta acción no se puede deshacer.")) return;
+              const token = localStorage.getItem("adminToken") || "";
+              const res = await fetch("/api/admin/trafico/limpiar", {
+                method: "DELETE",
+                headers: { Authorization: `Bearer ${token}` },
+              });
+              const json = await res.json();
+              if (res.ok) alert(`Limpieza completada. ${json.borradas} registros eliminados.`);
+              else alert("Error: " + json.error);
+            }}
+            className="px-3 py-1.5 text-xs font-medium text-red-600 border border-red-300 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+          >
+            Limpiar datos históricos
+          </button>
+        </div>
         <TraficoWidget
           token={localStorage.getItem("adminToken") || ""}
           desde={desde}

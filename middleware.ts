@@ -4,10 +4,29 @@ import { v4 as uuidv4 } from 'uuid';
 const EXCLUDED_PATHS = ['/admin', '/api', '/_next', '/favicon', '/robots.txt', '/sitemap.xml'];
 const STATIC_EXTENSIONS = ['.css', '.js', '.json', '.png', '.jpg', '.jpeg', '.gif', '.svg', '.ico', '.webp', '.woff', '.woff2', '.ttf', '.eot'];
 
+// Fragmentos de user-agent que identifican bots y crawlers conocidos
+const BOT_UA_FRAGMENTS = [
+  'bot', 'crawl', 'spider', 'slurp', 'fetch',
+  'wget', 'curl', 'python-requests', 'java/', 'scrapy',
+  'checker', 'monitor', 'pingdom', 'uptimerobot', 'nagios',
+  'ahrefsbot', 'semrushbot', 'mj12bot', 'dotbot', 'blexbot',
+  'yandexbot', 'baiduspider', 'duckduckbot', 'bytespider',
+  'googlebot', 'bingbot', 'applebot', 'facebookexternalhit',
+  'linkedinbot', 'twitterbot', 'telegrambot',
+  'petalbot', 'gptbot', 'claudebot', 'anthropic-ai',
+  'dataforseo', 'sitechecker', 'seznambot',
+];
+
 function isExcludedPath(pathname: string): boolean {
   if (EXCLUDED_PATHS.some(path => pathname.startsWith(path))) return true;
   if (STATIC_EXTENSIONS.some(ext => pathname.endsWith(ext))) return true;
   return false;
+}
+
+function isBot(userAgent: string | null): boolean {
+  if (!userAgent) return true; // Sin user-agent = bot/scraper
+  const ua = userAgent.toLowerCase();
+  return BOT_UA_FRAGMENTS.some(fragment => ua.includes(fragment));
 }
 
 async function hashIP(ip: string): Promise<string> {
@@ -66,6 +85,13 @@ export async function middleware(req: NextRequest) {
 
   const response = NextResponse.next();
 
+  const userAgent = req.headers.get('user-agent');
+
+  // Ignorar bots y crawlers — no registrar su tráfico
+  if (isBot(userAgent)) {
+    return response;
+  }
+
   let sessionId = req.cookies.get('_sid')?.value;
   if (!sessionId) {
     sessionId = uuidv4();
@@ -85,7 +111,6 @@ export async function middleware(req: NextRequest) {
 
   const ipHash = await hashIP(ip);
   const referrer = req.headers.get('referer');
-  const userAgent = req.headers.get('user-agent');
 
   if (typeof fetch !== 'undefined') {
     const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
