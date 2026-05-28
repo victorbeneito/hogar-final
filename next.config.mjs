@@ -7,6 +7,13 @@ const nextConfig = {
   env: {
     NEXT_PUBLIC_APP_VERSION: version,
   },
+  async redirects() {
+    return [
+      // Redirige cualquier URL de PrestaShop /es/... que escape al middleware
+      { source: '/es', destination: '/', permanent: true },
+      { source: '/es/', destination: '/', permanent: true },
+    ];
+  },
     serverExternalPackages: ['@prisma/client', 'bcrypt', '@react-pdf/renderer'],
 typescript: {
     // !! ATENCIÓN !!

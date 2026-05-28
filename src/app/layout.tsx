@@ -7,8 +7,6 @@ import { Toaster } from "react-hot-toast";
 import Script from "next/script";
 import { PaypalProvider } from "@/components/PaypalProvider";
 
-export const dynamic = "force-dynamic";
-
 export const metadata: Metadata = {
   metadataBase: new URL("https://www.elhogardetusuenos.com"),
   title: {

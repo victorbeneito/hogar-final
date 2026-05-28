@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
+import psCatMap from '@/data/ps-cat-map.json';
+import psProductMap from '@/data/ps-product-map.json';
 
 const EXCLUDED_PATHS = ['/admin', '/api', '/_next', '/favicon', '/robots.txt', '/sitemap.xml'];
 const STATIC_EXTENSIONS = ['.css', '.js', '.json', '.png', '.jpg', '.jpeg', '.gif', '.svg', '.ico', '.webp', '.woff', '.woff2', '.ttf', '.eot'];
@@ -48,8 +50,31 @@ function detectDispositivo(userAgent: string | null): string {
   return 'desktop';
 }
 
+const catMap = psCatMap as Record<string, string>;
+const productMap = psProductMap as Record<string, string>;
+
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
+
+  // Redirigir URLs antiguas de PrestaShop (301 permanente)
+  if (pathname.startsWith('/es/') || pathname === '/es') {
+    // Categoría: /es/{id}-{slug} → /categorias/{new_id}
+    const catMatch = pathname.match(/^\/es\/(\d+)-/);
+    if (catMatch) {
+      const newUrl = catMap[catMatch[1]];
+      if (newUrl) return NextResponse.redirect(new URL(newUrl, req.url), 301);
+    }
+
+    // Producto: /es/{cualquier-cosa}/{id}-{slug}.html o /es/{id}-{slug}.html
+    const prodMatch = pathname.match(/\/(\d+)-[^/]+\.html$/);
+    if (prodMatch) {
+      const newUrl = productMap[prodMatch[1]];
+      if (newUrl) return NextResponse.redirect(new URL(newUrl, req.url), 301);
+    }
+
+    // Cualquier otra URL de PrestaShop sin mapeo → home
+    return NextResponse.redirect(new URL('/', req.url), 301);
+  }
 
   // No procesar rutas excluidas
   if (isExcludedPath(pathname) || req.method !== 'GET') {
