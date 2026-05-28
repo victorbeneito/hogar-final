@@ -1,64 +1,72 @@
-import { prisma } from "@/lib/prisma";
+"use client";
+
+export const dynamic = "force-dynamic";
+
+import React, { useState, useEffect } from "react";
 import Banner from "@/components/Banner";
+import ProductGrid from "@/components/ProductGrid";
 import BannersSection from "@/components/BannersSection";
 import BannerPrincipal from "@/components/BannerPrincipal";
 import SeoText from "@/components/SeoText";
 import SubscribeForm from "@/components/SubscribeForm";
 import ReviWidget from "@/components/ReviWidget";
-import HomepageSearch from "@/components/HomepageSearch";
+import clienteAxios from "@/lib/axiosClient";
 
-export default async function HomePage() {
-  // Fetch server-side — Google ve este contenido en el HTML
-  const [categoriasRaw, productosRaw] = await Promise.all([
-    prisma.categoria.findMany({
-      where: { activa: true },
-      select: { id: true, nombre: true },
-      orderBy: { nombre: "asc" },
-    }).catch(() => []),
-    prisma.producto.findMany({
-      where: { activo: true, destacado: true },
-      select: {
-        id: true,
-        nombre: true,
-        precio: true,
-        precioOferta: true,
-        stock: true,
-        slug: true,
-        destacado: true,
-        enOferta: true,
-        reglaimpuesto: { select: { porcentaje: true } },
-        productoimagen: {
-          select: { url: true },
-          orderBy: { orden: "asc" },
-          take: 1,
-        },
-      },
-      orderBy: [{ destacado: "desc" }, { id: "desc" }],
-      take: 12,
-    }).catch(() => []),
-  ]);
+type Categoria = {
+  id: number;
+  nombre: string;
+};
 
-  const categories = categoriasRaw.map((c) => ({ id: c.id, nombre: c.nombre }));
+type Producto = {
+  id: number;
+  nombre: string;
+  precio: number;
+  imagenes: string[];
+  stock: number;
+};
 
-  const productosDestacados = productosRaw.map((p) => {
-    const iva = 1 + Number(p.reglaimpuesto?.porcentaje ?? 0) / 100;
-    return {
-      id: p.id,
-      nombre: p.nombre,
-      precio: Number(p.precio) * iva,
-      precioOferta: p.precioOferta != null ? Number(p.precioOferta) * iva : null,
-      stock: p.stock ?? 0,
-      slug: p.slug,
-      destacado: p.destacado ?? false,
-      enOferta: p.enOferta ?? false,
-      imagenes: p.productoimagen.map((img) => img.url),
-      imagenPortada: p.productoimagen[0]?.url ?? null,
+type CategoriasResponse = {
+  ok: boolean;
+  categorias: Categoria[];
+};
+
+type ProductosResponse = {
+  ok: boolean;
+  productos: Producto[];
+};
+
+export default function HomePage() {
+  const [categories, setCategories] = useState<Categoria[]>([]);
+  const [productosDestacados, setProductosDestacados] = useState<Producto[]>([]);
+  const [productosFiltrados, setProductosFiltrados] = useState<Producto[]>([]);
+  const [busquedaActiva, setBusquedaActiva] = useState(false);
+
+  useEffect(() => {
+    const cargarCategorias = async () => {
+      try {
+        const { data } = await clienteAxios.get<CategoriasResponse>("/categorias");
+        if (data.ok) setCategories(data.categorias || []);
+      } catch (error) {
+        console.error("Error cargando categorías:", error);
+      }
     };
-  });
+    cargarCategorias();
+  }, []);
+
+  useEffect(() => {
+    const cargarDestacados = async () => {
+      try {
+        const { data } = await clienteAxios.get<ProductosResponse>("/productos?destacado=true&limit=12&sortBy=id&sortDir=desc");
+        if (data.ok) setProductosDestacados(data.productos);
+      } catch (error) {
+        console.error("Error fetching productos:", error);
+      }
+    };
+    cargarDestacados();
+  }, []);
 
   return (
     <div className="bg-fondo dark:bg-darkBg w-full min-h-screen flex flex-col gap-y-8 md:gap-y-12 lg:gap-y-20 pb-12">
-
       <section className="w-full">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <Banner />
@@ -73,7 +81,11 @@ export default async function HomePage() {
 
       <section className="w-full">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <HomepageSearch productosDestacados={productosDestacados as any} />
+          <ProductGrid
+            productosDestacados={productosDestacados}
+            productosFiltrados={productosFiltrados}
+            busquedaActiva={busquedaActiva}
+          />
         </div>
       </section>
 
@@ -97,7 +109,6 @@ export default async function HomePage() {
           </div>
         </div>
       </section>
-
     </div>
   );
 }
