@@ -1,7 +1,7 @@
 import type { MetadataRoute } from "next";
 import { prisma } from "@/lib/prisma";
 
-const BASE_URL = "https://www.elhogardetusuenos.com";
+const BASE_URL = "https://elhogardetusuenos.com";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const ahora = new Date();

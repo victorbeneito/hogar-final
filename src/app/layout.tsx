@@ -10,7 +10,7 @@ import { PaypalProvider } from "@/components/PaypalProvider";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://www.elhogardetusuenos.com"),
+  metadataBase: new URL("https://elhogardetusuenos.com"),
   title: {
     default: "El Hogar de tus Sueños | Decoración y Estores Online",
     template: "%s | El Hogar de tus Sueños",
@@ -23,7 +23,7 @@ export const metadata: Metadata = {
     siteName: "El Hogar de tus Sueños",
     locale: "es_ES",
     type: "website",
-    url: "https://www.elhogardetusuenos.com",
+    url: "https://elhogardetusuenos.com",
   },
   robots: {
     index: true,
@@ -31,7 +31,7 @@ export const metadata: Metadata = {
     googleBot: { index: true, follow: true },
   },
   alternates: {
-    canonical: "https://www.elhogardetusuenos.com",
+    canonical: "https://elhogardetusuenos.com",
   },
   verification: {
     google: "VpCz7A2JTYMy7fkK6wleNSh95ZPH8pImauHx-tKlXmU",

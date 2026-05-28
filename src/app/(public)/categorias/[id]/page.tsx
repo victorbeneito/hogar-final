@@ -25,7 +25,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
   const title = categoria.metaTitulo || `${categoria.nombre} | Estores y Decoración`;
   const description = categoria.metaDescripcion || categoria.descripcion || `Descubre nuestra colección de ${categoria.nombre}. Estores digitales y decoración de hogar al mejor precio.`;
-  const url = `https://www.elhogardetusuenos.com/categorias/${idNumero}`;
+  const url = `https://elhogardetusuenos.com/categorias/${idNumero}`;
 
   return {
     title,
@@ -164,7 +164,7 @@ export default async function CategoryPage({ params, searchParams }: PageProps) 
   const visiblePages = pageNumbers(page, totalPages);
   const basePath = `/categorias/${idNumero}`;
 
-  const BASE_URL = "https://www.elhogardetusuenos.com";
+  const BASE_URL = "https://elhogardetusuenos.com";
   const canonicalUrl = `${BASE_URL}/categorias/${idNumero}`;
   const descripcionTexto = categoria.descripcion
     ? categoria.descripcion.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim()

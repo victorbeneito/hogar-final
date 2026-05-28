@@ -30,10 +30,10 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const title = producto.metaTitulo || producto.nombre;
   const description = producto.metaDescripcion || producto.resumen || "";
   const url = producto.slug
-    ? `https://www.elhogardetusuenos.com/productos/${producto.slug}`
-    : `https://www.elhogardetusuenos.com/productos/${producto.id}`;
+    ? `https://elhogardetusuenos.com/productos/${producto.slug}`
+    : `https://elhogardetusuenos.com/productos/${producto.id}`;
   const imageRaw = producto.productoimagen[0]?.url;
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://www.elhogardetusuenos.com";
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://elhogardetusuenos.com";
   const image = imageRaw
     ? imageRaw.startsWith("http") ? imageRaw : `${baseUrl}${imageRaw}`
     : undefined;
@@ -171,7 +171,7 @@ export default async function ProductoPage({ params }: PageProps) {
     disponiblePedidos: productoRaw.disponiblePedidos ?? true,
   };
 
-  const BASE_URL = "https://www.elhogardetusuenos.com";
+  const BASE_URL = "https://elhogardetusuenos.com";
   const productoUrl = productoRaw.slug
     ? `${BASE_URL}/productos/${productoRaw.slug}`
     : `${BASE_URL}/productos/${productoRaw.id}`;
