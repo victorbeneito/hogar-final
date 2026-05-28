@@ -129,6 +129,7 @@ export async function GET(req: NextRequest) {
       select: {
         id:          true,
         nombre:      true,
+        slug:        true,
         referencia:  true,
         precio:      true,
         precioOferta:true,

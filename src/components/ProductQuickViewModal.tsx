@@ -461,7 +461,7 @@ export default function ProductQuickViewModal({ productId, open, onClose }: Prop
             )}
 
             <Link
-              href={`/productos/${producto?.id}`}
+              href={`/productos/${producto?.slug || producto?.id}`}
               className="text-sm font-semibold text-primary hover:text-primaryHover"
             >
               Ver ficha completa

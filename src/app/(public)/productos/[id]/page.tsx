@@ -10,11 +10,12 @@ type PageProps = {
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { id } = await params;
   const idNumero = Number(id);
-  if (!Number.isInteger(idNumero) || idNumero <= 0) return {};
+  const byId = Number.isInteger(idNumero) && idNumero > 0;
 
-  const producto = await prisma.producto.findUnique({
-    where: { id: idNumero },
+  const producto = await prisma.producto.findFirst({
+    where: byId ? { id: idNumero } : { slug: id },
     select: {
+      id: true,
       nombre: true,
       metaTitulo: true,
       metaDescripcion: true,
@@ -30,7 +31,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const description = producto.metaDescripcion || producto.resumen || "";
   const url = producto.slug
     ? `https://www.elhogardetusuenos.com/productos/${producto.slug}`
-    : `https://www.elhogardetusuenos.com/productos/${idNumero}`;
+    : `https://www.elhogardetusuenos.com/productos/${producto.id}`;
   const imageRaw = producto.productoimagen[0]?.url;
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://www.elhogardetusuenos.com";
   const image = imageRaw
@@ -54,13 +55,10 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 export default async function ProductoPage({ params }: PageProps) {
   const { id } = await params;
   const idNumero = Number(id);
+  const byId = Number.isInteger(idNumero) && idNumero > 0;
 
-  if (!Number.isInteger(idNumero) || idNumero <= 0) {
-    return notFound();
-  }
-
-  const productoRaw = await prisma.producto.findUnique({
-    where: { id: idNumero },
+  const productoRaw = await prisma.producto.findFirst({
+    where: byId ? { id: idNumero } : { slug: id },
     select: {
       id: true,
       nombre: true,
@@ -112,9 +110,7 @@ export default async function ProductoPage({ params }: PageProps) {
     },
   });
 
-  if (!productoRaw) {
-    return notFound();
-  }
+  if (!productoRaw) return notFound();
 
   // Obtener idPrestashop desde el mapeo (REVI)
   let prestashopProductId = null;
