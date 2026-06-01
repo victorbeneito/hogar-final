@@ -81,6 +81,7 @@ const navigation = [
       { name: "Módulos", href: "/admin/personalizar/modulos", icon: Settings },
       { name: "Configuración de Correos", href: "/admin/personalizar/correos", icon: FileText },
       { name: "Páginas CMS", href: "/admin/cms", icon: FileText },
+      { name: "Blog Tienda", href: "/admin/blog", icon: BookOpen },
     ],
   },
   {
