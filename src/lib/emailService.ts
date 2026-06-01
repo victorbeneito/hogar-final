@@ -146,7 +146,7 @@ export function buildAdminOrderEmail(
 
   const productosHtml = (pedido.pedidoproducto || []).map((item) => {
     const ref = item.productoIdRef ?? "-";
-    const nombreProducto = item.varianteInfo ? `${item.nombre} - ${item.varianteInfo}` : item.nombre;
+    const nombreProducto = item.nombre;
     const precioUnit = `${Number(item.precioUnitario).toFixed(2)} €`;
     const precioTotal = `${Number(item.subtotal).toFixed(2)} €`;
     return `<tr>

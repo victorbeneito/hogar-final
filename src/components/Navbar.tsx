@@ -172,6 +172,14 @@ export default function Navbar() {
                 Inicio
             </Link>
 
+            {/* Blog (Solo Desktop) */}
+            <Link
+              href="/blog"
+              className={`hidden lg:block hover:text-primary text-sm font-medium uppercase tracking-wide transition-colors whitespace-nowrap ${pathname?.startsWith("/blog") ? "text-primary" : ""}`}
+            >
+              Blog
+            </Link>
+
             {/* Categorías (Solo Desktop) */}
             <div className="hidden lg:flex space-x-4 items-center ml-4">
                 {categoriasOrdenadas.map((cat) => {
@@ -396,6 +404,18 @@ export default function Navbar() {
                     );
                   })}
                </ul>
+            </div>
+
+            {/* Blog Móvil */}
+            <div>
+              <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Contenido</h4>
+              <Link
+                href="/blog"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="block py-2 px-3 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 font-medium"
+              >
+                📰 El blog de tu Hogar
+              </Link>
             </div>
 
             {/* Logout Móvil */}

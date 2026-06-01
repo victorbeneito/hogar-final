@@ -576,3 +576,26 @@ model busqueda_log {
   @@index([timestamp])
   @@index([termino])
 }
+
+model articulo {
+  id               Int      @id @default(autoincrement())
+  titulo           String
+  slug             String   @unique
+  extracto         String?  @db.Text
+  contenidoHtml    String   @db.LongText
+  imagenPortada    String?
+  autor            String   @default("El equipo de tu Hogar")
+  activo           Boolean  @default(false)
+  destacado        Boolean  @default(false)
+  metaTitulo       String?
+  metaDescripcion  String?  @db.Text
+  etiquetas        String?
+  vistas           Int      @default(0)
+  fechaPublicacion DateTime @default(now())
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime
+
+  @@index([slug])
+  @@index([activo])
+  @@index([fechaPublicacion])
+}

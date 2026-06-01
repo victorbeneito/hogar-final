@@ -237,6 +237,7 @@ export default function PedidoDetallePage({ params }: { params: Promise<{ id: st
   const [estadosPedido, setEstadosPedido] = useState<{ clave: string; nombre: string; color: string }[]>([]);
   const [estadoHistorial, setEstadoHistorial] = useState<{ id: number; estado: string; color: string; fecha: string }[]>([]);
   const [transportistasConfig, setTransportistasConfig] = useState<{ id: string; name: string; trackingUrl: string }[]>([]);
+  const [savingTransporte, setSavingTransporte] = useState(false);
   const [tabDireccion, setTabDireccion] = useState<"entrega" | "facturacion">("entrega");
   const [tabEstado, setTabEstado] = useState<"estado" | "documentos">("estado");
 
@@ -433,6 +434,48 @@ export default function PedidoDetallePage({ params }: { params: Promise<{ id: st
       setMensajePrivado(false);
     } catch (error: any) {
       alert(error.message || "Error al guardar el mensaje");
+    }
+  };
+
+  const actualizarTransporte = async () => {
+    if (!pedido) return;
+    setSavingTransporte(true);
+    try {
+      const isPickup = pedido.envioMetodo === "pickup";
+      const now = new Date().toISOString();
+      let body: Record<string, any>;
+
+      if (isPickup) {
+        body = { fechaEntrega: now };
+      } else {
+        // Conservar fechaEnvio original si ya estaba registrada
+        const fechaEnvioFinal = fechaEnvio ? new Date(fechaEnvio).toISOString() : now;
+        body = {
+          transportistaNombre,
+          numeroSeguimiento,
+          trackingUrl,
+          fechaEnvio: fechaEnvioFinal,
+        };
+      }
+
+      const res = await fetch(`/api/pedidos/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) throw new Error(data.error || "No se pudo actualizar el transporte");
+
+      setPedido(data.pedido);
+      if (data.pedido.fechaEnvio) setFechaEnvio(data.pedido.fechaEnvio.slice(0, 16));
+      if (data.pedido.fechaEntrega) setFechaEntrega(data.pedido.fechaEntrega.slice(0, 16));
+      if (data.pedido.numeroSeguimiento) setNumeroSeguimiento(data.pedido.numeroSeguimiento);
+
+      alert(isPickup ? "Fecha de entrega registrada correctamente" : "Datos de envío actualizados correctamente");
+    } catch (error: any) {
+      alert(error.message || "Error al actualizar el transporte");
+    } finally {
+      setSavingTransporte(false);
     }
   };
 
@@ -653,20 +696,91 @@ export default function PedidoDetallePage({ params }: { params: Promise<{ id: st
 
             {/* Transporte */}
             <Card title="Transporte">
-              <div className="grid md:grid-cols-2 gap-4">
-                {/* Selector de transportista desde config (si hay varios) */}
-                {transportistasConfig.length > 1 && pedido.envioMetodo === "delivery" && (
-                  <div className="md:col-span-2">
-                    <label className="block text-xs font-semibold text-gray-500 mb-1">Cargar datos del transportista</label>
-                    <div className="flex gap-2">
+              {pedido.envioMetodo === "pickup" ? (
+                /* ── Recogida en tienda ── */
+                <div className="space-y-4">
+                  <div className="flex items-center gap-3 rounded-lg bg-blue-50 px-4 py-3">
+                    <svg className="w-5 h-5 text-blue-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                    </svg>
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-wide text-blue-600">Método de envío</p>
+                      <p className="text-sm font-semibold text-blue-800">Recogida en tienda</p>
+                    </div>
+                  </div>
+
+                  <div className="rounded-lg border border-gray-100 bg-gray-50 px-4 py-3">
+                    <p className="text-xs font-semibold text-gray-500 mb-1">URL de seguimiento</p>
+                    <p className="text-sm text-gray-500 italic">Recogida en tienda — sin seguimiento</p>
+                  </div>
+
+                  <div className="flex items-end gap-3 border-t border-gray-100 pt-4">
+                    <div className="flex-1">
+                      <p className="text-xs font-semibold text-gray-500 mb-1">Fecha de entrega</p>
+                      {fechaEntrega ? (
+                        <p className="text-sm font-semibold text-gray-800">{formatDate(fechaEntrega)}</p>
+                      ) : (
+                        <p className="text-sm text-gray-400 italic">Pendiente de entrega — se registrará al pulsar el botón</p>
+                      )}
+                    </div>
+                    <button
+                      onClick={actualizarTransporte}
+                      disabled={savingTransporte}
+                      className="rounded-lg bg-[#6BAEC9] px-4 py-2 text-sm font-semibold text-white hover:bg-[#5FA0B3] disabled:opacity-60 whitespace-nowrap"
+                    >
+                      {savingTransporte ? "Registrando..." : fechaEntrega ? "Actualizar entrega" : "Registrar entrega"}
+                    </button>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-500 mb-1">Coste de envío (€)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={envioCoste}
+                      onChange={(e) => setEnvioCoste(Number(e.target.value))}
+                      className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#6BAEC9]"
+                    />
+                  </div>
+                </div>
+              ) : (
+                /* ── Envío mensajería ── */
+                <div className="space-y-4">
+                  {/* Transportista y URL: solo lectura, auto-cargados del checkout */}
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <div className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2.5">
+                      <p className="text-xs font-semibold text-gray-500 mb-0.5">Transportista</p>
+                      {transportistaNombre ? (
+                        <p className="text-sm font-semibold text-gray-800">{transportistaNombre}</p>
+                      ) : (
+                        <p className="text-sm text-gray-400 italic">Sin asignar</p>
+                      )}
+                    </div>
+                    <div className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2.5">
+                      <p className="text-xs font-semibold text-gray-500 mb-0.5">URL de seguimiento</p>
+                      {trackingUrl ? (
+                        <a href={trackingUrl} target="_blank" rel="noopener noreferrer" className="text-sm text-[#6BAEC9] hover:underline truncate block">
+                          {trackingUrl}
+                        </a>
+                      ) : (
+                        <p className="text-sm text-gray-400 italic">Sin URL</p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Cambiar transportista si hay varios configurados */}
+                  {transportistasConfig.length > 1 && (
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-500 mb-1">Cambiar transportista</label>
                       <select
-                        className="flex-1 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#6BAEC9]"
+                        className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#6BAEC9]"
                         defaultValue=""
                         onChange={(e) => {
                           const carrier = transportistasConfig.find((c) => c.id === e.target.value);
                           if (carrier) {
                             setTransportistaNombre(carrier.name);
-                            if (!trackingUrl) setTrackingUrl(carrier.trackingUrl);
+                            setTrackingUrl(carrier.trackingUrl);
                           }
                         }}
                       >
@@ -676,35 +790,50 @@ export default function PedidoDetallePage({ params }: { params: Promise<{ id: st
                         ))}
                       </select>
                     </div>
+                  )}
+
+                  {/* Número de seguimiento + botón Actualizar */}
+                  <div className="flex gap-3 items-end border-t border-gray-100 pt-4">
+                    <div className="flex-1">
+                      <Field
+                        label="Número de seguimiento"
+                        value={numeroSeguimiento}
+                        onChange={setNumeroSeguimiento}
+                        placeholder="Introduce el número de seguimiento"
+                      />
+                    </div>
+                    <button
+                      onClick={actualizarTransporte}
+                      disabled={savingTransporte}
+                      className="rounded-lg bg-[#6BAEC9] px-4 py-2 text-sm font-semibold text-white hover:bg-[#5FA0B3] disabled:opacity-60 whitespace-nowrap"
+                    >
+                      {savingTransporte ? "Actualizando..." : "Actualizar envío"}
+                    </button>
                   </div>
-                )}
-                <Field label="Transportista" value={transportistaNombre} onChange={setTransportistaNombre} />
-                <Field label="Número de seguimiento" value={numeroSeguimiento} onChange={setNumeroSeguimiento} />
-                <div className="md:col-span-2">
-                  <Field label="URL de seguimiento" value={trackingUrl} onChange={setTrackingUrl} />
+
+                  {/* Fecha de envío: auto-registrada al actualizar */}
+                  <div className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2.5">
+                    <p className="text-xs font-semibold text-gray-500 mb-0.5">Fecha de envío</p>
+                    {fechaEnvio ? (
+                      <p className="text-sm font-semibold text-gray-800">{formatDate(fechaEnvio)}</p>
+                    ) : (
+                      <p className="text-sm text-gray-400 italic">Se registrará automáticamente al actualizar el número de seguimiento</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-500 mb-1">Coste de envío (€)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={envioCoste}
+                      onChange={(e) => setEnvioCoste(Number(e.target.value))}
+                      className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#6BAEC9]"
+                    />
+                  </div>
                 </div>
-                <Field label="Fecha de envío" type="datetime-local" value={fechaEnvio} onChange={setFechaEnvio} />
-                <Field label="Fecha de entrega" type="datetime-local" value={fechaEntrega} onChange={setFechaEntrega} />
-                <div>
-                  <label className="block text-xs font-semibold text-gray-500 mb-1">Coste de envío (€)</label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={envioCoste}
-                    onChange={(e) => setEnvioCoste(Number(e.target.value))}
-                    className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#6BAEC9]"
-                  />
-                </div>
-                <div className="flex items-end">
-                  <p className="text-sm text-gray-500">
-                    Método:{" "}
-                    <span className="font-semibold text-gray-700">
-                      {pedido.envioMetodo === "delivery" ? "Envío a domicilio" : pedido.envioMetodo === "pickup" ? "Recogida en tienda" : pedido.envioMetodo || "—"}
-                    </span>
-                  </p>
-                </div>
-              </div>
+              )}
             </Card>
 
             {/* Pago */}
@@ -877,6 +1006,24 @@ export default function PedidoDetallePage({ params }: { params: Promise<{ id: st
                 )}
                 <p className="text-xs text-gray-400 pt-1">ID: #{pedido.clienteId}</p>
               </div>
+
+              {/* Dirección de entrega resumida para etiqueta */}
+              {(entrega.nombre || entrega.direccion) && (
+                <div className="mt-4 pt-4 border-t border-gray-100">
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Dirección de entrega</p>
+                  <div className="space-y-0.5 text-sm text-gray-700">
+                    <p className="font-semibold text-gray-900">
+                      {[entrega.nombre, entrega.apellidos].filter(Boolean).join(" ")}
+                    </p>
+                    {entrega.direccion && <p>{entrega.direccion}</p>}
+                    {entrega.direccionComplementaria && <p>{entrega.direccionComplementaria}</p>}
+                    <p>
+                      {[entrega.codigoPostal, entrega.ciudad, entrega.provincia].filter(Boolean).join(" ")}
+                    </p>
+                    {entrega.telefono && <p>{entrega.telefono}</p>}
+                  </div>
+                </div>
+              )}
             </Card>
 
             {/* Direcciones */}
