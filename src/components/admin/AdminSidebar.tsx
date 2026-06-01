@@ -64,7 +64,6 @@ const navigation = [
       { name: "Categorías",  href: "/admin/categorias",  icon: Tag },
       { name: "Atributos",   href: "/admin/atributos",   icon: Palette },
       { name: "Marcas",      href: "/admin/marcas",      icon: Store },
-      { name: "Proveedores", href: "/admin/proveedores", icon: Store },
       { name: "Descuentos",  href: "/admin/cupones",     icon: Ticket },
       { name: "Transportes", href: "/admin/transportes", icon: Truck },
     ],
@@ -81,14 +80,12 @@ const navigation = [
       { name: "Formas de pago", href: "/admin/personalizar/formas-pago", icon: CreditCard },
       { name: "Módulos", href: "/admin/personalizar/modulos", icon: Settings },
       { name: "Configuración de Correos", href: "/admin/personalizar/correos", icon: FileText },
-        { name: "Páginas CMS", href: "/admin/cms", icon: FileText },
-      { name: "Blog Tienda", href: "/admin/blog", icon: BookOpen },
+      { name: "Páginas CMS", href: "/admin/cms", icon: FileText },
     ],
   },
   {
     label: "PARÁMETROS TIENDA",
     items: [
-      { name: "Configuración",     href: "/admin/configuracion",           icon: Settings },
       { name: "Config. Pedidos",   href: "/admin/configuracion/pedidos",   icon: ClipboardList },
       { name: "Config. Productos", href: "/admin/configuracion/productos", icon: Box },
       { name: "Ajustes Clientes",  href: "/admin/configuracion/clientes",  icon: UserCheck },

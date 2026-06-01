@@ -160,7 +160,7 @@ export default function Navbar() {
         {/* --- IZQUIERDA: Hamburguesa (Móvil) + Logo/Inicio --- */}
         <div className="flex items-center gap-4">
             {/* Botón Hamburguesa (Solo Móvil) */}
-            <button 
+            <button
                 onClick={() => setIsMobileMenuOpen(true)}
                 className="lg:hidden text-2xl hover:text-primary focus:outline-none"
             >
@@ -170,14 +170,6 @@ export default function Navbar() {
             {/* Logo / Inicio */}
             <Link href="/" className="text-xl font-bold hover:text-primary whitespace-nowrap">
                 Inicio
-            </Link>
-
-            {/* Blog (Solo Desktop) */}
-            <Link
-              href="/blog"
-              className={`hidden lg:block hover:text-primary text-sm font-medium uppercase tracking-wide transition-colors whitespace-nowrap ${pathname?.startsWith("/blog") ? "text-primary" : ""}`}
-            >
-              Blog
             </Link>
 
             {/* Categorías (Solo Desktop) */}
@@ -230,11 +222,19 @@ export default function Navbar() {
                   );
                 })}
             </div>
+
+            {/* Blog (Solo Desktop) */}
+            <Link
+              href="/blog"
+              className={`hidden lg:block hover:text-primary text-sm font-medium uppercase tracking-wide transition-colors whitespace-nowrap ${pathname?.startsWith("/blog") ? "text-primary" : ""}`}
+            >
+              Blog
+            </Link>
         </div>
 
         {/* --- DERECHA: Buscador + Acciones --- */}
         <div className="flex items-center space-x-3 md:space-x-4">
-            
+
             {/* Buscador (Desktop) */}
             <div className="hidden md:block relative">
                 <input
@@ -258,20 +258,11 @@ export default function Navbar() {
             </div>
 
             {/* Icono Lupa (Solo Móvil) */}
-            <button 
+            <button
                 onClick={() => setShowMobileSearch(!showMobileSearch)}
                 className="md:hidden text-xl hover:text-primary"
             >
                 <FaSearch />
-            </button>
-
-            {/* Botón Tema */}
-            <button
-                onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-                className="bg-gray-200 dark:bg-gray-700 text-yellow-500 dark:text-blue-300 rounded-full p-2 transition-transform hover:scale-110"
-                aria-label="Alternar tema"
-            >
-                {theme === "dark" ? <FaMoon /> : <FaSun />}
             </button>
 
             {/* Selector de idioma */}
@@ -304,6 +295,15 @@ export default function Navbar() {
                     </Link>
                 )}
             </div>
+
+            {/* Botón Tema */}
+            <button
+                onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+                className="bg-gray-200 dark:bg-gray-700 text-yellow-500 dark:text-blue-300 rounded-full p-2 transition-transform hover:scale-110"
+                aria-label="Alternar tema"
+            >
+                {theme === "dark" ? <FaMoon /> : <FaSun />}
+            </button>
         </div>
 
       </div>
