@@ -65,6 +65,7 @@ export default async function ProductoPage({ params }: PageProps) {
       slug: true,
       descripcion: true,
       descripcion_html: true,
+      composicion: true,
       referencia: true,
       precio: true,
       precioOferta: true,
@@ -147,6 +148,7 @@ export default async function ProductoPage({ params }: PageProps) {
     nombre: productoRaw.nombre,
     descripcion: productoRaw.descripcion ?? "",
     descripcion_html_cruda: productoRaw.descripcion_html ?? "",
+    composicion: productoRaw.composicion ?? "",
     precio: precioConIva,
     precio_descuento: ofertaConIva,
     descuento_porcentaje: ofertaConIva != null && precioConIva > 0

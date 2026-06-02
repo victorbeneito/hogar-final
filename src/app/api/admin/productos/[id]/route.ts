@@ -59,6 +59,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
       reglaimpuesto: {
         select: { id: true, nombre: true, porcentaje: true },
       },
+      composicion: true,
     },
   });
 
@@ -142,6 +143,7 @@ if (!Number.isInteger(id)) {
           gastosEnvioExtra:     campos.gastosEnvioExtra     ? parseFloat(campos.gastosEnvioExtra) : 0,
           metaTitulo:           campos.metaTitulo           ?? null,
           metaDescripcion:      campos.metaDescripcion      ?? null,
+          composicion:          campos.composicion          ?? null,
           slug:                 campos.slug                 ?? null,
           marcaId:              campos.marcaId              ?? null,
           updatedAt:            new Date(),

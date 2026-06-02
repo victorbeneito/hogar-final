@@ -928,13 +928,18 @@ async function upsertProducto(row: ImportRow) {
   });
   const reglaImpuesto = reglaImpuestoPorId ?? reglaImpuestoPorNombre ?? (needsImpuesto ? reglaImpuestoDefault : null);
 
+  // El CSV trae precios CON IVA incluido; la BD almacena SIN IVA
+  const ivaFactor = reglaImpuesto
+    ? 1 + (reglaImpuesto.porcentaje / 100)
+    : 1.21; // fallback IVA general 21%
+
   const descuento = "descuento" in row && row.descuento !== "" ? parseNumber(row.descuento, NaN) : NaN;
-  const precioBase = "precio" in row ? parseNumber(row.precio, 0) : 0;
+  const precioBase = "precio" in row ? parseNumber(row.precio, 0) / ivaFactor : 0;
   const precioOfertaDesdeDescuento = Number.isFinite(descuento) && descuento >= 0 && descuento < 100
     ? precioBase * (1 - descuento / 100)
     : null;
   const precioOferta = "precioOferta" in row && row.precioOferta !== ""
-    ? parseNumber(row.precioOferta, 0)
+    ? parseNumber(row.precioOferta, 0) / ivaFactor
     : precioOfertaDesdeDescuento;
 
   const slugBase = normalizeText(row.slug) || slugActual?.slug || referencia || nombre;
@@ -979,6 +984,7 @@ async function upsertProducto(row: ImportRow) {
   if ("gastosEnvioExtra" in row) optional.gastosEnvioExtra = row.gastosEnvioExtra !== "" ? parseNumber(row.gastosEnvioExtra, 0) : 0;
   if ("metaTitulo" in row) optional.metaTitulo = row.metaTitulo ?? null;
   if ("metaDescripcion" in row) optional.metaDescripcion = row.metaDescripcion ?? null;
+  if ("composicion" in row) optional.composicion = row.composicion ?? null;
   if ("marca" in row) optional.marcaId = marca?.id ?? null;
   if (needsImpuesto) optional.reglaImpuestoId = reglaImpuesto?.id ?? null;
 
@@ -1013,6 +1019,7 @@ async function upsertProducto(row: ImportRow) {
     gastosEnvioExtra: 0,
     metaTitulo: null,
     metaDescripcion: null,
+    composicion: null,
     marcaId: null,
     reglaImpuestoId: reglaImpuestoDefault?.id ?? null,
   };
@@ -1081,9 +1088,18 @@ async function upsertCombinacion(row: ImportRow) {
     where: {
       referencia: productKey,
     },
+    select: {
+      id: true,
+      reglaimpuesto: { select: { porcentaje: true } },
+    },
   });
 
   if (!producto) throw new Error(`No existe el producto: ${productKey}`);
+
+  // Obtener IVA del producto para dividir precio_extra (el CSV trae precios con IVA incluido)
+  const ivaFactorVariante = producto.reglaimpuesto
+    ? 1 + (producto.reglaimpuesto.porcentaje / 100)
+    : 1.21; // fallback IVA general 21%
 
   const referencia = normalizeText(row.referencia) || null;
   const existing = referencia
@@ -1100,7 +1116,10 @@ async function upsertCombinacion(row: ImportRow) {
   if ("color" in row) varianteOptional.color = row.color ? normalizeText(row.color) : null;
   if ("imagenMuestra" in row) varianteOptional.imagenMuestra = row.imagenMuestra ? normalizeText(row.imagenMuestra) : null;
   if ("imagenesVariante" in row) varianteOptional.imagenesVariante = row.imagenesVariante ? normalizeText(row.imagenesVariante) : null;
-  if ("precio_extra" in row) varianteOptional.precio_extra = row.precio_extra !== "" ? parseNumber(row.precio_extra, 0) : 0;
+  if ("precio_extra" in row) {
+    const rawExtra = row.precio_extra !== "" ? parseNumber(row.precio_extra, 0) : 0;
+    varianteOptional.precio_extra = rawExtra / ivaFactorVariante;
+  }
   if ("tamano" in row) varianteOptional.tamano = row.tamano ? normalizeText(row.tamano) : null;
   if ("tirador" in row) varianteOptional.tirador = row.tirador ? normalizeText(row.tirador) : null;
 

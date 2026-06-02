@@ -130,6 +130,17 @@ export default function TabBasicos({ producto, categorias, marcas, onChange, dat
   />
 </div>
 
+        {/* Composición */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Composición</label>
+          <textarea
+            value={data.composicion ?? ""}
+            onChange={(e) => onChange("composicion", e.target.value)}
+            rows={6}
+            placeholder="Ej: 100% Poliéster&#10;Tratamiento: Acrílico protector UV"
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-vertical"
+          />
+        </div>
 
       </div>
 

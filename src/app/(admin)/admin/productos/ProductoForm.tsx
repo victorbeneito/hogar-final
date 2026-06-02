@@ -41,6 +41,7 @@ export default function ProductoForm({ producto, categorias, marcas, reglasImpue
     resumen:          producto?.resumen          ?? "",
     descripcion:      producto?.descripcion      ?? "",
     descripcion_html: producto?.descripcion_html ?? "",
+    composicion:      producto?.composicion      ?? "",
     imagenes:         producto?.productoimagen         ?? [],
     categoriaId:      producto?.productocategoria?.[0]?.categoriaId ?? null,
     marcaId:          producto?.marcaId          ?? null,

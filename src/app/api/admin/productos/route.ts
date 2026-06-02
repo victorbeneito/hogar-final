@@ -186,6 +186,7 @@ export async function POST(req: NextRequest) {
           gastosEnvioExtra:     campos.gastosEnvioExtra     ? parseFloat(campos.gastosEnvioExtra) : 0,
           metaTitulo:           campos.metaTitulo           ?? null,
           metaDescripcion:      campos.metaDescripcion      ?? null,
+          composicion:          campos.composicion          ?? null,
           slug:                 campos.slug                 ?? null,
           marcaId:              campos.marcaId              ?? null,
           updatedAt:            new Date(),

@@ -45,6 +45,7 @@ interface Producto {
   nombre: string;
   descripcion: string;
   descripcion_html_cruda?: string;
+  composicion?: string;
   precio: number;
   precio_descuento?: number | null;
   descuento_porcentaje?: number | null;
@@ -197,6 +198,16 @@ export default function ProductDetail({ producto }: { producto: Producto }) {
   });
   const precioFinalProducto = precioVariante.precioFinal;
 
+  // Función para detectar si una opción (color, tirador, tamaño) tiene stock
+  const opcionTieneStock = (tipo: 'color' | 'tirador' | 'tamano', valor: string): boolean => {
+    const norm = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
+    const normValor = norm(valor);
+    return variantes.some(v => {
+      const fieldVal = v[tipo];
+      return fieldVal && norm(fieldVal) === normValor && (v.stock ?? 0) > 0;
+    });
+  };
+
   const [modalAbierto, setModalAbierto] = useState(false);
 
   const handleAddToCart = () => {
@@ -325,11 +336,15 @@ export default function ProductDetail({ producto }: { producto: Producto }) {
                   onChange={(e) => setTamanoSeleccionado(e.target.value || null)}
                 >
                   <option value="">Selecciona tamaño</option>
-                  {tamañosUnicos.map((tamano, idx) => (
-                    <option key={`${tamano}-${idx}`} value={tamano}>
-                      {tamano}
-                    </option>
-                  ))}
+                  {tamañosUnicos.map((tamano, idx) => {
+                    const tieneSinStock = !opcionTieneStock('tamano', tamano);
+                    return (
+                      <option key={`${tamano}-${idx}`} value={tamano} disabled={tieneSinStock}>
+                        {tamano}
+                        {tieneSinStock ? " (SIN STOCK)" : ""}
+                      </option>
+                    );
+                  })}
                 </select>
               </div>
             )}
@@ -348,43 +363,50 @@ export default function ProductDetail({ producto }: { producto: Producto }) {
                     );
                     const imagenMuestra = atributoValorTirador?.imagen || varianteTirador?.imagenMuestra;
                     const seleccionado = tiradorSeleccionado === tirador;
+                    const tieneSinStock = !opcionTieneStock('tirador', tirador);
                     return (
-                      <button
-                        key={`${tirador}-${idx}`}
-                        type="button"
-                        onClick={() => setTiradorSeleccionado(tirador)}
-                        title={tirador}
-                        className={`flex flex-col items-center gap-1 group transition-transform hover:scale-105 ${
-                          seleccionado ? "scale-105" : ""
-                        }`}
-                      >
-                        <span
-                          className={`block w-full aspect-square rounded-md overflow-hidden border-2 transition-colors ${
-                            seleccionado
-                              ? "border-primary shadow-md"
-                              : "border-gray-200 dark:border-gray-600 group-hover:border-primary"
-                          }`}
+                      <div key={`${tirador}-${idx}`} className="relative">
+                        <button
+                          type="button"
+                          onClick={() => setTiradorSeleccionado(tirador)}
+                          title={tirador}
+                          className={`flex flex-col items-center gap-1 group transition-transform hover:scale-105 w-full ${
+                            seleccionado ? "scale-105" : ""
+                          } ${tieneSinStock ? "opacity-60" : ""}`}
                         >
-                          {imagenMuestra ? (
-                            <img
-                              src={imagenMuestra}
-                              alt={tirador}
-                              className="w-full h-full object-cover"
-                            />
-                          ) : (
-                            <span className="w-full h-full flex items-center justify-center bg-gray-100 dark:bg-gray-700 text-[9px] text-gray-500 dark:text-gray-400 text-center leading-tight px-0.5">
-                              {tirador}
-                            </span>
-                          )}
-                        </span>
-                        <span className={`text-[10px] leading-tight text-center w-full break-words ${
-                          seleccionado
-                            ? "text-primary font-semibold dark:text-primaryHover"
-                            : "text-gray-500 dark:text-gray-400"
-                        }`}>
-                          {tirador}
-                        </span>
-                      </button>
+                          <span
+                            className={`block w-full aspect-square rounded-md overflow-hidden border-2 transition-colors ${
+                              seleccionado
+                                ? "border-primary shadow-md"
+                                : "border-gray-200 dark:border-gray-600 group-hover:border-primary"
+                            }`}
+                          >
+                            {imagenMuestra ? (
+                              <img
+                                src={imagenMuestra}
+                                alt={tirador}
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <span className="w-full h-full flex items-center justify-center bg-gray-100 dark:bg-gray-700 text-[9px] text-gray-500 dark:text-gray-400 text-center leading-tight px-0.5">
+                                {tirador}
+                              </span>
+                            )}
+                          </span>
+                          <span className={`text-[10px] leading-tight text-center w-full break-words ${
+                            seleccionado
+                              ? "text-primary font-semibold dark:text-primaryHover"
+                              : "text-gray-500 dark:text-gray-400"
+                          }`}>
+                            {tirador}
+                          </span>
+                        </button>
+                        {tieneSinStock && (
+                          <span className="absolute top-0 right-0 bg-red-500 text-white text-[9px] font-semibold px-1.5 py-0.5 rounded">
+                            SIN STOCK
+                          </span>
+                        )}
+                      </div>
                     );
                   })}
                 </div>
@@ -405,43 +427,50 @@ export default function ProductDetail({ producto }: { producto: Producto }) {
                     );
                     const imagenMuestra = atributoValorColor?.imagen || varianteColor?.imagenMuestra;
                     const seleccionado = colorSeleccionado === color;
+                    const tieneSinStock = !opcionTieneStock('color', color);
                     return (
-                      <button
-                        key={`${color}-${idx}`}
-                        type="button"
-                        onClick={() => setColorSeleccionado(color)}
-                        title={color}
-                        className={`flex flex-col items-center gap-1 group transition-transform hover:scale-105 ${
-                          seleccionado ? "scale-105" : ""
-                        }`}
-                      >
-                        <span
-                          className={`block w-full aspect-square rounded-md overflow-hidden border-2 transition-colors ${
-                            seleccionado
-                              ? "border-primary shadow-md"
-                              : "border-gray-200 dark:border-gray-600 group-hover:border-primary"
-                          }`}
+                      <div key={`${color}-${idx}`} className="relative">
+                        <button
+                          type="button"
+                          onClick={() => setColorSeleccionado(color)}
+                          title={color}
+                          className={`flex flex-col items-center gap-1 group transition-transform hover:scale-105 w-full ${
+                            seleccionado ? "scale-105" : ""
+                          } ${tieneSinStock ? "opacity-60" : ""}`}
                         >
-                          {imagenMuestra ? (
-                            <img
-                              src={imagenMuestra}
-                              alt={color}
-                              className="w-full h-full object-cover"
-                            />
-                          ) : (
-                            <span className="w-full h-full flex items-center justify-center bg-gray-100 dark:bg-gray-700 text-[9px] text-gray-500 dark:text-gray-400 text-center leading-tight px-0.5">
-                              {color}
-                            </span>
-                          )}
-                        </span>
-                        <span className={`text-[10px] leading-tight text-center w-full break-words ${
-                          seleccionado
-                            ? "text-primary font-semibold dark:text-primaryHover"
-                            : "text-gray-500 dark:text-gray-400"
-                        }`}>
-                          {color}
-                        </span>
-                      </button>
+                          <span
+                            className={`block w-full aspect-square rounded-md overflow-hidden border-2 transition-colors ${
+                              seleccionado
+                                ? "border-primary shadow-md"
+                                : "border-gray-200 dark:border-gray-600 group-hover:border-primary"
+                            }`}
+                          >
+                            {imagenMuestra ? (
+                              <img
+                                src={imagenMuestra}
+                                alt={color}
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <span className="w-full h-full flex items-center justify-center bg-gray-100 dark:bg-gray-700 text-[9px] text-gray-500 dark:text-gray-400 text-center leading-tight px-0.5">
+                                {color}
+                              </span>
+                            )}
+                          </span>
+                          <span className={`text-[10px] leading-tight text-center w-full break-words ${
+                            seleccionado
+                              ? "text-primary font-semibold dark:text-primaryHover"
+                              : "text-gray-500 dark:text-gray-400"
+                          }`}>
+                            {color}
+                          </span>
+                        </button>
+                        {tieneSinStock && (
+                          <span className="absolute top-0 right-0 bg-red-500 text-white text-[9px] font-semibold px-1.5 py-0.5 rounded">
+                            SIN STOCK
+                          </span>
+                        )}
+                      </div>
                     );
                   })}
                 </div>
@@ -610,12 +639,22 @@ export default function ProductDetail({ producto }: { producto: Producto }) {
           )}
 
           {tabActiva === "detalles" && (
-            <div className="space-y-3">
+            <div className="space-y-6">
               <p className="text-gray-700 dark:text-gray-300">Productos realizados con la mejor calidad y diseño moderno.</p>
+
+              {/* Sección Composición */}
+              {producto.composicion && (
+                <div className="border-t pt-4">
+                  <h4 className="font-semibold text-gray-900 dark:text-white mb-2">Composición</h4>
+                  <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-line">
+                    {producto.composicion}
+                  </p>
+                </div>
+              )}
 
               {/* Sección Marca - estilo PrestaShop */}
               {producto.marca && (
-                <div className="flex items-start gap-3">
+                <div className="flex items-start gap-3 border-t pt-4">
                   {(producto.marca.logo_url || producto.marca.imagen) && (
                     <img
                       src={producto.marca.logo_url || producto.marca.imagen || ""}
