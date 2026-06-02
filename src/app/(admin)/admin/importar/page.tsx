@@ -154,9 +154,9 @@ const TYPES: Record<ImportType, TypeConfig> = {
   productos: {
     label: "Productos",
     description: "Importa o actualiza productos básicos con imágenes y categorías.",
-    fields: ["accion", "referencia", "nombre", "descripcion", "descripcion_html", "precio", "precioOferta", "descuento", "precioCoste", "reglaImpuesto", "reglaImpuestoId", "stock", "stockMinimo", "activo", "destacado", "enOferta", "marca", "categoria", "categorias", "imagenes", "slug", "metaTitulo", "metaDescripcion"],
+    fields: ["accion", "referencia", "nombre", "descripcion", "descripcion_html", "composicion", "precio", "precioOferta", "descuento", "precioCoste", "reglaImpuesto", "reglaImpuestoId", "stock", "stockMinimo", "activo", "destacado", "enOferta", "marca", "categoria", "categorias", "imagenes", "slug", "metaTitulo", "metaDescripcion"],
     requiredFields: ["nombre", "referencia"],
-    hint: "Usa accion con upsert o delete. La referencia es obligatoria y única. Usa precioOferta o descuento. Si rellenas descuento, se calculará el precio oferta automáticamente. Si no indicas reglaImpuesto, se usará IVA GENERAL 21%. categorias e imagenes admiten listas separadas por |, ; o coma.",
+    hint: "Usa accion con upsert o delete. La referencia es obligatoria y única. Usa precioOferta o descuento. Si rellenas descuento, se calculará el precio oferta automáticamente. Si no indicas reglaImpuesto, se usará IVA GENERAL 21%. categorias e imagenes admiten listas separadas por |, ; o coma. El campo composicion es opcional (100% Poliéster, tratamientos, etc.). NOTA: El precio del CSV debe tener IVA incluido; el importador lo divide automáticamente.",
     sampleRows: [
       {
         accion: "upsert",
@@ -164,6 +164,7 @@ const TYPES: Record<ImportType, TypeConfig> = {
         nombre: "Estor enrollable demo",
         descripcion: "Estor enrollable con tejido translúcido.",
         descripcion_html: "<p>Estor enrollable con tejido translúcido.</p>",
+        composicion: "100% Poliéster\nTratamiento UV protector",
         precio: "49.95",
         precioOferta: "39.95",
         descuento: "20",
