@@ -683,7 +683,7 @@ export default function ProductDetail({ producto }: { producto: Producto }) {
           {tabActiva === "opiniones" && (
             <div className="mt-4 space-y-6">
               {/* REVI: Widget de reseñas del producto */}
-              {producto.prestashopProductId ? (
+              {producto.prestashopProductId && (
                 <div
                   className="revi-widget-pzdMBVvAoX"
                   data-revi-widget-lazy=""
@@ -691,10 +691,11 @@ export default function ProductDetail({ producto }: { producto: Producto }) {
                   data-lang="es"
                   style={{ minHeight: '100px' }}
                 />
-              ) : (
-                <div className="bg-yellow-50 p-4 rounded border border-yellow-200 text-sm text-yellow-900">
-                  ⚠ Producto sin mapeo a Prestashop. Configura el mapeo en /admin/revi para mostrar reseñas.
-                </div>
+              )}
+              {!producto.prestashopProductId && (
+                <p className="text-gray-500 dark:text-gray-400 text-center py-8">
+                  Este producto aún no tiene valoraciones.
+                </p>
               )}
 
               {/* Referencias del Producto */}
