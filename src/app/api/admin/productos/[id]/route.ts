@@ -177,25 +177,38 @@ if (!Number.isInteger(id)) {
         }
       }
 
-      // 4. Sincronizar variantes
-      if (variantes !== undefined) {
-        await tx.variante.deleteMany({ where: { productoId: id } });
+      // 4. Sincronizar variantes - Siempre eliminar las viejas si se envía el campo
+      if (Array.isArray(variantes)) {
+        console.log(`Eliminando variantes del producto ${id}...`);
+        const deletedCount = await tx.variante.deleteMany({ where: { productoId: id } });
+        console.log(`Variantes eliminadas: ${deletedCount.count}`);
+
+        // Crear nuevas variantes solo si hay elementos en el array
         if (variantes.length > 0) {
+          console.log(`Creando ${variantes.length} nuevas variantes...`);
           await tx.variante.createMany({
-            data: variantes.map((v: any) => ({
-              productoId:    id,
-              color:         v.color         ?? null,
-              imagenMuestra: v.imagenMuestra ?? null,
-              imagen:        v.imagen        ?? null,
-              imagenesVariante: v.imagenesVariante ?? null,
-              tamano:        v.tamano        ?? null,
-              tirador:       v.tirador       ?? null,
-              precio_extra:  v.precio_extra  ? parseFloat(v.precio_extra) : 0,
-              stock:         v.stock         ? parseInt(v.stock)          : 0,
-              referencia:    v.referencia    ?? null,
-            })),
+            data: variantes.map((v: any) => {
+              const precioExtra = v.precio_extra ? parseFloat(v.precio_extra) : 0;
+              return {
+                productoId:    id,
+                color:         v.color         ?? null,
+                imagenMuestra: v.imagenMuestra ?? null,
+                imagen:        v.imagen        ?? null,
+                imagenesVariante: v.imagenesVariante ?? null,
+                tamano:        v.tamano        ?? null,
+                tirador:       v.tirador       ?? null,
+                precio_extra:  parseFloat(precioExtra.toFixed(2)),
+                stock:         v.stock         ? parseInt(v.stock)          : 0,
+                referencia:    v.referencia    ?? null,
+              };
+            }),
           });
+          console.log(`${variantes.length} variantes creadas`);
+        } else {
+          console.log("Array de variantes está vacío, no se crean nuevas");
         }
+      } else {
+        console.log("variantes no es un array, no se modifican variantes");
       }
 
       return tx.producto.findUnique({

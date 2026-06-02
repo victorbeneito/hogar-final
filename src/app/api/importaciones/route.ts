@@ -1080,33 +1080,26 @@ async function deleteProducto(row: ImportRow) {
   await prisma.producto.delete({ where: { id: producto.id } });
 }
 
-async function upsertCombinacion(row: ImportRow) {
+async function upsertCombinacion(row: ImportRow, productosYaProcesados: Set<number>) {
   const productKey = normalizeText(row.productoReferencia);
   if (!productKey) throw new Error("Falta productoReferencia");
 
   const producto = await prisma.producto.findFirst({
-    where: {
-      referencia: productKey,
-    },
-    select: {
-      id: true,
-      reglaimpuesto: { select: { porcentaje: true } },
-    },
+    where: { referencia: productKey },
+    select: { id: true },
   });
 
   if (!producto) throw new Error(`No existe el producto: ${productKey}`);
 
-  // Obtener IVA del producto para dividir precio_extra (el CSV trae precios con IVA incluido)
-  const ivaFactorVariante = producto.reglaimpuesto
-    ? 1 + (producto.reglaimpuesto.porcentaje / 100)
-    : 1.21; // fallback IVA general 21%
+  // La primera vez que procesamos combinaciones de este producto, borramos todas las viejas
+  if (!productosYaProcesados.has(producto.id)) {
+    await prisma.variante.deleteMany({ where: { productoId: producto.id } });
+    productosYaProcesados.add(producto.id);
+  }
 
   const referencia = normalizeText(row.referencia) || null;
-  const existing = referencia
-    ? await prisma.variante.findFirst({ where: { productoId: producto.id, referencia } })
-    : null;
 
-  // Core fields always included
+  // Crear la nueva variante (sin upsert, siempre crear)
   const varianteCoreData = { productoId: producto.id, referencia };
 
   // Optional fields: only included if mapped (present in row)
@@ -1118,24 +1111,19 @@ async function upsertCombinacion(row: ImportRow) {
   if ("imagenesVariante" in row) varianteOptional.imagenesVariante = row.imagenesVariante ? normalizeText(row.imagenesVariante) : null;
   if ("precio_extra" in row) {
     const rawExtra = row.precio_extra !== "" ? parseNumber(row.precio_extra, 0) : 0;
-    varianteOptional.precio_extra = rawExtra / ivaFactorVariante;
+    varianteOptional.precio_extra = parseFloat(rawExtra.toFixed(2));
   }
   if ("tamano" in row) varianteOptional.tamano = row.tamano ? normalizeText(row.tamano) : null;
   if ("tirador" in row) varianteOptional.tirador = row.tirador ? normalizeText(row.tirador) : null;
 
   const varianteCreateDefaults = { stock: 0, imagen: null, color: null, imagenMuestra: null, imagenesVariante: null, precio_extra: 0, tamano: null, tirador: null };
 
-  const varianteData = existing
-    ? { ...varianteCoreData, ...varianteOptional }
-    : { ...varianteCreateDefaults, ...varianteCoreData, ...varianteOptional };
+  const varianteData = { ...varianteCreateDefaults, ...varianteCoreData, ...varianteOptional };
 
-  const variante = existing
-    ? await prisma.variante.update({ where: { id: existing.id }, data: varianteData })
-    : await prisma.variante.create({ data: varianteData });
+  const variante = await prisma.variante.create({ data: varianteData });
 
   const atributos = getCombinationTokens(row);
   if (atributos.length) {
-    await prisma.varianteatributo.deleteMany({ where: { varianteId: variante.id } });
     const uniqueAttributeValueIds = new Set<number>();
 
     for (const token of atributos) {
@@ -1213,6 +1201,7 @@ async function runImportJob(jobId: string) {
     let skipped = job.counts.skipped;
     let failed = job.counts.failed;
     const clienteNifCache = new Map<string, string>();
+    const productosYaProcesados = new Set<number>();
 
     for (let i = startIndex; i < rows.length; i += 1) {
       const liveJob = getImportJob(jobId);
@@ -1296,15 +1285,8 @@ async function runImportJob(jobId: string) {
             await deleteCombinacion(row);
             deleted += 1;
           } else {
-            const productKey = normalizeText(row.productoReferencia);
-            const referencia = normalizeText(row.referencia);
-            const producto = await prisma.producto.findFirst({ where: { referencia: productKey }, select: { id: true } });
-            const existing = producto && referencia
-              ? await prisma.variante.findFirst({ where: { productoId: producto.id, referencia }, select: { id: true } })
-              : null;
-            await upsertCombinacion(row);
-            if (existing) updated += 1;
-            else created += 1;
+            await upsertCombinacion(row, productosYaProcesados);
+            created += 1;
           }
         } else {
           if (accion === "delete") {
