@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useAdminFetch } from "@/lib/useAdminFetch";
 
@@ -30,6 +30,10 @@ export default function AdminCategorias() {
   const [editando, setEditando]       = useState<number | null>(null);
   const [loading, setLoading]         = useState(false);
   const [expandidas, setExpandidas]   = useState<Set<number>>(new Set());
+  const [dragSubId, setDragSubId]     = useState<number | null>(null);
+  const [dragOverSubId, setDragOverSubId] = useState<number | null>(null);
+  const [savingOrden, setSavingOrden] = useState(false);
+  const dragParentId = useRef<number | null>(null);
   const router = useRouter();
 
   useEffect(() => { fetchCategorias(); }, []);
@@ -109,6 +113,70 @@ export default function AdminCategorias() {
     const result = await secureFetch(`/api/categorias/${id}`, { method: "DELETE" });
     if (result.ok) {
       await fetchCategorias();
+    }
+  }
+
+  function handleDragStart(subId: number, parentId: number) {
+    setDragSubId(subId);
+    dragParentId.current = parentId;
+  }
+
+  function handleDragOver(e: React.DragEvent, subId: number) {
+    e.preventDefault();
+    if (dragSubId !== subId) setDragOverSubId(subId);
+  }
+
+  function handleDragEnd() {
+    setDragSubId(null);
+    setDragOverSubId(null);
+    dragParentId.current = null;
+  }
+
+  function handleDrop(e: React.DragEvent, targetSubId: number, parentId: number) {
+    e.preventDefault();
+    if (!dragSubId || dragSubId === targetSubId || dragParentId.current !== parentId) {
+      handleDragEnd();
+      return;
+    }
+
+    const parent = categorias.find(c => c.id === parentId);
+    if (!parent) { handleDragEnd(); return; }
+
+    const subs = [...parent.other_categoria].sort(compararOrden);
+    const fromIdx = subs.findIndex(s => s.id === dragSubId);
+    const toIdx   = subs.findIndex(s => s.id === targetSubId);
+    if (fromIdx === -1 || toIdx === -1) { handleDragEnd(); return; }
+
+    const reordered = [...subs];
+    const [moved] = reordered.splice(fromIdx, 1);
+    reordered.splice(toIdx, 0, moved);
+    const withNewOrden = reordered.map((s, idx) => ({ ...s, orden: idx * 10 }));
+
+    setCategorias(prev => prev.map(c =>
+      c.id !== parentId ? c : { ...c, other_categoria: withNewOrden }
+    ));
+
+    handleDragEnd();
+    persistOrden(withNewOrden);
+  }
+
+  async function persistOrden(subs: Categoria[]) {
+    setSavingOrden(true);
+    try {
+      await Promise.all(
+        subs.map(s =>
+          fetch(`/api/categorias/${s.id}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ orden: s.orden }),
+          })
+        )
+      );
+    } catch {
+      // orden fallback: reload from server
+      await fetchCategorias();
+    } finally {
+      setSavingOrden(false);
     }
   }
 
@@ -308,11 +376,14 @@ export default function AdminCategorias() {
 
         {/* Lista */}
         <div className="bg-white rounded-2xl shadow-lg overflow-hidden border border-[#6BAEC9]/10">
-          <div className="px-8 py-5 bg-gradient-to-r from-[#6BAEC9]/5 to-[#A8D7E6]/5 border-b">
+          <div className="px-8 py-5 bg-gradient-to-r from-[#6BAEC9]/5 to-[#A8D7E6]/5 border-b flex items-center justify-between">
             <h2 className="text-xl font-bold text-[#4A4A4A]">
               Categorías ({categorias.filter(c => c.parentId === null).length} principales
               · {categorias.filter(c => c.parentId !== null).length} subcategorías)
             </h2>
+            {savingOrden && (
+              <span className="text-sm text-[#6BAEC9] animate-pulse font-medium">Guardando orden...</span>
+            )}
           </div>
 
           {raices.length === 0 ? (
@@ -366,10 +437,38 @@ export default function AdminCategorias() {
                       </div>
                     </div>
 
-                    {/* Subcategorías expandibles */}
+                    {/* Subcategorías expandibles con drag & drop */}
                     {expandidas.has(cat.id) && [...cat.other_categoria].sort(compararOrden).map(sub => (
-                      <div key={sub.id} className="px-8 py-4 flex items-center justify-between bg-[#F8F8F5] border-t border-dashed border-gray-200">
-                        <div className="flex items-center gap-4 pl-10">
+                      <div
+                        key={sub.id}
+                        draggable
+                        onDragStart={() => handleDragStart(sub.id, cat.id)}
+                        onDragOver={(e) => handleDragOver(e, sub.id)}
+                        onDrop={(e) => handleDrop(e, sub.id, cat.id)}
+                        onDragEnd={handleDragEnd}
+                        className={`px-8 py-4 flex items-center justify-between border-t border-dashed transition-colors select-none
+                          ${dragSubId === sub.id
+                            ? "opacity-40 bg-[#F8F8F5] border-gray-200"
+                            : dragOverSubId === sub.id
+                              ? "bg-[#6BAEC9]/10 border-[#6BAEC9]/40"
+                              : "bg-[#F8F8F5] border-gray-200"
+                          }`}
+                      >
+                        <div className="flex items-center gap-3 pl-6">
+                          {/* Handle drag */}
+                          <div
+                            className="cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-500 transition-colors"
+                            title="Arrastrar para reordenar"
+                          >
+                            <svg width="14" height="20" viewBox="0 0 14 20" fill="currentColor">
+                              <circle cx="4" cy="4" r="1.8"/>
+                              <circle cx="10" cy="4" r="1.8"/>
+                              <circle cx="4" cy="10" r="1.8"/>
+                              <circle cx="10" cy="10" r="1.8"/>
+                              <circle cx="4" cy="16" r="1.8"/>
+                              <circle cx="10" cy="16" r="1.8"/>
+                            </svg>
+                          </div>
                           <div className="w-8 h-8 bg-[#A8D7E6]/40 border border-[#6BAEC9]/30 rounded-lg flex items-center justify-center text-[#6BAEC9] font-semibold text-sm">
                             {sub.nombre.charAt(0).toUpperCase()}
                           </div>
@@ -383,7 +482,7 @@ export default function AdminCategorias() {
                             <p className="text-xs text-gray-400">ID: {sub.id} · /{sub.slug}</p>
                           </div>
                         </div>
-                        <div className="flex gap-2">
+                        <div className="flex items-center gap-2">
                           <button onClick={() => handleEdit(sub)}
                             className="p-2 bg-orange-50 hover:bg-orange-100 text-orange-400 rounded-xl transition text-sm">✏️</button>
                           <button onClick={() => handleDelete(sub.id)}

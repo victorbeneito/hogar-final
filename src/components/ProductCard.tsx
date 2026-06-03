@@ -43,7 +43,7 @@ export default function ProductCard({ producto }: ProductCardProps) {
   const handleMouseEnter = () => {
     clearTimer(closeTimerRef);
     clearTimer(hoverTimerRef);
-    hoverTimerRef.current = window.setTimeout(openQuickView, 1200);
+    hoverTimerRef.current = window.setTimeout(openQuickView, 4000);
   };
 
   const handleMouseLeave = () => {
