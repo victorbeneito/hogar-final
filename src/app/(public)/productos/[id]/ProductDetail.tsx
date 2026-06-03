@@ -262,15 +262,16 @@ export default function ProductDetail({ producto }: { producto: Producto }) {
             disabled={!imagenVisible}
           >
             {imagenVisible ? (
-              <div className="relative h-full w-full p-3">
+              <div className="relative w-full h-full flex items-center justify-center p-3">
                 <Image
                   src={imagenVisible}
                   alt={producto.nombre}
-                  fill
+                  width={800}
+                  height={800}
                   quality={95}
                   priority
-                  sizes="(max-width: 768px) calc(100vw - 48px), (max-width: 1024px) calc(50vw - 32px), 600px"
-                  className="object-contain object-center"
+                  className="w-full h-full object-contain"
+                  style={{ maxWidth: '100%', height: 'auto' }}
                 />
                 <span className="pointer-events-none absolute bottom-3 right-3 rounded-full bg-black/60 px-3 py-1 text-[11px] font-medium text-white opacity-0 transition-opacity duration-200 group-hover:opacity-100">
                   Ampliar
@@ -303,10 +304,10 @@ export default function ProductDetail({ producto }: { producto: Producto }) {
                   <Image
                     src={img}
                     alt={`${producto.nombre} ${idx + 1}`}
-                    fill
-                    quality={80}
-                    sizes="64px"
-                    className="object-cover transition-transform duration-300 group-hover:scale-105"
+                    width={64}
+                    height={64}
+                    quality={85}
+                    className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                   />
                 </button>
               ))}
@@ -393,10 +394,10 @@ export default function ProductDetail({ producto }: { producto: Producto }) {
                               <Image
                                 src={imagenMuestra}
                                 alt={tirador}
-                                fill
+                                width={64}
+                                height={64}
                                 quality={85}
-                                sizes="64px"
-                                className="object-cover"
+                                className="w-full h-full object-cover"
                               />
                             ) : (
                               <span className="w-full h-full flex items-center justify-center bg-gray-100 dark:bg-gray-700 text-[9px] text-gray-500 dark:text-gray-400 text-center leading-tight px-0.5">
@@ -612,17 +613,15 @@ export default function ProductDetail({ producto }: { producto: Producto }) {
             >
               Cerrar
             </button>
-            <div className="relative h-[88vh] w-full max-w-4xl">
-              <Image
-                src={imagenAmpliada}
-                alt={`${producto.nombre} ampliado`}
-                fill
-                quality={95}
-                priority
-                sizes="(max-width: 768px) 100vw, (max-width: 1200px) 80vw, 90vw"
-                className="rounded-xl bg-white object-contain p-4 shadow-2xl dark:bg-gray-900"
-              />
-            </div>
+            <Image
+              src={imagenAmpliada}
+              alt={`${producto.nombre} ampliado`}
+              width={1200}
+              height={1200}
+              quality={95}
+              priority
+              className="max-h-[88vh] w-full rounded-xl bg-white object-contain p-4 shadow-2xl dark:bg-gray-900"
+            />
           </div>
         </div>
       )}
@@ -676,16 +675,14 @@ export default function ProductDetail({ producto }: { producto: Producto }) {
               {producto.marca && (
                 <div className="flex items-start gap-3 border-t pt-4">
                   {(producto.marca.logo_url || producto.marca.imagen) && (
-                    <div className="relative h-16 w-32 flex-shrink-0">
-                      <Image
-                        src={producto.marca.logo_url || producto.marca.imagen || ""}
-                        alt={producto.marca.nombre}
-                        fill
-                        quality={90}
-                        sizes="128px"
-                        className="object-contain"
-                      />
-                    </div>
+                    <Image
+                      src={producto.marca.logo_url || producto.marca.imagen || ""}
+                      alt={producto.marca.nombre}
+                      width={128}
+                      height={64}
+                      quality={90}
+                      className="h-16 w-auto object-contain flex-shrink-0"
+                    />
                   )}
                   <div className="flex-1 text-sm space-y-1">
                     <div className="font-semibold text-gray-900 dark:text-white">{producto.marca.nombre}</div>
