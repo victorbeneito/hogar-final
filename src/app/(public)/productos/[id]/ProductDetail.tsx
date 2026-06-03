@@ -447,13 +447,10 @@ export default function ProductDetail({ producto }: { producto: Producto }) {
                             }`}
                           >
                             {imagenMuestra ? (
-                              <Image
+                              <img
                                 src={imagenMuestra}
                                 alt={color}
-                                fill
-                                quality={85}
-                                sizes="64px"
-                                className="object-cover"
+                                className="w-full h-full object-cover"
                               />
                             ) : (
                               <span className="w-full h-full flex items-center justify-center bg-gray-100 dark:bg-gray-700 text-[9px] text-gray-500 dark:text-gray-400 text-center leading-tight px-0.5">
