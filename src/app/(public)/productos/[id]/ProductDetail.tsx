@@ -262,15 +262,15 @@ export default function ProductDetail({ producto }: { producto: Producto }) {
             disabled={!imagenVisible}
           >
             {imagenVisible ? (
-              <div className="relative h-full w-full">
+              <div className="relative h-full w-full p-3">
                 <Image
                   src={imagenVisible}
                   alt={producto.nombre}
                   fill
-                  quality={90}
+                  quality={95}
                   priority
-                  sizes="(max-width: 1024px) 100vw, 50vw"
-                  className="object-contain object-center p-3"
+                  sizes="(max-width: 768px) calc(100vw - 48px), (max-width: 1024px) calc(50vw - 32px), 600px"
+                  className="object-contain object-center"
                 />
                 <span className="pointer-events-none absolute bottom-3 right-3 rounded-full bg-black/60 px-3 py-1 text-[11px] font-medium text-white opacity-0 transition-opacity duration-200 group-hover:opacity-100">
                   Ampliar
