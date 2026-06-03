@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import Image from "next/image";
 import { addToCart } from "@/lib/cartService";
 import CartModal from "@/components/CartModal";
 import { calcularPrecioVariante, ordenarValoresNaturales } from "@/lib/productVariantPricing";
@@ -262,16 +261,12 @@ export default function ProductDetail({ producto }: { producto: Producto }) {
             disabled={!imagenVisible}
           >
             {imagenVisible ? (
-              <div className="relative w-full h-full flex items-center justify-center p-3">
-                <Image
+              <div className="relative h-full w-full">
+                <img
                   src={imagenVisible}
                   alt={producto.nombre}
-                  width={800}
-                  height={800}
-                  quality={95}
-                  priority
-                  className="w-full h-full object-contain"
-                  style={{ maxWidth: '100%', height: 'auto' }}
+                  className="absolute inset-0 h-full w-full object-contain object-center p-3"
+                  loading="eager"
                 />
                 <span className="pointer-events-none absolute bottom-3 right-3 rounded-full bg-black/60 px-3 py-1 text-[11px] font-medium text-white opacity-0 transition-opacity duration-200 group-hover:opacity-100">
                   Ampliar
@@ -301,13 +296,10 @@ export default function ProductDetail({ producto }: { producto: Producto }) {
                   }`}
                   aria-label={`Ver imagen ${idx + 1} de ${producto.nombre}`}
                 >
-                  <Image
+                  <img
                     src={img}
                     alt={`${producto.nombre} ${idx + 1}`}
-                    width={64}
-                    height={64}
-                    quality={85}
-                    className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                    className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
                   />
                 </button>
               ))}
@@ -391,12 +383,9 @@ export default function ProductDetail({ producto }: { producto: Producto }) {
                             }`}
                           >
                             {imagenMuestra ? (
-                              <Image
+                              <img
                                 src={imagenMuestra}
                                 alt={tirador}
-                                width={64}
-                                height={64}
-                                quality={85}
                                 className="w-full h-full object-cover"
                               />
                             ) : (
@@ -613,14 +602,11 @@ export default function ProductDetail({ producto }: { producto: Producto }) {
             >
               Cerrar
             </button>
-            <Image
+            <img
               src={imagenAmpliada}
               alt={`${producto.nombre} ampliado`}
-              width={1200}
-              height={1200}
-              quality={95}
-              priority
               className="max-h-[88vh] w-full rounded-xl bg-white object-contain p-4 shadow-2xl dark:bg-gray-900"
+              loading="eager"
             />
           </div>
         </div>
@@ -675,12 +661,9 @@ export default function ProductDetail({ producto }: { producto: Producto }) {
               {producto.marca && (
                 <div className="flex items-start gap-3 border-t pt-4">
                   {(producto.marca.logo_url || producto.marca.imagen) && (
-                    <Image
+                    <img
                       src={producto.marca.logo_url || producto.marca.imagen || ""}
                       alt={producto.marca.nombre}
-                      width={128}
-                      height={64}
-                      quality={90}
                       className="h-16 w-auto object-contain flex-shrink-0"
                     />
                   )}
