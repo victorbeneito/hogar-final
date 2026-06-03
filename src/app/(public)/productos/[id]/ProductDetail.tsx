@@ -61,6 +61,11 @@ interface Producto {
 }
 
 export default function ProductDetail({ producto }: { producto: Producto }) {
+  // PrestaShop stores thumbnails with suffixes like -home_default, -large_default, etc.
+  // Strip them to get the full resolution original image.
+  const fullResUrl = (url: string) =>
+    url.replace(/-(?:home|large|medium|small|thickbox|cart)_default(?=\.[^.]+$)/, "");
+
   const splitImages = (value?: string) =>
     String(value ?? "")
       .split(/[|;\n,]/g)
@@ -68,7 +73,7 @@ export default function ProductDetail({ producto }: { producto: Producto }) {
       .filter(Boolean);
 
   // Aseguramos que son arrays
-  const imagenes = Array.isArray(producto.imagenes) ? producto.imagenes : [];
+  const imagenes = (Array.isArray(producto.imagenes) ? producto.imagenes : []).map(fullResUrl);
   const variantes = Array.isArray(producto.variantes) ? producto.variantes : [];
 
   const [imagenActiva, setImagenActiva] = useState(imagenes[0] ?? "");
@@ -124,9 +129,11 @@ export default function ProductDetail({ producto }: { producto: Producto }) {
   const imagenesVarianteSeleccionada = [
     varianteSeleccionada?.imagen,
     ...splitImages(varianteSeleccionada?.imagenesVariante),
-  ].filter((imagen, idx, arr): imagen is string => Boolean(imagen) && arr.indexOf(imagen) === idx);
+  ]
+    .filter((imagen, idx, arr): imagen is string => Boolean(imagen) && arr.indexOf(imagen) === idx)
+    .map(fullResUrl);
 
-  const imagenPrincipalSeleccionada = varianteSeleccionada?.imagen || imagenesVarianteSeleccionada[0] || imagenes[0] || "";
+  const imagenPrincipalSeleccionada = fullResUrl(varianteSeleccionada?.imagen || imagenesVarianteSeleccionada[0] || imagenes[0] || "");
   const imagenesCarrusel = imagenesVarianteSeleccionada.length > 0 ? imagenesVarianteSeleccionada : imagenes;
   const imagenPrincipal = imagenActiva || imagenPrincipalSeleccionada || imagenesCarrusel[0] || "";
   const imagenAlternativa = imagenesCarrusel.find((img) => img !== imagenPrincipal) || "";
