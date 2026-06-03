@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { addToCart } from "@/lib/cartService";
 import CartModal from "@/components/CartModal";
 import { calcularPrecioVariante, ordenarValoresNaturales } from "@/lib/productVariantPricing";
@@ -262,10 +263,14 @@ export default function ProductDetail({ producto }: { producto: Producto }) {
           >
             {imagenVisible ? (
               <div className="relative h-full w-full">
-                <img
+                <Image
                   src={imagenVisible}
                   alt={producto.nombre}
-                  className="absolute inset-0 h-full w-full object-contain object-center p-3 transition-opacity duration-300"
+                  fill
+                  quality={90}
+                  priority
+                  sizes="(max-width: 1024px) 100vw, 50vw"
+                  className="object-contain object-center p-3"
                 />
                 <span className="pointer-events-none absolute bottom-3 right-3 rounded-full bg-black/60 px-3 py-1 text-[11px] font-medium text-white opacity-0 transition-opacity duration-200 group-hover:opacity-100">
                   Ampliar
@@ -290,15 +295,18 @@ export default function ProductDetail({ producto }: { producto: Producto }) {
                   onMouseLeave={limpiarHoverImagen}
                   onFocus={() => setImagenHover(img)}
                   onBlur={limpiarHoverImagen}
-                  className={`group h-16 w-16 flex-shrink-0 overflow-hidden rounded border transition-all ${
+                  className={`group relative h-16 w-16 flex-shrink-0 overflow-hidden rounded border transition-all ${
                     imagenActiva === img ? "border-primary" : "border-gray-200 dark:border-gray-700"
                   }`}
                   aria-label={`Ver imagen ${idx + 1} de ${producto.nombre}`}
                 >
-                  <img
+                  <Image
                     src={img}
                     alt={`${producto.nombre} ${idx + 1}`}
-                    className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                    fill
+                    quality={80}
+                    sizes="64px"
+                    className="object-cover transition-transform duration-300 group-hover:scale-105"
                   />
                 </button>
               ))}
@@ -375,17 +383,20 @@ export default function ProductDetail({ producto }: { producto: Producto }) {
                           } ${tieneSinStock ? "opacity-60" : ""}`}
                         >
                           <span
-                            className={`block w-full aspect-square rounded-md overflow-hidden border-2 transition-colors ${
+                            className={`block w-full aspect-square rounded-md overflow-hidden border-2 transition-colors relative ${
                               seleccionado
                                 ? "border-primary shadow-md"
                                 : "border-gray-200 dark:border-gray-600 group-hover:border-primary"
                             }`}
                           >
                             {imagenMuestra ? (
-                              <img
+                              <Image
                                 src={imagenMuestra}
                                 alt={tirador}
-                                className="w-full h-full object-cover"
+                                fill
+                                quality={85}
+                                sizes="64px"
+                                className="object-cover"
                               />
                             ) : (
                               <span className="w-full h-full flex items-center justify-center bg-gray-100 dark:bg-gray-700 text-[9px] text-gray-500 dark:text-gray-400 text-center leading-tight px-0.5">
@@ -439,17 +450,20 @@ export default function ProductDetail({ producto }: { producto: Producto }) {
                           } ${tieneSinStock ? "opacity-60" : ""}`}
                         >
                           <span
-                            className={`block w-full aspect-square rounded-md overflow-hidden border-2 transition-colors ${
+                            className={`block w-full aspect-square rounded-md overflow-hidden border-2 transition-colors relative ${
                               seleccionado
                                 ? "border-primary shadow-md"
                                 : "border-gray-200 dark:border-gray-600 group-hover:border-primary"
                             }`}
                           >
                             {imagenMuestra ? (
-                              <img
+                              <Image
                                 src={imagenMuestra}
                                 alt={color}
-                                className="w-full h-full object-cover"
+                                fill
+                                quality={85}
+                                sizes="64px"
+                                className="object-cover"
                               />
                             ) : (
                               <span className="w-full h-full flex items-center justify-center bg-gray-100 dark:bg-gray-700 text-[9px] text-gray-500 dark:text-gray-400 text-center leading-tight px-0.5">
@@ -593,16 +607,22 @@ export default function ProductDetail({ producto }: { producto: Producto }) {
             <button
               type="button"
               onClick={() => setImagenAmpliada(null)}
-              className="absolute right-3 top-3 rounded-full bg-white/90 px-3 py-1 text-sm font-semibold text-gray-700 shadow hover:bg-white"
+              className="absolute right-3 top-3 z-10 rounded-full bg-white/90 px-3 py-1 text-sm font-semibold text-gray-700 shadow hover:bg-white"
               aria-label="Cerrar imagen ampliada"
             >
               Cerrar
             </button>
-            <img
-              src={imagenAmpliada}
-              alt={`${producto.nombre} ampliado`}
-              className="max-h-[88vh] w-full rounded-xl bg-white object-contain p-4 shadow-2xl dark:bg-gray-900"
-            />
+            <div className="relative h-[88vh] w-full max-w-4xl">
+              <Image
+                src={imagenAmpliada}
+                alt={`${producto.nombre} ampliado`}
+                fill
+                quality={95}
+                priority
+                sizes="(max-width: 768px) 100vw, (max-width: 1200px) 80vw, 90vw"
+                className="rounded-xl bg-white object-contain p-4 shadow-2xl dark:bg-gray-900"
+              />
+            </div>
           </div>
         </div>
       )}
@@ -656,11 +676,16 @@ export default function ProductDetail({ producto }: { producto: Producto }) {
               {producto.marca && (
                 <div className="flex items-start gap-3 border-t pt-4">
                   {(producto.marca.logo_url || producto.marca.imagen) && (
-                    <img
-                      src={producto.marca.logo_url || producto.marca.imagen || ""}
-                      alt={producto.marca.nombre}
-                      className="h-16 w-auto object-contain flex-shrink-0"
-                    />
+                    <div className="relative h-16 w-32 flex-shrink-0">
+                      <Image
+                        src={producto.marca.logo_url || producto.marca.imagen || ""}
+                        alt={producto.marca.nombre}
+                        fill
+                        quality={90}
+                        sizes="128px"
+                        className="object-contain"
+                      />
+                    </div>
                   )}
                   <div className="flex-1 text-sm space-y-1">
                     <div className="font-semibold text-gray-900 dark:text-white">{producto.marca.nombre}</div>
