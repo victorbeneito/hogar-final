@@ -6,6 +6,7 @@ import { ThemeProvider } from "@/components/ThemeProvider";
 import { Toaster } from "react-hot-toast";
 import Script from "next/script";
 import { PaypalProvider } from "@/components/PaypalProvider";
+import TrafficTracker from "@/components/TrafficTracker";
 
 export const dynamic = "force-dynamic";
 
@@ -50,6 +51,7 @@ export default function RootLayout({
           <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
             <AuthProvider>
               <ClienteAuthProvider>
+                <TrafficTracker />
                 {children}
                 <Toaster position="top-center" />
               </ClienteAuthProvider>

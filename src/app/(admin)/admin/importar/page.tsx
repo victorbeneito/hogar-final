@@ -153,10 +153,10 @@ const TYPES: Record<ImportType, TypeConfig> = {
   },
   productos: {
     label: "Productos",
-    description: "Importa o actualiza productos básicos con imágenes y categorías.",
+    description: "Importa o actualiza productos básicos con imágenes, categorías y SEO.",
     fields: ["accion", "referencia", "nombre", "descripcion", "descripcion_html", "composicion", "precio", "precioOferta", "descuento", "precioCoste", "reglaImpuesto", "reglaImpuestoId", "stock", "stockMinimo", "activo", "destacado", "enOferta", "marca", "categoria", "categorias", "imagenes", "slug", "metaTitulo", "metaDescripcion"],
     requiredFields: ["nombre", "referencia"],
-    hint: "Usa accion con upsert o delete. La referencia es obligatoria y única. Usa precioOferta o descuento. Si rellenas descuento, se calculará el precio oferta automáticamente. Si no indicas reglaImpuesto, se usará IVA GENERAL 21%. categorias e imagenes admiten listas separadas por |, ; o coma. El campo composicion es opcional (100% Poliéster, tratamientos, etc.). NOTA: El precio del CSV debe tener IVA incluido; el importador lo divide automáticamente.",
+    hint: "Usa accion con upsert o delete. La referencia es obligatoria y única. Usa precioOferta o descuento. Si rellenas descuento, se calculará el precio oferta automáticamente. Si no indicas reglaImpuesto, se usará IVA GENERAL 21%. categorias e imagenes admiten listas separadas por |, ; o coma. El campo composicion es opcional (100% Poliéster, tratamientos, etc.). metaTitulo y metaDescripcion son para SEO (opcional). NOTA: El precio del CSV debe tener IVA incluido; el importador lo divide automáticamente.",
     sampleRows: [
       {
         accion: "upsert",
@@ -180,6 +180,8 @@ const TYPES: Record<ImportType, TypeConfig> = {
         categoria: "Infantiles",
         imagenes: "https://example.com/img.jpg|https://example.com/img-2.jpg",
         slug: "estor-enrollable-demo",
+        metaTitulo: "Happystor Estor Enrollable Estampado Digital Cocina Traslúcido",
+        metaDescripcion: "Estor digital para cocina de alta calidad. Bonitos diseños gastronómicos exclusivos, económico, a medida y envío gratuito.",
       },
       { accion: "delete", referencia: "PROD-002" },
     ],

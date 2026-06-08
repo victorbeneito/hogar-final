@@ -1,58 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { v4 as uuidv4 } from 'uuid';
-
-const EXCLUDED_PATHS = ['/admin', '/api', '/_next', '/favicon', '/robots.txt', '/sitemap.xml'];
-const STATIC_EXTENSIONS = ['.css', '.js', '.json', '.png', '.jpg', '.jpeg', '.gif', '.svg', '.ico', '.webp', '.woff', '.woff2', '.ttf', '.eot'];
-
-// Fragmentos de user-agent que identifican bots y crawlers conocidos
-const BOT_UA_FRAGMENTS = [
-  'bot', 'crawl', 'spider', 'slurp', 'fetch',
-  'wget', 'curl', 'python-requests', 'java/', 'scrapy',
-  'checker', 'monitor', 'pingdom', 'uptimerobot', 'nagios',
-  'ahrefsbot', 'semrushbot', 'mj12bot', 'dotbot', 'blexbot',
-  'yandexbot', 'baiduspider', 'duckduckbot', 'bytespider',
-  'googlebot', 'bingbot', 'applebot', 'facebookexternalhit',
-  'linkedinbot', 'twitterbot', 'telegrambot',
-  'petalbot', 'gptbot', 'claudebot', 'anthropic-ai',
-  'dataforseo', 'sitechecker', 'seznambot',
-];
-
-function isExcludedPath(pathname: string): boolean {
-  if (EXCLUDED_PATHS.some(path => pathname.startsWith(path))) return true;
-  if (STATIC_EXTENSIONS.some(ext => pathname.endsWith(ext))) return true;
-  return false;
-}
-
-function isBot(userAgent: string | null): boolean {
-  if (!userAgent) return true; // Sin user-agent = bot/scraper
-  const ua = userAgent.toLowerCase();
-  return BOT_UA_FRAGMENTS.some(fragment => ua.includes(fragment));
-}
-
-async function hashIP(ip: string): Promise<string> {
-  const salt = 'visitor_salt_2026';
-  const encoder = new TextEncoder();
-  const data = encoder.encode(ip + salt);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('').substring(0, 64);
-}
-
-function detectFuente(referrer: string | null): string {
-  if (!referrer) return 'directo';
-  const ref = referrer.toLowerCase();
-  if (['google', 'bing', 'yahoo', 'yandex', 'baidu'].some(b => ref.includes(b))) return 'buscador';
-  if (['facebook', 'instagram', 'twitter', 'linkedin', 'tiktok', 'pinterest', 'reddit'].some(r => ref.includes(r))) return 'social';
-  return 'referral';
-}
-
-function detectDispositivo(userAgent: string | null): string {
-  if (!userAgent) return 'desktop';
-  const ua = userAgent.toLowerCase();
-  if (/mobile|iphone|android|ipod|blackberry|iemobile|opera mini/i.test(ua)) return 'mobile';
-  if (/tablet|ipad|playbook|silk|android(?!.*mobile)/i.test(ua)) return 'tablet';
-  return 'desktop';
-}
 
 // Mapeo PrestaShop ID → URL nueva (categorías)
 const PS_CAT: Record<string, string> = {"17":"/categorias/4","18":"/categorias/3","20":"/categorias/5","24":"/categorias/14","25":"/categorias/17","29":"/categorias/2","31":"/categorias/13","33":"/categorias/14","34":"/categorias/18","35":"/categorias/6","36":"/categorias/7","39":"/categorias/8","40":"/categorias/1","41":"/categorias/15","47":"/categorias/9","48":"/categorias/22","49":"/categorias/10","50":"/categorias/11","51":"/categorias/12","53":"/categorias/19","80":"/categorias/17","84":"/categorias/6","85":"/categorias/9","86":"/categorias/12","87":"/categorias/8","88":"/categorias/22","90":"/categorias/7","91":"/categorias/11","92":"/categorias/10"};
@@ -78,57 +24,7 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(new URL('/', req.url), 301);
   }
 
-  // No procesar rutas excluidas
-  if (isExcludedPath(pathname) || req.method !== 'GET') {
-    return NextResponse.next();
-  }
-
-  const response = NextResponse.next();
-
-  const userAgent = req.headers.get('user-agent');
-
-  // Ignorar bots y crawlers — no registrar su tráfico
-  if (isBot(userAgent)) {
-    return response;
-  }
-
-  let sessionId = req.cookies.get('_sid')?.value;
-  if (!sessionId) {
-    sessionId = uuidv4();
-    response.cookies.set('_sid', sessionId, {
-      maxAge: 30 * 60,
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      path: '/',
-    });
-  }
-
-  const ip = req.headers.get('x-forwarded-for')?.split(',')[0].trim() ||
-             req.headers.get('x-real-ip') ||
-             req.headers.get('cf-connecting-ip') ||
-             '0.0.0.0';
-
-  const ipHash = await hashIP(ip);
-  const referrer = req.headers.get('referer');
-
-  if (typeof fetch !== 'undefined') {
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
-    fetch(`${baseUrl}/api/trafico/registrar`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        sessionId,
-        ipHash,
-        url: pathname,
-        referrer,
-        fuente: detectFuente(referrer),
-        dispositivo: detectDispositivo(userAgent),
-      }),
-    }).catch(() => {});
-  }
-
-  return response;
+  return NextResponse.next();
 }
 
 export const config = {

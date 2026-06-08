@@ -245,8 +245,37 @@ export default function ProductosPage() {
             </button>
             {showTools && (
               <div className="absolute right-0 top-10 w-52 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl z-20">
-                <button className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
-                  <Download className="w-4 h-4 text-green-600" /> Exportar CSV
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const res = await fetch("/api/admin/productos/exportar");
+                    const blob = await res.blob();
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = url;
+                    a.download = "exportacion-productos.csv";
+                    a.click();
+                    URL.revokeObjectURL(url);
+                  }}
+                  className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                >
+                  <Download className="w-4 h-4 text-green-600" /> Exportar Productos
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const res = await fetch("/api/admin/combinaciones/exportar");
+                    const blob = await res.blob();
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = url;
+                    a.download = "exportacion-combinaciones.csv";
+                    a.click();
+                    URL.revokeObjectURL(url);
+                  }}
+                  className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                >
+                  <Download className="w-4 h-4 text-green-600" /> Exportar Combinaciones
                 </button>
                 <button
                   type="button"
