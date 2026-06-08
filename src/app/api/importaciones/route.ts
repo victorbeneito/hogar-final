@@ -905,12 +905,6 @@ async function upsertProducto(row: ImportRow) {
   const referencia = normalizeText(row.referencia);
   if (!referencia) throw new Error("Falta referencia de producto");
   const productoExistente = await prisma.producto.findFirst({ where: { referencia } });
-  const slugActual = productoExistente
-    ? await prisma.producto.findUnique({
-        where: { id: productoExistente.id },
-        select: { slug: true },
-      })
-    : null;
 
   const marca = "marca" in row && row.marca
     ? await prisma.marca.findFirst({ where: { nombre: normalizeText(row.marca) } })
@@ -944,7 +938,7 @@ async function upsertProducto(row: ImportRow) {
 
   let slugBase = normalizeText(row.slug);
   if (!slugBase) {
-    slugBase = slugActual?.slug || (referencia && nombre ? `${referencia}-${nombre}` : referencia || nombre);
+    slugBase = referencia && nombre ? `${referencia}-${nombre}` : referencia || nombre;
   }
   const slug = await getUniqueProductSlug(slugBase, productoExistente?.id);
 
@@ -1060,7 +1054,15 @@ async function upsertProducto(row: ImportRow) {
   // Images: only update if any image field was mapped
   if ("imagenes" in row || "imagen" in row || "urlsImagenes" in row) {
     const rawImagenValue = row.imagenes || row.imagen || row.urlsImagenes || "";
+    const charCount = rawImagenValue.length;
+    console.log(`[DEBUG] Producto ${referencia}: rawImagenValue (${charCount} chars):\n  "${rawImagenValue}"`);
+
     const imagenes = splitList(rawImagenValue);
+    console.log(`[DEBUG] Producto ${referencia}: imagenes parseadas = ${imagenes.length}`);
+    if (imagenes.length > 0) {
+      imagenes.forEach((url, i) => console.log(`  [${i + 1}] ${url}`));
+    }
+
     if (imagenes.length > 0) {
       await prisma.productoimagen.deleteMany({ where: { productoId: producto.id } });
       for (let index = 0; index < imagenes.length; index += 1) {
