@@ -942,7 +942,10 @@ async function upsertProducto(row: ImportRow) {
     ? parseNumber(row.precioOferta, 0) / ivaFactor
     : precioOfertaDesdeDescuento;
 
-  const slugBase = normalizeText(row.slug) || slugActual?.slug || referencia || nombre;
+  let slugBase = normalizeText(row.slug);
+  if (!slugBase) {
+    slugBase = slugActual?.slug || (referencia && nombre ? `${referencia}-${nombre}` : referencia || nombre);
+  }
   const slug = await getUniqueProductSlug(slugBase, productoExistente?.id);
 
   // Core fields always included in both create and update
@@ -1056,13 +1059,17 @@ async function upsertProducto(row: ImportRow) {
 
   // Images: only update if any image field was mapped
   if ("imagenes" in row || "imagen" in row || "urlsImagenes" in row) {
-    const imagenes = splitList(row.imagenes || row.imagen || row.urlsImagenes);
-    if (imagenes.length) {
+    const rawImagenValue = row.imagenes || row.imagen || row.urlsImagenes || "";
+    const imagenes = splitList(rawImagenValue);
+    if (imagenes.length > 0) {
       await prisma.productoimagen.deleteMany({ where: { productoId: producto.id } });
       for (let index = 0; index < imagenes.length; index += 1) {
-        await prisma.productoimagen.create({
-          data: { productoId: producto.id, url: imagenes[index], orden: index, esPortada: index === 0 },
-        });
+        const url = imagenes[index];
+        if (url && url.trim()) {
+          await prisma.productoimagen.create({
+            data: { productoId: producto.id, url: url.trim(), orden: index, esPortada: index === 0 },
+          });
+        }
       }
     }
   }
