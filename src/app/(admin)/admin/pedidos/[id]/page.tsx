@@ -240,6 +240,8 @@ export default function PedidoDetallePage({ params }: { params: Promise<{ id: st
   const [savingTransporte, setSavingTransporte] = useState(false);
   const [tabDireccion, setTabDireccion] = useState<"entrega" | "facturacion">("entrega");
   const [tabEstado, setTabEstado] = useState<"estado" | "documentos">("estado");
+  const [dropdownEstadoAbierto, setDropdownEstadoAbierto] = useState(false);
+  const dropdownEstadoRef = React.useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const loadPedido = async () => {
@@ -294,6 +296,17 @@ export default function PedidoDetallePage({ params }: { params: Promise<{ id: st
     };
     loadPedido();
   }, [id]);
+
+  useEffect(() => {
+    if (!dropdownEstadoAbierto) return;
+    const handleClick = (e: MouseEvent) => {
+      if (dropdownEstadoRef.current && !dropdownEstadoRef.current.contains(e.target as Node)) {
+        setDropdownEstadoAbierto(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [dropdownEstadoAbierto]);
 
   const totals = useMemo(() => {
     const subtotal = productos.reduce((acc, item) => acc + Number(item.subtotal || item.cantidad * item.precioUnitario), 0);
@@ -618,26 +631,49 @@ export default function PedidoDetallePage({ params }: { params: Promise<{ id: st
 
                   {/* Actualizar estado */}
                   <div className="border-t border-gray-100 pt-4 flex flex-col sm:flex-row gap-3 items-end">
-                    <div className="flex-1">
+                    <div className="flex-1 relative" ref={dropdownEstadoRef}>
                       <label className="block text-xs font-semibold text-gray-500 mb-1">Actualizar estado</label>
-                      <select
-                        value={estado}
-                        onChange={(e) => setEstado(e.target.value)}
-                        className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm"
+                      <button
+                        type="button"
+                        onClick={() => setDropdownEstadoAbierto((v) => !v)}
+                        className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-left flex items-center justify-between gap-2"
                       >
-                        {estadosPedido.length > 0 ? estadosPedido.map((e) => (
-                          <option key={e.clave} value={e.clave}>{e.nombre}</option>
-                        )) : (
-                          <>
-                            <option value="PENDIENTE">PENDIENTE</option>
-                            <option value="PROCESANDO">PROCESANDO</option>
-                            <option value="ENVIADO">ENVIADO</option>
-                            <option value="ENTREGADO">ENTREGADO</option>
-                            <option value="CANCELADO">CANCELADO</option>
-                            <option value="DEVUELTO">DEVUELTO</option>
-                          </>
-                        )}
-                      </select>
+                        {(() => {
+                          const estadoActual = estadosPedido.find((e) => e.clave === estado);
+                          return estadoActual ? (
+                            <span
+                              className="inline-block rounded-full px-2.5 py-0.5 text-xs font-bold text-white"
+                              style={{ backgroundColor: estadoActual.color }}
+                            >
+                              {estadoActual.nombre}
+                            </span>
+                          ) : (
+                            <span className="text-gray-500">{estado}</span>
+                          );
+                        })()}
+                        <svg className="w-4 h-4 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </button>
+                      {dropdownEstadoAbierto && (
+                        <div className="absolute left-0 right-0 top-full mt-1 z-50 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden max-h-72 overflow-y-auto">
+                          {estadosPedido.map((e) => (
+                            <button
+                              key={e.clave}
+                              type="button"
+                              onClick={() => { setEstado(e.clave); setDropdownEstadoAbierto(false); }}
+                              className={`w-full px-3 py-2 text-left hover:bg-gray-50 flex items-center gap-2 ${estado === e.clave ? "bg-gray-50" : ""}`}
+                            >
+                              <span
+                                className="inline-block rounded-full px-2.5 py-0.5 text-xs font-bold text-white"
+                                style={{ backgroundColor: e.color }}
+                              >
+                                {e.nombre}
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </div>
                     <button
                       onClick={savePedido}

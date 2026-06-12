@@ -136,7 +136,6 @@ export default function ProductDetail({ producto }: { producto: Producto }) {
   const imagenPrincipalSeleccionada = fullResUrl(varianteSeleccionada?.imagen || imagenesVarianteSeleccionada[0] || imagenes[0] || "");
   const imagenesCarrusel = imagenesVarianteSeleccionada.length > 0 ? imagenesVarianteSeleccionada : imagenes;
   const imagenPrincipal = imagenActiva || imagenPrincipalSeleccionada || imagenesCarrusel[0] || "";
-  const imagenAlternativa = imagenesCarrusel.find((img) => img !== imagenPrincipal) || "";
   const imagenVisible = imagenHover || imagenPrincipal;
 
   useEffect(() => {
@@ -174,12 +173,6 @@ export default function ProductDetail({ producto }: { producto: Producto }) {
   }, [tabActiva]);
 
   const limpiarHoverImagen = () => setImagenHover(null);
-
-  const mostrarImagenAlternativa = () => {
-    if (imagenAlternativa) {
-      setImagenHover(imagenAlternativa);
-    }
-  };
 
   const abrirImagenAmpliada = () => {
     if (imagenVisible) {
@@ -257,10 +250,6 @@ export default function ProductDetail({ producto }: { producto: Producto }) {
           <button
             type="button"
             onClick={abrirImagenAmpliada}
-            onMouseEnter={mostrarImagenAlternativa}
-            onMouseLeave={limpiarHoverImagen}
-            onFocus={mostrarImagenAlternativa}
-            onBlur={limpiarHoverImagen}
             className={`group relative flex-1 min-h-[440px] lg:min-h-[620px] w-full overflow-hidden rounded-md bg-gray-100 dark:bg-gray-800 flex items-center justify-center outline-none transition-shadow ${
               imagenVisible ? "cursor-zoom-in focus-visible:ring-2 focus-visible:ring-primary/40" : "cursor-default"
             }`}
