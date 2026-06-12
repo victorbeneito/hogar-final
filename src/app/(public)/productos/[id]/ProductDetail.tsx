@@ -485,7 +485,7 @@ export default function ProductDetail({ producto }: { producto: Producto }) {
                   : "text-green-600"
             }`}>
               {stockDisponible === 0
-                ? permiteBackorder ? "Disponible por encargo" : "Agotado"
+                ? permiteBackorder ? "Sin stock — reponiendo existencias" : "Agotado"
                 : stockDisponible <= 5
                   ? `Pocas unidades disponibles`
                   : `En stock`}
