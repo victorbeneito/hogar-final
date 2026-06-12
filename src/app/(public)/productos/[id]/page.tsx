@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import ProductDetail from "./ProductDetail";
@@ -7,23 +8,68 @@ type PageProps = {
   params: Promise<{ id: string }>;
 };
 
-export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
-  const { id } = await params;
+// React.cache() deduplicates the DB call so generateMetadata and ProductoPage
+// share a single query per request instead of hitting the DB twice.
+const getProducto = cache(async (id: string) => {
   const idNumero = Number(id);
   const byId = Number.isInteger(idNumero) && idNumero > 0;
 
-  const producto = await prisma.producto.findFirst({
+  return prisma.producto.findFirst({
     where: byId ? { id: idNumero } : { slug: id },
     select: {
       id: true,
       nombre: true,
+      slug: true,
+      descripcion: true,
+      descripcion_html: true,
+      composicion: true,
+      referencia: true,
+      precio: true,
+      precioOferta: true,
+      stock: true,
+      tieneVariantes: true,
+      disponiblePedidos: true,
       metaTitulo: true,
       metaDescripcion: true,
       resumen: true,
-      slug: true,
-      productoimagen: { select: { url: true }, orderBy: { orden: "asc" }, take: 1 },
+      reglaimpuesto: { select: { porcentaje: true } },
+      productoimagen: {
+        orderBy: { orden: "asc" },
+        select: { id: true, url: true },
+      },
+      variante: {
+        select: {
+          id: true,
+          referencia: true,
+          tamano: true,
+          tirador: true,
+          color: true,
+          precio_extra: true,
+          imagen: true,
+          imagenMuestra: true,
+          imagenesVariante: true,
+          stock: true,
+          // varianteatributo omitted intentionally: with 100s of variants the nested
+          // join is very expensive. The avLookup below covers the same data.
+        },
+      },
+      productocategoria: {
+        select: {
+          categoria: {
+            select: { id: true, nombre: true },
+          },
+        },
+      },
+      marca: {
+        select: { id: true, nombre: true, logo_url: true, imagen: true },
+      },
     },
   });
+});
+
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+  const { id } = await params;
+  const producto = await getProducto(id);
 
   if (!producto) return {};
 
@@ -54,86 +100,31 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
 export default async function ProductoPage({ params }: PageProps) {
   const { id } = await params;
-  const idNumero = Number(id);
-  const byId = Number.isInteger(idNumero) && idNumero > 0;
 
-  const productoRaw = await prisma.producto.findFirst({
-    where: byId ? { id: idNumero } : { slug: id },
-    select: {
-      id: true,
-      nombre: true,
-      slug: true,
-      descripcion: true,
-      descripcion_html: true,
-      composicion: true,
-      referencia: true,
-      precio: true,
-      precioOferta: true,
-      stock: true,
-      tieneVariantes: true,
-      disponiblePedidos: true,
-      reglaimpuesto: { select: { porcentaje: true } },
-      productoimagen: {
-        orderBy: { orden: "asc" },
-        select: { id: true, url: true },
-      },
-      variante: {
-        select: {
-          id: true,
-          referencia: true,
-          tamano: true,
-          tirador: true,
-          color: true,
-          precio_extra: true,
-          imagen: true,
-          imagenMuestra: true,
-          imagenesVariante: true,
-          stock: true,
-          varianteatributo: {
-            select: {
-              atributovalor: {
-                select: { id: true, valor: true, imagen: true, colorHex: true, orden: true },
-              },
-            },
-          },
-        },
-      },
-      productocategoria: {
-        select: {
-          categoria: {
-            select: { id: true, nombre: true },
-          },
-        },
-      },
-      marca: {
-        select: { id: true, nombre: true, logo_url: true, imagen: true },
-      },
-    },
-  });
-
+  const productoRaw = await getProducto(id);
   if (!productoRaw) return notFound();
 
-  // Obtener idPrestashop desde el mapeo (REVI)
-  let prestashopProductId = null;
-  if (productoRaw.referencia) {
-    const mapeo = await prisma.mapeo_producto_ps.findFirst({
-      where: { referencia: productoRaw.referencia }
-    });
-    prestashopProductId = mapeo?.idPrestashop || null;
-  }
-
-  // Lookup atributovalores by color/tirador value directly, as fallback when varianteatributo links are missing
+  // Unique color/tirador values — used to fetch display info (image, colorHex) for selectors
   const uniqueVariantValues = [
     ...new Set(
       productoRaw.variante.flatMap((v) => [v.color, v.tirador]).filter((x): x is string => Boolean(x))
     ),
   ];
-  const avLookup = uniqueVariantValues.length > 0
-    ? await prisma.atributovalor.findMany({
-        where: { valor: { in: uniqueVariantValues } },
-        select: { id: true, valor: true, imagen: true, colorHex: true, orden: true },
-      })
-    : [];
+
+  // Both secondary queries in parallel
+  const [mapeo, avLookup] = await Promise.all([
+    productoRaw.referencia
+      ? prisma.mapeo_producto_ps.findFirst({ where: { referencia: productoRaw.referencia } })
+      : Promise.resolve(null),
+    uniqueVariantValues.length > 0
+      ? prisma.atributovalor.findMany({
+          where: { valor: { in: uniqueVariantValues } },
+          select: { id: true, valor: true, imagen: true, colorHex: true, orden: true },
+        })
+      : Promise.resolve([]),
+  ]);
+
+  const prestashopProductId = mapeo?.idPrestashop || null;
   const avByValor = new Map(avLookup.map((av) => [av.valor, av]));
 
   // precio en BD es sin IVA → convertir a precio con IVA para mostrar al cliente
@@ -142,7 +133,6 @@ export default async function ProductoPage({ params }: PageProps) {
   const precioConIva = Number(productoRaw.precio) * factorIva;
   const ofertaConIva = productoRaw.precioOferta != null ? Number(productoRaw.precioOferta) * factorIva : null;
 
-  // ✅ Adaptación completa y segura
   const productoAdaptado: any = {
     id: productoRaw.id,
     nombre: productoRaw.nombre,
@@ -156,16 +146,14 @@ export default async function ProductoPage({ params }: PageProps) {
       : null,
     imagenes: productoRaw.productoimagen.map((img: any) => img.url),
     variantes: (productoRaw.variante ?? []).map((v: any) => {
-      const linked: any[] = v.varianteatributo?.map((va: any) => va.atributovalor) ?? [];
-      const linkedValues = new Set(linked.map((av: any) => av.valor));
-      const fromLookup = ([v.color, v.tirador] as (string | null | undefined)[])
-        .filter((val): val is string => Boolean(val) && !linkedValues.has(val))
+      const atributovalores = ([v.color, v.tirador] as (string | null | undefined)[])
+        .filter((val): val is string => Boolean(val))
         .map((val) => avByValor.get(val))
         .filter(Boolean);
-      return { ...v, atributovalores: [...linked, ...fromLookup] };
+      return { ...v, atributovalores };
     }),
     categoria: productoRaw.productocategoria?.[0]?.categoria ?? null,
-    prestashopProductId, // REVI
+    prestashopProductId,
     referencia: productoRaw.referencia,
     marca: productoRaw.marca,
     stock: productoRaw.stock ?? 0,

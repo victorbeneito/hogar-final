@@ -147,8 +147,8 @@ function mapAddress(source?: Partial<Address> | null, fallback?: Partial<Address
 /* ── Card con cabecera ── */
 function Card({ title, children, action }: { title: string; children: React.ReactNode; action?: React.ReactNode }) {
   return (
-    <div className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
-      <div className="flex items-center justify-between px-5 py-3 bg-gray-50 border-b border-gray-200">
+    <div className="rounded-2xl border border-gray-200 bg-white shadow-sm">
+      <div className="flex items-center justify-between px-5 py-3 bg-gray-50 border-b border-gray-200 rounded-t-2xl">
         <span className="text-xs font-bold uppercase tracking-widest text-gray-500">{title}</span>
         {action}
       </div>
