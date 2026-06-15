@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 
-export type ImportJobStatus = "queued" | "running" | "paused" | "completed" | "failed";
+export type ImportJobStatus = "pending" | "queued" | "running" | "paused" | "completed" | "failed";
 
 export type ImportJobMode = "import" | "validate";
 
@@ -292,6 +292,20 @@ export function failImportJob(jobId: string, error: string) {
     finishedAt: nowIso(),
     error,
   });
+}
+
+export function appendRowsToJob(jobId: string, rows: Record<string, any>[], sourceRows: Record<string, any>[]) {
+  const files = getJobFiles(jobId);
+  const existing = readJsonFile<ImportJobPayload>(files.payloadPath) ?? { tipo: "", rows: [], sourceRows: [], mode: "import" };
+  existing.rows = [...existing.rows, ...rows];
+  existing.sourceRows = [...existing.sourceRows, ...sourceRows];
+  writeJsonFile(files.payloadPath, existing);
+  updateImportJob(jobId, { total: existing.rows.length });
+  return existing.rows.length;
+}
+
+export function activateImportJob(jobId: string) {
+  return updateImportJob(jobId, { status: "queued" });
 }
 
 export function listImportJobs(): ImportJobState[] {

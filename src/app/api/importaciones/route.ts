@@ -6,6 +6,8 @@ import { buildFallbackNif, isPlausibleClientNif, normalizeClientNif } from "@/li
 import { resolveAtributoTipo } from "@/lib/atributoTipo";
 import {
   appendImportJobError,
+  appendRowsToJob,
+  activateImportJob,
   completeImportJob,
   createImportJob,
   failImportJob,
@@ -1367,18 +1369,65 @@ export async function POST(req: NextRequest) {
   }
   try {
     const body = await req.json();
+    const action = String(body.action ?? "").trim();
+
+    // ── Chunked upload: create empty pending job ──────────────────────────────
+    if (action === "create") {
+      const tipo = String(body.tipo ?? "").trim() as ImportType;
+      const mode = String(body.mode ?? "import").trim().toLowerCase() === "validate" ? "validate" : "import";
+      if (!tipo) return NextResponse.json({ ok: false, error: "Falta tipo" }, { status: 400 });
+
+      const job = createImportJob(tipo, 0, { tipo, rows: [], sourceRows: [], mode });
+      updateImportJob(job.id, { status: "pending", phase: "Recibiendo datos", message: "Esperando chunks..." });
+      return NextResponse.json({ ok: true, jobId: job.id, job: serializeImportJob(job) }, { status: 202 });
+    }
+
+    // ── Chunked upload: append rows to existing pending job ───────────────────
+    if (action === "append") {
+      const jobId = String(body.jobId ?? "").trim();
+      const rows = Array.isArray(body.rows) ? body.rows : [];
+      const sourceRows = Array.isArray(body.sourceRows) ? body.sourceRows : [];
+      if (!jobId) return NextResponse.json({ ok: false, error: "Falta jobId" }, { status: 400 });
+      const job = getImportJob(jobId);
+      if (!job) return NextResponse.json({ ok: false, error: "Job no encontrado" }, { status: 404 });
+      const total = appendRowsToJob(jobId, rows, sourceRows);
+      const updated = getImportJob(jobId);
+      return NextResponse.json({ ok: true, total, job: updated ? serializeImportJob(updated) : null });
+    }
+
+    // ── Chunked upload: all chunks received → start processing ────────────────
+    if (action === "start") {
+      const jobId = String(body.jobId ?? "").trim();
+      if (!jobId) return NextResponse.json({ ok: false, error: "Falta jobId" }, { status: 400 });
+      const job = getImportJob(jobId);
+      if (!job) return NextResponse.json({ ok: false, error: "Job no encontrado" }, { status: 404 });
+
+      const payload = getImportJobPayload(jobId);
+      if (!payload?.rows?.length) return NextResponse.json({ ok: false, error: "No hay filas en el job" }, { status: 400 });
+
+      activateImportJob(jobId);
+      updateImportJob(jobId, {
+        phase: `${payload.mode === "validate" ? "Prevalidando" : "Importando"} ${job.tipo}`,
+        message: payload.mode === "validate" ? "Trabajo de prevalidación en cola" : "Trabajo en cola",
+        total: payload.rows.length,
+      });
+
+      void runImportJob(jobId).catch((error: any) => {
+        failImportJob(jobId, error?.message || "Error de servidor");
+      });
+
+      const started = getImportJob(jobId);
+      return NextResponse.json({ ok: true, jobId, job: started ? serializeImportJob(started) : null }, { status: 202 });
+    }
+
+    // ── Legacy: send all rows at once (backward compatibility) ────────────────
     const tipo = String(body.tipo ?? "").trim() as ImportType;
     const rows = Array.isArray(body.rows) ? body.rows : [];
     const sourceRows = Array.isArray(body.sourceRows) ? body.sourceRows : [];
     const mode = String(body.mode ?? "import").trim().toLowerCase() === "validate" ? "validate" : "import";
 
-    if (!tipo) {
-      return NextResponse.json({ ok: false, error: "Falta el tipo de importación" }, { status: 400 });
-    }
-
-    if (!rows.length) {
-      return NextResponse.json({ ok: false, error: "No hay filas para importar" }, { status: 400 });
-    }
+    if (!tipo) return NextResponse.json({ ok: false, error: "Falta el tipo de importación" }, { status: 400 });
+    if (!rows.length) return NextResponse.json({ ok: false, error: "No hay filas para importar" }, { status: 400 });
 
     const job = createImportJob(tipo, rows.length, { tipo, rows, sourceRows, mode });
     updateImportJob(job.id, {

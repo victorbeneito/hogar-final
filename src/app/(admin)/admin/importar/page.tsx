@@ -738,28 +738,59 @@ export default function AdminImportarPage() {
     setResult(null);
     setImportJob(null);
 
+    const CHUNK_SIZE = 500;
+
     try {
-      const res = await fetch("/api/importaciones", {
+      // ── 1. Create empty pending job ──────────────────────────────────────────
+      const createRes = await fetch("/api/importaciones", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          tipo,
-          rows: mappedRows,
-          sourceRows: rows,
-          sourceHeaders: headers,
-          mode,
-        }),
+        body: JSON.stringify({ action: "create", tipo, mode }),
       });
+      const createData = await createRes.json();
+      if (!createRes.ok || !createData.ok || !createData.jobId) {
+        throw new Error(createData.error ?? "No se pudo crear el trabajo de importación");
+      }
+      const jobId = createData.jobId as string;
+      localStorage.setItem(JOB_STORAGE_KEY, jobId);
 
-      const data = await res.json();
-      if (!res.ok || !data.ok || !data.jobId) {
-        setResult(data);
-        throw new Error(data.error ?? "No se pudo iniciar la importación");
+      // ── 2. Send rows in chunks ───────────────────────────────────────────────
+      const totalChunks = Math.ceil(mappedRows.length / CHUNK_SIZE);
+      for (let i = 0; i < totalChunks; i++) {
+        const start = i * CHUNK_SIZE;
+        const end = Math.min(start + CHUNK_SIZE, mappedRows.length);
+        const chunkRows = mappedRows.slice(start, end);
+        const chunkSource = rows.slice(start, end);
+
+        setImportJob((prev) => prev
+          ? { ...prev, message: `Enviando filas ${end}/${mappedRows.length}...` }
+          : null
+        );
+
+        const appendRes = await fetch("/api/importaciones", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "append", jobId, rows: chunkRows, sourceRows: chunkSource }),
+        });
+        const appendData = await appendRes.json();
+        if (!appendRes.ok || !appendData.ok) {
+          throw new Error(appendData.error ?? `Error enviando chunk ${i + 1}/${totalChunks}`);
+        }
       }
 
-      setImportJob(data.job ?? null);
-      localStorage.setItem(JOB_STORAGE_KEY, data.jobId);
-      await monitorImportJob(data.jobId);
+      // ── 3. Start processing ──────────────────────────────────────────────────
+      const startRes = await fetch("/api/importaciones", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "start", jobId }),
+      });
+      const startData = await startRes.json();
+      if (!startRes.ok || !startData.ok) {
+        throw new Error(startData.error ?? "No se pudo iniciar el procesamiento");
+      }
+
+      setImportJob(startData.job ?? null);
+      await monitorImportJob(jobId);
     } catch (e: any) {
       setError(e.message);
     } finally {
