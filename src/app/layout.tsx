@@ -12,6 +12,9 @@ export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://elhogardetusuenos.com"),
+  verification: {
+    google: "iqM5CjKYJULfQc5VPeGUCYGI1ziG7_F_0LYDk3Bh0dQ",
+  },
   title: {
     default: "El Hogar de tus Sueños | Decoración y Estores Online",
     template: "%s | El Hogar de tus Sueños",
