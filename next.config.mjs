@@ -7,11 +7,6 @@ const nextConfig = {
   env: {
     NEXT_PUBLIC_APP_VERSION: version,
   },
-  api: {
-    bodyParser: {
-      sizeLimit: "100mb", // Aumenta de 1mb a 100mb
-    },
-  },
   async redirects() {
     return [
       // Redirige cualquier URL de PrestaShop /es/... que escape al middleware
