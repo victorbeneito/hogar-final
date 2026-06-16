@@ -37,9 +37,6 @@ export const metadata: Metadata = {
   alternates: {
     canonical: "https://elhogardetusuenos.com",
   },
-  verification: {
-    google: "VpCz7A2JTYMy7fkK6wleNSh95ZPH8pImauHx-tKlXmU",
-  },
 };
 
 export default function RootLayout({
