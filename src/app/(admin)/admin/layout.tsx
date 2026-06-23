@@ -40,9 +40,9 @@ export default function AdminLayout({
         return;
       }
 
-      // 3. Verificamos que tenga rol válido (admin, superadmin o auditor)
+      // 3. Verificamos que tenga rol válido (admin, superadmin, support o auditor)
       const rolUsuario = decoded.rol?.toLowerCase() || "";
-      const rolesValidos = ["admin", "superadmin", "auditor"];
+      const rolesValidos = ["admin", "superadmin", "support", "auditor"];
 
       if (!rolesValidos.includes(rolUsuario)) {
         console.error("Acceso denegado. Rol detectado:", decoded.rol);

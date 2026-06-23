@@ -1,3 +1,14 @@
+# Bloquear acceso a archivos sensibles
+<Files ".env">
+    Require all denied
+</Files>
+<Files ".env.local">
+    Require all denied
+</Files>
+<Files ".env.production">
+    Require all denied
+</Files>
+
 RewriteEngine On
 
 # Servir archivos estáticos de Next.js (carpeta public/) directamente por Apache.
