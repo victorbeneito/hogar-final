@@ -8,7 +8,7 @@ type AdminTokenPayload = {
   role?: string;
 };
 
-export const ROLES_ADMIN_VALIDOS = ["admin", "superadmin", "auditor"];
+export const ROLES_ADMIN_VALIDOS = ["admin", "superadmin", "support", "auditor"];
 
 export function getAdminSecret() {
   return process.env.SECRETO_JWT_ADMIN || "palabra_secreta_emergencia_2026";
@@ -37,5 +37,5 @@ export function isSuperAdmin(req: NextRequest): boolean {
 
 export function canEdit(req: NextRequest): boolean {
   const admin = getAdminFromRequest(req);
-  return admin?.role === "superadmin" || admin?.role === "admin";
+  return admin?.role === "superadmin" || admin?.role === "admin" || admin?.role === "support";
 }

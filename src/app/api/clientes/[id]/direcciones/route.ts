@@ -26,14 +26,14 @@ async function verificarAcceso(req: NextRequest, idSolicitado: number) {
   try {
     const decodedAdmin: any = jwt.verify(token, adminSecret);
     const rolAdmin = getRole(decodedAdmin);
-    if (["admin", "superadmin", "auditor"].includes(rolAdmin)) return { autorizado: true as const };
+    if (["admin", "superadmin", "support", "auditor"].includes(rolAdmin)) return { autorizado: true as const };
   } catch {}
 
   try {
     const decodedClient: any = jwt.verify(token, clientSecret);
     if (String(decodedClient?.id) === String(idSolicitado)) return { autorizado: true as const };
     const rolClient = getRole(decodedClient);
-    if (["admin", "superadmin", "auditor"].includes(rolClient)) return { autorizado: true as const };
+    if (["admin", "superadmin", "support", "auditor"].includes(rolClient)) return { autorizado: true as const };
     return { autorizado: false, status: 403, error: "No autorizado" };
   } catch {
     return { autorizado: false, status: 403, error: "Token inválido" };

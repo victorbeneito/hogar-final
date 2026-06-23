@@ -21,7 +21,7 @@ async function verificarAdmin(req: NextRequest) {
     const secret = process.env.SECRETO_JWT_ADMIN || "palabra_secreta_emergencia_2026";
     const decodedAdmin: any = jwt.verify(token, secret);
     const rol = String(decodedAdmin?.rol ?? decodedAdmin?.role ?? "").toLowerCase();
-    if (["admin", "superadmin", "auditor"].includes(rol)) return { autorizado: true as const };
+    if (["admin", "superadmin", "support", "auditor"].includes(rol)) return { autorizado: true as const };
     return { autorizado: false, status: 403, error: "Acceso denegado" };
   } catch (error: any) {
     return { autorizado: false, status: 403, error: "Token inválido" };
