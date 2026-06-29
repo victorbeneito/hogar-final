@@ -16,8 +16,8 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: "estado requerido" }, { status: 400 });
     }
 
-    const estadosValidos = ["PENDIENTE", "PROCESANDO", "ENVIADO", "ENTREGADO", "CANCELADO", "DEVUELTO"];
-    if (!estadosValidos.includes(estado)) {
+    const estadoExiste = await prisma.estadopedido.findUnique({ where: { clave: estado } });
+    if (!estadoExiste) {
       return NextResponse.json({ error: "estado no válido" }, { status: 400 });
     }
 
