@@ -36,7 +36,7 @@ export default function ChatWidgets() {
 
   return (
     <>
-      {/* Tawk.to widget */}
+      Tawk.to widget
       <Script
         id="tawkto"
         strategy="afterInteractive"
@@ -60,6 +60,11 @@ export default function ChatWidgets() {
           `,
         }}
       />
+
+      {/*Nuevo Chat*/}
+
+      <script src="https://agente.elhogardetusuenos.com/widget.js" defer></script>
+      <script src="https://agente.elhogardetusuenos.com/tracker.js" defer></script>
 
       {/* WhatsApp floating button */}
       <a
