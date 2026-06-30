@@ -36,8 +36,8 @@ export default function ChatWidgets() {
 
   return (
     <>
-      Tawk.to widget
-      <Script
+     {/*Tawk.to widget*/} 
+      {/* <Script
         id="tawkto"
         strategy="afterInteractive"
         dangerouslySetInnerHTML={{
@@ -59,7 +59,7 @@ export default function ChatWidgets() {
             })();
           `,
         }}
-      />
+      /> */}
 
       {/*Nuevo Chat*/}
 
