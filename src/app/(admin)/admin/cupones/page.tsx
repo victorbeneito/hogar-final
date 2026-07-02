@@ -14,6 +14,7 @@ interface Cupon {
   limite_usuario: number;
   fecha_inicio: string;
   fecha_fin: string;
+  activo: boolean;
 }
 
 interface FormDataState {
@@ -24,6 +25,7 @@ interface FormDataState {
   limite_usuario: number | "";
   fecha_inicio: string;
   fecha_fin: string;
+  activo: boolean;
 }
 
 export default function CuponesPage() {
@@ -37,7 +39,8 @@ export default function CuponesPage() {
     cantidad_total: 100,
     limite_usuario: 1,
     fecha_inicio: "",
-    fecha_fin: ""
+    fecha_fin: "",
+    activo: true
   });
   
   const [loading, setLoading] = useState(false);
@@ -89,7 +92,8 @@ export default function CuponesPage() {
         cantidad_total: 100,
         limite_usuario: 1,
         fecha_inicio: "",
-        fecha_fin: ""
+        fecha_fin: "",
+        activo: true
       });
       fetchCupones();
     } catch (error: any) {
@@ -105,7 +109,8 @@ export default function CuponesPage() {
       cantidad_total: cupon.cantidad_total,
       limite_usuario: cupon.limite_usuario,
       fecha_inicio: cupon.fecha_inicio ? cupon.fecha_inicio.slice(0, 16) : "",
-      fecha_fin: cupon.fecha_fin ? cupon.fecha_fin.slice(0, 16) : ""
+      fecha_fin: cupon.fecha_fin ? cupon.fecha_fin.slice(0, 16) : "",
+      activo: cupon.activo
     });
     setEditingId(cupon.id);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -133,7 +138,8 @@ export default function CuponesPage() {
       cantidad_total: 100,
       limite_usuario: 1,
       fecha_inicio: "",
-      fecha_fin: ""
+      fecha_fin: "",
+      activo: true
     });
     setEditingId(null);
   };
@@ -258,6 +264,19 @@ export default function CuponesPage() {
               </div>
             </div>
 
+            <div className="md:col-span-2 flex items-center gap-3">
+              <input
+                id="cupon-activo"
+                type="checkbox"
+                className="w-5 h-5 rounded border-[#DDC9A3]/50 text-[#6BAEC9] focus:ring-[#6BAEC9]/20"
+                checked={formData.activo}
+                onChange={e => setFormData({...formData, activo: e.target.checked})}
+              />
+              <label htmlFor="cupon-activo" className="text-sm font-semibold text-[#4A4A4A]">
+                Cupón activo (desmarca para desactivarlo manualmente sin borrarlo)
+              </label>
+            </div>
+
             <div className="md:col-span-2 mt-4 flex gap-4">
               <button 
                 type="submit" 
@@ -317,7 +336,28 @@ export default function CuponesPage() {
                     </td>
                   </tr>
                 ) : (
-                  cupones.map(cupon => (
+                  cupones.map(cupon => {
+                    const caducado = new Date(cupon.fecha_fin).getTime() < Date.now();
+                    const noIniciado = new Date(cupon.fecha_inicio).getTime() > Date.now();
+                    const agotado = cupon.restantes <= 0;
+
+                    let estadoLabel = "Activo";
+                    let estadoClase = "bg-green-100 text-green-700";
+                    if (!cupon.activo) {
+                      estadoLabel = "Desactivado";
+                      estadoClase = "bg-gray-200 text-gray-600";
+                    } else if (caducado) {
+                      estadoLabel = "Caducado";
+                      estadoClase = "bg-red-100 text-red-700";
+                    } else if (agotado) {
+                      estadoLabel = "Agotado";
+                      estadoClase = "bg-red-100 text-red-700";
+                    } else if (noIniciado) {
+                      estadoLabel = "Programado";
+                      estadoClase = "bg-yellow-100 text-yellow-700";
+                    }
+
+                    return (
                     <tr key={cupon.id} className="hover:bg-[#F8F8F5] transition-colors">
                       <td className="px-8 py-5">
                         <span className="font-mono font-bold text-[#6BAEC9] bg-[#6BAEC9]/10 px-3 py-1 rounded-lg">
@@ -325,16 +365,12 @@ export default function CuponesPage() {
                         </span>
                       </td>
                       <td className="px-8 py-5 font-semibold text-[#4A4A4A]">
-                        {cupon.valor_descuento.toFixed(2)} 
+                        {cupon.valor_descuento.toFixed(2)}
                         {cupon.tipo_descuento === 'porcentaje' ? '%' : '€'}
                       </td>
                       <td className="px-8 py-5">
-                        <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide ${
-                          cupon.restantes === 0 ? 'bg-red-100 text-red-700' : 
-                          cupon.restantes < 10 ? 'bg-yellow-100 text-yellow-700' : 
-                          'bg-green-100 text-green-700'
-                        }`}>
-                          {cupon.restantes === 0 ? 'Agotado' : 'Activo'}
+                        <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide ${estadoClase}`}>
+                          {estadoLabel}
                         </span>
                       </td>
                       <td className="px-8 py-5 text-sm text-gray-600">
@@ -367,7 +403,8 @@ export default function CuponesPage() {
                         </div>
                       </td>
                     </tr>
-                  ))
+                    );
+                  })
                 )}
               </tbody>
             </table>

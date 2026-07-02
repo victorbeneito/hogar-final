@@ -129,6 +129,8 @@ export async function PUT(req: NextRequest) {
     if (body.fecha_fin && body.fecha_fin !== "") fFin = new Date(body.fecha_fin);
     else if (body.fechaFin && body.fechaFin !== "") fFin = new Date(body.fechaFin);
 
+    const activoRecibido = body.activo !== false;
+
     const cuponActualizado = await prisma.cupon.update({
       where: { id },
       data: {
@@ -139,6 +141,7 @@ export async function PUT(req: NextRequest) {
         limitePorUsuario: limite,
         fechaInicio: fInicio,
         fechaFin: fFin,
+        activo: Boolean(activoRecibido),
         updatedAt: new Date(),
       }
     });
