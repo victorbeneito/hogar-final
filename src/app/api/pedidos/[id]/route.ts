@@ -364,18 +364,47 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
         },
       });
 
+      if (Array.isArray(body.productosEliminarIds) && body.productosEliminarIds.length > 0) {
+        const idsEliminar = body.productosEliminarIds
+          .map((eid: any) => Number(eid))
+          .filter((eid: number) => Number.isInteger(eid));
+        if (idsEliminar.length > 0) {
+          await tx.pedidoproducto.deleteMany({
+            where: { id: { in: idsEliminar }, pedidoId: id },
+          });
+        }
+      }
+
       if (Array.isArray(body.productos)) {
         for (const producto of body.productos) {
-          if (!producto?.id) continue;
-          await tx.pedidoproducto.update({
-            where: { id: producto.id },
-            data: cleanData({
-              cantidad: producto.cantidad !== undefined ? Number(producto.cantidad) : undefined,
-              precioUnitario: producto.precioUnitario !== undefined ? Number(producto.precioUnitario) : undefined,
-              subtotal: producto.subtotal !== undefined ? Number(producto.subtotal) : undefined,
-              varianteInfo: producto.varianteInfo,
-            }),
-          });
+          if (producto?.id) {
+            await tx.pedidoproducto.update({
+              where: { id: producto.id },
+              data: cleanData({
+                productoIdRef: producto.productoId !== undefined ? producto.productoId : undefined,
+                varianteIdRef: producto.varianteId !== undefined ? producto.varianteId : undefined,
+                nombre: producto.nombre,
+                cantidad: producto.cantidad !== undefined ? Number(producto.cantidad) : undefined,
+                precioUnitario: producto.precioUnitario !== undefined ? Number(producto.precioUnitario) : undefined,
+                subtotal: producto.subtotal !== undefined ? Number(producto.subtotal) : undefined,
+                varianteInfo: producto.varianteInfo,
+              }),
+            });
+          } else {
+            if (!producto?.nombre || !producto?.cantidad) continue;
+            await tx.pedidoproducto.create({
+              data: {
+                pedidoId: id,
+                productoIdRef: producto.productoId ?? null,
+                varianteIdRef: producto.varianteId ?? null,
+                nombre: producto.nombre,
+                varianteInfo: producto.varianteInfo || null,
+                cantidad: Number(producto.cantidad),
+                precioUnitario: Number(producto.precioUnitario ?? 0),
+                subtotal: Number(producto.subtotal ?? Number(producto.cantidad) * Number(producto.precioUnitario ?? 0)),
+              },
+            });
+          }
         }
       }
 

@@ -10,9 +10,9 @@ interface Coupon {
   id: string;
   codigo: string;
   descripcion: string;
+  tipoDescuento: "PORCENTAJE" | "FIJO";
   descuento: number;
   fechaExpiracion: string;
-  usado?: boolean;
 }
 
 export default function CouponsPage() {
@@ -25,9 +25,8 @@ export default function CouponsPage() {
 
     const loadCoupons = async () => {
       try {
-        const res = await fetchWithAuth("/api/cupones", token);
-        // Asumimos que la API devuelve { coupons: [...] } o un array directo
-        setCupones(res.coupons || res || []);
+        const res = await fetchWithAuth("/api/cupones/mios", token);
+        setCupones(Array.isArray(res) ? res : []);
       } catch (error) {
         console.error(error);
         toast.error("Error al cargar tus cupones");
@@ -101,25 +100,15 @@ export default function CouponsPage() {
         ) : (
           // GRID DE CUPONES
           <div className="grid gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-            {cupones.map((c) => {
-              const expirado = new Date(c.fechaExpiracion) < new Date();
-              const activo = !c.usado && !expirado;
-
-              return (
-                <div 
+            {cupones.map((c) => (
+                <div
                   key={c.id}
-                  className={`relative flex flex-col bg-white dark:bg-darkNavBg rounded-xl overflow-hidden shadow-sm border transition-all duration-300 ${
-                    activo 
-                      ? "border-green-200 dark:border-green-900 shadow-green-100 dark:shadow-none hover:-translate-y-1 hover:shadow-lg" 
-                      : "border-gray-200 dark:border-gray-700 opacity-70 grayscale-[0.5]"
-                  }`}
+                  className="relative flex flex-col bg-white dark:bg-darkNavBg rounded-xl overflow-hidden shadow-sm border border-green-200 dark:border-green-900 shadow-green-100 dark:shadow-none hover:-translate-y-1 hover:shadow-lg transition-all duration-300"
                 >
                     {/* Parte Superior: Descuento */}
-                    <div className={`p-6 text-center ${
-                        activo ? "bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/10" : "bg-gray-50 dark:bg-gray-800"
-                    }`}>
-                        <div className={`text-4xl font-extrabold ${activo ? "text-green-600 dark:text-green-400" : "text-gray-400"}`}>
-                            {c.descuento}%
+                    <div className="p-6 text-center bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/10">
+                        <div className="text-4xl font-extrabold text-green-600 dark:text-green-400">
+                            {c.descuento}{c.tipoDescuento === 'FIJO' ? '€' : '%'}
                         </div>
                         <span className="text-xs font-bold uppercase tracking-widest text-gray-400">Descuento</span>
                     </div>
@@ -134,48 +123,34 @@ export default function CouponsPage() {
                     {/* Parte Inferior: Detalles */}
                     <div className="p-6 flex flex-col flex-1">
                         <h3 className="font-bold text-gray-800 dark:text-white text-lg mb-2">{c.descripcion}</h3>
-                        
+
                         <div className="mt-auto pt-4 space-y-3">
                             {/* Código (Click para copiar) */}
-                            {activo ? (
-                                <button
-                                    onClick={() => handleCopy(c.codigo)}
-                                    className="w-full group bg-gray-100 dark:bg-gray-800 border border-dashed border-gray-300 dark:border-gray-600 rounded-lg py-2 flex items-center justify-center gap-2 hover:bg-green-50 dark:hover:bg-green-900/20 hover:border-green-300 transition-colors"
-                                    title="Click para copiar"
-                                >
-                                    <span className="font-mono font-bold text-gray-700 dark:text-gray-300 group-hover:text-green-700 dark:group-hover:text-green-400 text-lg tracking-wider">
-                                        {c.codigo}
-                                    </span>
-                                    <svg className="w-4 h-4 text-gray-400 group-hover:text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
-                                </button>
-                            ) : (
-                                <div className="w-full bg-gray-100 dark:bg-gray-800 rounded-lg py-2 text-center font-mono font-bold text-gray-400 line-through">
+                            <button
+                                onClick={() => handleCopy(c.codigo)}
+                                className="w-full group bg-gray-100 dark:bg-gray-800 border border-dashed border-gray-300 dark:border-gray-600 rounded-lg py-2 flex items-center justify-center gap-2 hover:bg-green-50 dark:hover:bg-green-900/20 hover:border-green-300 transition-colors"
+                                title="Click para copiar"
+                            >
+                                <span className="font-mono font-bold text-gray-700 dark:text-gray-300 group-hover:text-green-700 dark:group-hover:text-green-400 text-lg tracking-wider">
                                     {c.codigo}
-                                </div>
-                            )}
+                                </span>
+                                <svg className="w-4 h-4 text-gray-400 group-hover:text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+                            </button>
 
                             <div className="flex justify-between items-center text-xs">
                                 <span className="text-gray-400">Caducidad:</span>
-                                <span className={`font-medium ${expirado ? "text-red-500" : "text-gray-600 dark:text-gray-400"}`}>
+                                <span className="font-medium text-gray-600 dark:text-gray-400">
                                     {new Date(c.fechaExpiracion).toLocaleDateString()}
                                 </span>
                             </div>
 
-                            {/* Badges de estado */}
                             <div className="flex justify-center">
-                                {expirado ? (
-                                    <span className="bg-red-100 text-red-600 px-3 py-1 rounded-full text-xs font-bold uppercase">Caducado</span>
-                                ) : c.usado ? (
-                                    <span className="bg-yellow-100 text-yellow-700 px-3 py-1 rounded-full text-xs font-bold uppercase">Ya usado</span>
-                                ) : (
-                                    <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-bold uppercase animate-pulse">Disponible</span>
-                                )}
+                                <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-bold uppercase animate-pulse">Disponible</span>
                             </div>
                         </div>
                     </div>
                 </div>
-              );
-            })}
+            ))}
           </div>
         )}
       </main>

@@ -112,6 +112,30 @@ function formatDate(value?: string | null) {
   });
 }
 
+type ProductoBusqueda = {
+  id: number;
+  nombre: string;
+  referencia: string | null;
+  precio: number;
+  precioOferta: number | null;
+};
+
+type ProductoDetalle = {
+  id: number;
+  nombre: string;
+  precio: number;
+  precioOferta: number | null;
+  tieneVariantes: boolean;
+  variante: {
+    id: number;
+    referencia: string | null;
+    tamano: string | null;
+    color: string | null;
+    tirador: string | null;
+    precio_extra: number | null;
+  }[];
+};
+
 function emptyAddress(): Address {
   return {
     nombre: "",
@@ -242,6 +266,17 @@ export default function PedidoDetallePage({ params }: { params: Promise<{ id: st
   const [tabEstado, setTabEstado] = useState<"estado" | "documentos">("estado");
   const [dropdownEstadoAbierto, setDropdownEstadoAbierto] = useState(false);
   const dropdownEstadoRef = React.useRef<HTMLDivElement>(null);
+  const [productosEliminarIds, setProductosEliminarIds] = useState<number[]>([]);
+  const tempIdRef = React.useRef(-1);
+
+  const [pickerAbierto, setPickerAbierto] = useState(false);
+  const [pickerTargetIndex, setPickerTargetIndex] = useState<number | null>(null);
+  const [pickerQuery, setPickerQuery] = useState("");
+  const [pickerResultados, setPickerResultados] = useState<ProductoBusqueda[]>([]);
+  const [pickerBuscando, setPickerBuscando] = useState(false);
+  const [pickerProducto, setPickerProducto] = useState<ProductoDetalle | null>(null);
+  const [pickerVarianteId, setPickerVarianteId] = useState<number | "">("");
+  const [pickerCargandoDetalle, setPickerCargandoDetalle] = useState(false);
 
   useEffect(() => {
     const loadPedido = async () => {
@@ -335,6 +370,128 @@ export default function PedidoDetallePage({ params }: { params: Promise<{ id: st
     );
   };
 
+  const eliminarProducto = (index: number) => {
+    setProductos((prev) => {
+      const item = prev[index];
+      if (item && item.id > 0) {
+        setProductosEliminarIds((ids) => [...ids, item.id]);
+      }
+      return prev.filter((_, i) => i !== index);
+    });
+  };
+
+  const abrirPickerNuevo = () => {
+    setPickerTargetIndex(null);
+    setPickerQuery("");
+    setPickerResultados([]);
+    setPickerProducto(null);
+    setPickerVarianteId("");
+    setPickerAbierto(true);
+  };
+
+  const abrirPickerCambiar = (index: number) => {
+    setPickerTargetIndex(index);
+    setPickerQuery("");
+    setPickerResultados([]);
+    setPickerProducto(null);
+    setPickerVarianteId("");
+    setPickerAbierto(true);
+  };
+
+  const cerrarPicker = () => {
+    setPickerAbierto(false);
+    setPickerTargetIndex(null);
+    setPickerProducto(null);
+    setPickerVarianteId("");
+  };
+
+  const buscarProductosPicker = async (query: string) => {
+    setPickerQuery(query);
+    if (!query.trim()) {
+      setPickerResultados([]);
+      return;
+    }
+    setPickerBuscando(true);
+    try {
+      const res = await fetch(`/api/admin/productos?nombre=${encodeURIComponent(query)}&limit=8`);
+      const data = await res.json();
+      setPickerResultados(data.productos || []);
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setPickerBuscando(false);
+    }
+  };
+
+  const seleccionarProductoPicker = async (productoId: number) => {
+    setPickerCargandoDetalle(true);
+    setPickerVarianteId("");
+    try {
+      const res = await fetch(`/api/admin/productos/${productoId}`);
+      const data = await res.json();
+      setPickerProducto(data);
+      if (data.variante?.length === 1) setPickerVarianteId(data.variante[0].id);
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setPickerCargandoDetalle(false);
+    }
+  };
+
+  const varianteLabel = (v: ProductoDetalle["variante"][number]) => {
+    const partes: string[] = [];
+    if (v.tamano) partes.push(`Tamaño: ${v.tamano}`);
+    if (v.color) partes.push(`Color: ${v.color}`);
+    if (v.tirador) partes.push(`Tirador: ${v.tirador}`);
+    return partes.join(" - ") || `Variante #${v.id}`;
+  };
+
+  const confirmarPicker = () => {
+    if (!pickerProducto) return;
+    const variante = pickerProducto.variante.find((v) => v.id === pickerVarianteId) || null;
+    if (pickerProducto.variante.length > 0 && !variante) {
+      alert("Selecciona una variante");
+      return;
+    }
+    const precioBase = Number(pickerProducto.precioOferta ?? pickerProducto.precio ?? 0);
+    const precioUnitario = precioBase + Number(variante?.precio_extra ?? 0);
+    const nombre = pickerProducto.nombre;
+    const varianteInfo = variante ? varianteLabel(variante) : "";
+
+    if (pickerTargetIndex === null) {
+      const nuevo: OrderProduct = {
+        id: tempIdRef.current--,
+        productoId: pickerProducto.id,
+        varianteId: variante?.id ?? null,
+        nombre,
+        varianteInfo,
+        cantidad: 1,
+        precioUnitario,
+        subtotal: precioUnitario,
+      };
+      setProductos((prev) => [...prev, nuevo]);
+    } else {
+      setProductos((prev) =>
+        prev.map((item, i) => {
+          if (i !== pickerTargetIndex) return item;
+          const cantidad = item.cantidad || 1;
+          return {
+            ...item,
+            productoId: pickerProducto.id,
+            varianteId: variante?.id ?? null,
+            nombre,
+            varianteInfo,
+            precioUnitario,
+            subtotal: cantidad * precioUnitario,
+            producto: undefined,
+            variante: undefined,
+          };
+        })
+      );
+    }
+    cerrarPicker();
+  };
+
   const generarFactura = async () => {
     if (!pedido) return;
     setGenerandoFactura(true);
@@ -401,12 +558,16 @@ export default function PedidoDetallePage({ params }: { params: Promise<{ id: st
           facturacionProvincia: facturacion.provincia,
           facturacionPais: facturacion.pais,
           productos: productos.map((item) => ({
-            id: item.id,
+            id: item.id > 0 ? item.id : undefined,
+            productoId: item.productoId,
+            varianteId: item.varianteId,
+            nombre: item.nombre,
             cantidad: item.cantidad,
             precioUnitario: item.precioUnitario,
             subtotal: item.subtotal,
             varianteInfo: item.varianteInfo,
           })),
+          productosEliminarIds,
         }),
       });
       const data = await res.json();
@@ -415,6 +576,7 @@ export default function PedidoDetallePage({ params }: { params: Promise<{ id: st
       setEstado(data.pedido.estado || estado);
       setEstadoPago(data.pedido.estadoPago || estadoPago);
       setProductos(data.pedido.productos || productos);
+      setProductosEliminarIds([]);
       setMensajes(data.pedido.mensajes || mensajes);
       setEntrega(data.pedido.direccionEntrega || entrega);
       setFacturacion(data.pedido.direccionFacturacion || facturacion);
@@ -909,7 +1071,18 @@ export default function PedidoDetallePage({ params }: { params: Promise<{ id: st
             </Card>
 
             {/* Productos */}
-            <Card title={`Productos (${productos.length})`}>
+            <Card
+              title={`Productos (${productos.length})`}
+              action={
+                <button
+                  type="button"
+                  onClick={abrirPickerNuevo}
+                  className="rounded-lg border border-[#6BAEC9]/40 bg-[#6BAEC9]/10 px-3 py-1.5 text-xs font-bold text-[#6BAEC9] hover:bg-[#6BAEC9]/20"
+                >
+                  + Añadir producto
+                </button>
+              }
+            >
               <div className="overflow-x-auto">
                 <table className="min-w-full text-sm">
                   <thead>
@@ -918,6 +1091,7 @@ export default function PedidoDetallePage({ params }: { params: Promise<{ id: st
                       <th className="pb-2 text-right text-xs font-semibold text-gray-500">Cant.</th>
                       <th className="pb-2 text-right text-xs font-semibold text-gray-500">Precio unit.</th>
                       <th className="pb-2 text-right text-xs font-semibold text-gray-500">Total</th>
+                      <th className="pb-2" />
                     </tr>
                   </thead>
                   <tbody>
@@ -991,6 +1165,22 @@ export default function PedidoDetallePage({ params }: { params: Promise<{ id: st
                         </td>
                         <td className="py-3 text-right font-bold text-[#6BAEC9] align-top pt-4">
                           {formatMoney(producto.subtotal)} €
+                        </td>
+                        <td className="py-3 pl-3 text-right align-top pt-4 whitespace-nowrap">
+                          <button
+                            type="button"
+                            onClick={() => abrirPickerCambiar(index)}
+                            className="mr-2 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50"
+                          >
+                            Cambiar
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => eliminarProducto(index)}
+                            className="rounded-lg border border-red-200 px-2.5 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50"
+                          >
+                            Eliminar
+                          </button>
                         </td>
                       </tr>
                     ))}
@@ -1181,6 +1371,108 @@ export default function PedidoDetallePage({ params }: { params: Promise<{ id: st
           </div>
         </div>
       </div>
+
+      {pickerAbierto && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 px-4" onClick={cerrarPicker}>
+          <div
+            className="w-full max-w-lg rounded-2xl bg-white shadow-xl max-h-[85vh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4">
+              <h3 className="text-sm font-bold text-gray-800">
+                {pickerTargetIndex === null ? "Añadir producto" : "Cambiar producto"}
+              </h3>
+              <button type="button" onClick={cerrarPicker} className="text-gray-400 hover:text-gray-600">✕</button>
+            </div>
+
+            <div className="p-5 flex-1 overflow-y-auto">
+              {!pickerProducto ? (
+                <>
+                  <input
+                    type="text"
+                    autoFocus
+                    value={pickerQuery}
+                    onChange={(e) => buscarProductosPicker(e.target.value)}
+                    placeholder="Buscar producto por nombre..."
+                    className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#6BAEC9]"
+                  />
+                  <div className="mt-3 space-y-1.5">
+                    {pickerBuscando && <p className="text-sm text-gray-400">Buscando...</p>}
+                    {!pickerBuscando && pickerQuery.trim() && pickerResultados.length === 0 && (
+                      <p className="text-sm text-gray-400">Sin resultados.</p>
+                    )}
+                    {pickerResultados.map((p) => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => seleccionarProductoPicker(p.id)}
+                        className="w-full rounded-lg border border-gray-100 px-3 py-2.5 text-left hover:bg-gray-50 flex items-center justify-between gap-3"
+                      >
+                        <div>
+                          <p className="text-sm font-semibold text-gray-800">{p.nombre}</p>
+                          {p.referencia && <p className="text-xs text-gray-400">Ref. {p.referencia}</p>}
+                        </div>
+                        <span className="text-sm font-bold text-[#6BAEC9] whitespace-nowrap">
+                          {formatMoney(p.precioOferta ?? p.precio)} €
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </>
+              ) : pickerCargandoDetalle ? (
+                <p className="text-sm text-gray-400">Cargando...</p>
+              ) : (
+                <div className="space-y-4">
+                  <div className="rounded-lg bg-gray-50 border border-gray-100 px-3 py-2.5">
+                    <p className="text-sm font-semibold text-gray-800">{pickerProducto.nombre}</p>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      {formatMoney(pickerProducto.precioOferta ?? pickerProducto.precio)} €
+                    </p>
+                  </div>
+
+                  {pickerProducto.variante.length > 0 ? (
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-500 mb-1">Variante</label>
+                      <select
+                        value={pickerVarianteId}
+                        onChange={(e) => setPickerVarianteId(Number(e.target.value))}
+                        className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#6BAEC9]"
+                      >
+                        <option value="" disabled>Selecciona una variante...</option>
+                        {pickerProducto.variante.map((v) => (
+                          <option key={v.id} value={v.id}>
+                            {varianteLabel(v)}
+                            {v.precio_extra ? ` (+${formatMoney(v.precio_extra)} €)` : ""}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-400">Este producto no tiene variantes.</p>
+                  )}
+
+                  <div className="flex justify-between gap-3 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => { setPickerProducto(null); setPickerVarianteId(""); }}
+                      className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-50"
+                    >
+                      ← Volver a buscar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={confirmarPicker}
+                      className="rounded-lg bg-[#6BAEC9] px-4 py-2 text-sm font-semibold text-white hover:bg-[#5FA0B3]"
+                    >
+                      Confirmar
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

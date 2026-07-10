@@ -64,7 +64,10 @@ export default function CuponesPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
+    const token = localStorage.getItem("adminToken") || "";
+    const authHeaders = { Authorization: `Bearer ${token}` };
+
     const datosParaEnviar = {
       ...formData,
       valor_descuento: Number(formData.valor_descuento) || 0,
@@ -78,11 +81,12 @@ export default function CuponesPage() {
         await axios({
           method: 'PUT',
           url: '/api/cupones',
+          headers: authHeaders,
           data: { id: editingId, ...datosParaEnviar }
         });
         setEditingId(null);
       } else {
-        await axios.post("/api/cupones", datosParaEnviar);
+        await axios.post("/api/cupones", datosParaEnviar, { headers: authHeaders });
       }
 
       setFormData({
@@ -118,10 +122,12 @@ export default function CuponesPage() {
 
   const handleDelete = async (id: number) => {
     if (!confirm(`¿Eliminar cupón?`)) return;
+    const token = localStorage.getItem("adminToken") || "";
     try {
       await axios({
         method: 'DELETE',
         url: '/api/cupones',
+        headers: { Authorization: `Bearer ${token}` },
         data: { id }
       });
       fetchCupones();
