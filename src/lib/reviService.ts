@@ -1,5 +1,9 @@
 import { prisma } from './prisma';
 
+// Pedidos anteriores a esta fecha proceden del archivo histórico de Prestashop
+// y no deben contarse ni sincronizarse como pendientes de invitación en Revi.
+export const REVI_SYNC_CUTOFF_DATE = new Date('2026-05-27T00:00:00Z');
+
 interface ReviOrderProduct {
   product_id: string;
   product_name: string;

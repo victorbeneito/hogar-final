@@ -226,6 +226,9 @@ export default function ReviModulePage() {
       const data = await res.json();
       if (data.ok) {
         toast.success(`✅ Sincronizados ${data.enviados} pedidos`);
+        if (data.errores?.length) {
+          toast.error(`⚠️ ${data.errores.length} pedido(s) fallaron: ${data.errores[0]}${data.errores.length > 1 ? ` (+${data.errores.length - 1} más)` : ""}`);
+        }
         await loadSyncStats();
       } else {
         toast.error(data.error || "Error sincronizando");

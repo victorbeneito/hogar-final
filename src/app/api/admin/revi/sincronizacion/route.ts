@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { sendReviOrder } from '@/lib/reviService';
+import { sendReviOrder, REVI_SYNC_CUTOFF_DATE } from '@/lib/reviService';
 import { canEdit } from '@/lib/adminAuth';
 
 export async function GET(req: NextRequest) {
   try {
     const pedidosPendientes = await prisma.pedido.count({
-      where: { estado: 'CUESTIONARIO' }
+      where: { estado: 'CUESTIONARIO', fechaPedido: { gte: REVI_SYNC_CUTOFF_DATE } }
     });
 
     return NextResponse.json({
@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
   }
   try {
     const pedidos = await prisma.pedido.findMany({
-      where: { estado: 'CUESTIONARIO' },
+      where: { estado: 'CUESTIONARIO', fechaPedido: { gte: REVI_SYNC_CUTOFF_DATE } },
       include: {
         cliente: true,
         pedidoproducto: {
@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
     }
 
     const pendientes = await prisma.pedido.count({
-      where: { estado: 'CUESTIONARIO' }
+      where: { estado: 'CUESTIONARIO', fechaPedido: { gte: REVI_SYNC_CUTOFF_DATE } }
     });
 
     return NextResponse.json({

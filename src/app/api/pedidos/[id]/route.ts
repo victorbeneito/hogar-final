@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { sendTemplateEmail } from "@/lib/emailService";
-import { sendReviOrder } from "@/lib/reviService";
+import { sendReviOrder, REVI_SYNC_CUTOFF_DATE } from "@/lib/reviService";
 import { createFactura } from "@/lib/invoiceGenerator";
 import { canEdit } from "@/lib/adminAuth";
 
@@ -552,7 +552,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
           templateSlug: "order-cancelled",
           variables: { nombre, numeroPedido, motivo },
         }).catch((err) => console.error("❌ Email pedido cancelado:", err?.message));
-      } else if (body.estado === "CUESTIONARIO") {
+      } else if (body.estado === "CUESTIONARIO" && pedidoAnterior.fechaPedido >= REVI_SYNC_CUTOFF_DATE) {
         sendReviOrder(pedidoCompleto).catch((err) =>
           console.error("[REVI] Error enviando pedido a REVI:", err?.message)
         );
