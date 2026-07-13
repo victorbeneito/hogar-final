@@ -6,7 +6,7 @@ import { canEdit } from '@/lib/adminAuth';
 export async function GET(req: NextRequest) {
   try {
     const pedidosPendientes = await prisma.pedido.count({
-      where: { estado: 'CUESTIONARIO', fechaPedido: { gte: REVI_SYNC_CUTOFF_DATE } }
+      where: { estado: 'CUESTIONARIO', fechaPedido: { gte: REVI_SYNC_CUTOFF_DATE }, reviInvitadoAt: null }
     });
 
     return NextResponse.json({
@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
   }
   try {
     const pedidos = await prisma.pedido.findMany({
-      where: { estado: 'CUESTIONARIO', fechaPedido: { gte: REVI_SYNC_CUTOFF_DATE } },
+      where: { estado: 'CUESTIONARIO', fechaPedido: { gte: REVI_SYNC_CUTOFF_DATE }, reviInvitadoAt: null },
       include: {
         cliente: true,
         pedidoproducto: {
@@ -45,6 +45,10 @@ export async function POST(req: NextRequest) {
     for (const pedido of pedidos) {
       try {
         await sendReviOrder(pedido as any);
+        await prisma.pedido.update({
+          where: { id: pedido.id },
+          data: { reviInvitadoAt: new Date() }
+        });
         enviados++;
       } catch (err: any) {
         errores.push(`Pedido ${pedido.numeroPedido}: ${err?.message || 'Error desconocido'}`);
@@ -52,7 +56,7 @@ export async function POST(req: NextRequest) {
     }
 
     const pendientes = await prisma.pedido.count({
-      where: { estado: 'CUESTIONARIO', fechaPedido: { gte: REVI_SYNC_CUTOFF_DATE } }
+      where: { estado: 'CUESTIONARIO', fechaPedido: { gte: REVI_SYNC_CUTOFF_DATE }, reviInvitadoAt: null }
     });
 
     return NextResponse.json({

@@ -310,6 +310,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
             numeroSeguimiento: true,
             trackingUrl: true,
             totalFinal: true,
+            fechaPedido: true,
           },
         })
       : null;
@@ -553,9 +554,11 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
           variables: { nombre, numeroPedido, motivo },
         }).catch((err) => console.error("❌ Email pedido cancelado:", err?.message));
       } else if (body.estado === "CUESTIONARIO" && pedidoAnterior.fechaPedido >= REVI_SYNC_CUTOFF_DATE) {
-        sendReviOrder(pedidoCompleto).catch((err) =>
-          console.error("[REVI] Error enviando pedido a REVI:", err?.message)
-        );
+        sendReviOrder(pedidoCompleto)
+          .then(() => prisma.pedido.update({ where: { id }, data: { reviInvitadoAt: new Date() } }))
+          .catch((err) =>
+            console.error("[REVI] Error enviando pedido a REVI:", err?.message)
+          );
       }
 
       // Generar factura si el nuevo estado tiene permitirFacturaPDF = true

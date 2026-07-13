@@ -86,8 +86,7 @@ export async function sendReviOrder(pedidoData: any): Promise<void> {
     const payload = await buildReviPayload(pedidoData);
 
     if (payload.products.length === 0) {
-      console.log('[REVI] No products with Prestashop mapping found for order', payload.order_id);
-      return;
+      throw new Error('Sin productos mapeados a Prestashop (revisar pestaña Mapeos)');
     }
 
     const response = await fetch('https://api.revi.io/v1/orders', {
