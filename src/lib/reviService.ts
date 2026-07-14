@@ -89,15 +89,28 @@ export async function sendReviOrder(pedidoData: any): Promise<void> {
       throw new Error('Sin productos mapeados a Prestashop (revisar pestaña Mapeos)');
     }
 
-    const response = await fetch('https://api.revi.io/v1/orders', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`,
-        'X-Shop-ID': shopId
-      },
-      body: JSON.stringify(payload)
-    });
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);
+    let response: Response;
+    try {
+      response = await fetch('https://api.revi.io/v1/orders', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`,
+          'X-Shop-ID': shopId
+        },
+        body: JSON.stringify(payload),
+        signal: controller.signal
+      });
+    } catch (fetchError: any) {
+      if (fetchError?.name === 'AbortError') {
+        throw new Error('No se pudo conectar con la API de REVI (timeout tras 15s)');
+      }
+      throw new Error(`No se pudo conectar con la API de REVI: ${fetchError?.message || fetchError}`);
+    } finally {
+      clearTimeout(timeout);
+    }
 
     if (!response.ok) {
       const errorText = await response.text();
