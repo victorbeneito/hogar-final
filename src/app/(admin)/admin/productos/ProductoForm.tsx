@@ -90,10 +90,11 @@ export default function ProductoForm({ producto, categorias, marcas, reglasImpue
   try {
     const url    = producto?.id ? `/api/admin/productos/${producto.id}` : "/api/admin/productos";
     const method = producto?.id ? "PUT" : "POST";
+    const token  = localStorage.getItem("adminToken") || "";
 
     const res = await fetch(url, {
       method,
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
       body: JSON.stringify(formData),
     });
 

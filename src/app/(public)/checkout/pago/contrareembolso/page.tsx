@@ -62,11 +62,11 @@ export default function ContrareembolsoPage() {
     if (!datosPedido) return;
     setLoading(true);
     try {
-      // 1. Crear el pedido
+      // 1. Crear el pedido (incluye el recargo de gestión ya calculado y mostrado al cliente)
       const response = await fetch("/api/pedidos", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(datosPedido),
+        body: JSON.stringify({ ...datosPedido, pagoRecargo: recargoFijo + recargoVariable }),
       });
 
       const data = await response.json();

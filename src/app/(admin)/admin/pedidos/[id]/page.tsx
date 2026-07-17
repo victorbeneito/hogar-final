@@ -518,9 +518,10 @@ export default function PedidoDetallePage({ params }: { params: Promise<{ id: st
     if (!pedido) return;
     setSaving(true);
     try {
+      const token = localStorage.getItem("adminToken") || "";
       const res = await fetch(`/api/pedidos/${id}`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({
           estado,
           estadoPago,
@@ -633,9 +634,10 @@ export default function PedidoDetallePage({ params }: { params: Promise<{ id: st
         };
       }
 
+      const token = localStorage.getItem("adminToken") || "";
       const res = await fetch(`/api/pedidos/${id}`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify(body),
       });
       const data = await res.json();

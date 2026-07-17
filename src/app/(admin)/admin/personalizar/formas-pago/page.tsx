@@ -74,17 +74,18 @@ export default function FormasPagoPage() {
   async function saveAll() {
     setSaving(true);
     try {
+      const token = localStorage.getItem("adminToken") || "";
       const [methodsRes, configRes] = await Promise.all([
         fetch("/api/formas-pago", {
           method: "POST",
           credentials: "include",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
           body: JSON.stringify({ formasPago: methods }),
         }),
         fetch("/api/formas-pago/configuracion", {
           method: "POST",
           credentials: "include",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
           body: JSON.stringify({ config }),
         }),
       ]);
