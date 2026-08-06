@@ -3,6 +3,24 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import ProductDetail from "./ProductDetail";
 import { prisma } from "@/lib/prisma";
+import {
+  createDefaultTransportConfig,
+  getFreeShippingThreshold,
+  normalizeShippingConfig,
+} from "@/lib/transportes";
+
+const TRANSPORTES_CONFIG_KEY = "transportes_configuracion";
+
+// Umbral de envío gratis configurado en /admin/transportes (cacheado por request).
+const getEnvioGratisDesde = cache(async (): Promise<number | null> => {
+  try {
+    const fila = await prisma.configuracion.findUnique({ where: { clave: TRANSPORTES_CONFIG_KEY } });
+    const raw = fila?.valor ? JSON.parse(fila.valor) : null;
+    return getFreeShippingThreshold(normalizeShippingConfig(raw ?? createDefaultTransportConfig()));
+  } catch {
+    return null;
+  }
+});
 
 type PageProps = {
   params: Promise<{ id: string }>;
@@ -112,7 +130,7 @@ export default async function ProductoPage({ params }: PageProps) {
   ];
 
   // Both secondary queries in parallel
-  const [mapeo, avLookup] = await Promise.all([
+  const [mapeo, avLookup, envioGratisDesde] = await Promise.all([
     productoRaw.referencia
       ? prisma.mapeo_producto_ps.findFirst({ where: { referencia: productoRaw.referencia } })
       : Promise.resolve(null),
@@ -122,6 +140,7 @@ export default async function ProductoPage({ params }: PageProps) {
           select: { id: true, valor: true, imagen: true, colorHex: true, orden: true },
         })
       : Promise.resolve([]),
+    getEnvioGratisDesde(),
   ]);
 
   const prestashopProductId = mapeo?.idPrestashop || null;
@@ -191,7 +210,7 @@ export default async function ProductoPage({ params }: PageProps) {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
-      <ProductDetail producto={productoAdaptado} />
+      <ProductDetail producto={productoAdaptado} envioGratisDesde={envioGratisDesde} />
     </>
   );
 }

@@ -323,6 +323,20 @@ export function shouldApplyFreeShipping(mode: ShippingMode, subtotal: number, am
   return mode === "above" ? subtotal >= amount : subtotal <= amount;
 }
 
+/**
+ * Importe mínimo a partir del cual algún transportista activo regala los gastos
+ * de envío. Devuelve null si ningún transportista tiene envío gratis por importe.
+ * Se usa en la ficha de producto para avisar al cliente antes de comprar.
+ */
+export function getFreeShippingThreshold(config: ShippingConfig): number | null {
+  const importes = config.carriers
+    .filter((carrier) => carrier.active && carrier.freeShippingEnabled && carrier.freeShippingMode === "above")
+    .map((carrier) => Number(carrier.freeShippingAmount))
+    .filter((importe) => Number.isFinite(importe) && importe > 0);
+
+  return importes.length > 0 ? Math.min(...importes) : null;
+}
+
 function getCarrierOption(
   carrier: ShippingCarrierConfig,
   zoneId: ShippingZoneId,

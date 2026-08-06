@@ -98,3 +98,29 @@ a {
   width: fit-content;
 }
 
+/* ✨ Etiqueta "Envío gratuito" de la ficha de producto: brillo suave que cruza
+   la etiqueta cada pocos segundos para llamar la atención sin ser estridente. */
+.envio-gratis-badge::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    100deg,
+    transparent 35%,
+    rgba(255, 255, 255, 0.55) 50%,
+    transparent 65%
+  );
+  transform: translateX(-100%);
+  animation: envio-gratis-brillo 4.5s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes envio-gratis-brillo {
+  0%, 55% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .envio-gratis-badge::after { animation: none; opacity: 0; }
+}
+

@@ -60,7 +60,14 @@ interface Producto {
   disponiblePedidos?: boolean;
 }
 
-export default function ProductDetail({ producto }: { producto: Producto }) {
+export default function ProductDetail({
+  producto,
+  envioGratisDesde = null,
+}: {
+  producto: Producto;
+  /** Importe a partir del cual el envío es gratis (configurable en /admin/transportes). */
+  envioGratisDesde?: number | null;
+}) {
   // PrestaShop stores thumbnails with suffixes like -home_default, -large_default, etc.
   // Strip them to get the full resolution original image.
   const fullResUrl = (url: string) =>
@@ -197,6 +204,10 @@ export default function ProductDetail({ producto }: { producto: Producto }) {
     precioExtra: varianteSeleccionada?.precio_extra ?? 0,
   });
   const precioFinalProducto = precioVariante.precioFinal;
+
+  // Envío gratis: el precio de este producto ya alcanza por sí solo el mínimo del pedido
+  const tieneEnvioGratis =
+    envioGratisDesde !== null && envioGratisDesde > 0 && precioFinalProducto >= envioGratisDesde;
 
   // Función para detectar si una opción (color, tirador, tamaño) tiene stock
   const opcionTieneStock = (tipo: 'color' | 'tirador' | 'tamano', valor: string): boolean => {
@@ -548,6 +559,41 @@ export default function ProductDetail({ producto }: { producto: Producto }) {
                 data-lang="es"
                 style={{ minHeight: '50px' }}
               />
+            </div>
+          )}
+
+          {/* Etiqueta ENVÍO GRATUITO */}
+          {tieneEnvioGratis && (
+            <div className="envio-gratis-badge relative overflow-hidden rounded-base border border-primary/40 bg-gradient-to-r from-primary/15 via-primaryHover/25 to-terciary/25 px-4 py-3 shadow-base dark:border-primary/50 dark:from-primary/25 dark:via-primary/10 dark:to-transparent">
+              <div className="relative z-10 flex items-center gap-3">
+                <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-primary text-white shadow-sm">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="h-5 w-5"
+                    aria-hidden="true"
+                  >
+                    <path d="M14 18V6a2 2 0 0 0-2-2H3a1 1 0 0 0-1 1v11a1 1 0 0 0 1 1h2" />
+                    <path d="M14 9h4l3 3v5a1 1 0 0 1-1 1h-1" />
+                    <circle cx="7.5" cy="18" r="2" />
+                    <circle cx="17.5" cy="18" r="2" />
+                    <path d="M9.5 18h6" />
+                  </svg>
+                </span>
+                <div className="min-w-0">
+                  <p className="text-base font-bold uppercase tracking-wide text-primary dark:text-white">
+                    Envío gratuito
+                  </p>
+                  <p className="text-xs text-gray-600 dark:text-gray-300">
+                    Este producto ya supera los {envioGratisDesde!.toFixed(2).replace(".", ",")} € — no pagas gastos de envío
+                  </p>
+                </div>
+              </div>
             </div>
           )}
 
