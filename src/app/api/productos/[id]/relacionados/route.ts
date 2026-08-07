@@ -8,17 +8,19 @@ type RouteParams = {
 /**
  * Productos relacionados.
  *
- * La idea: si el cliente está viendo un estor digital INFANTIL, lo que quiere ver
- * son otros diseños infantiles, no estores de cocina o zen. Por eso mandan dos señales:
+ * En esta tienda la familia de un producto está en el NOMBRE, no en la categoría:
+ * los 556 estores digitales (zen, cocina, infantil, ciudades...) cuelgan todos de
+ * "Estores Digitales". Lo único que distingue a un zen es la palabra "Zen" del título
+ * "Happystor HSCZ9324 Estor Enrollable Estampado Digital Zen Tejido Traslúcido".
  *
- *  1. La categoría MÁS ESPECÍFICA del producto (la más profunda del árbol) pesa mucho
- *     más que las categorías generales que comparten todos los productos de la familia.
- *  2. Las palabras del nombre se pesan por lo raras que son en el catálogo: "estor" o
- *     "digital" están en cientos de productos y casi no informan; "infantil" o el nombre
- *     de la colección sí distinguen, así que valen mucho más.
+ * Por eso el parecido se calcula sobre el nombre, pesando cada palabra por lo poco
+ * frecuente que es dentro de su categoría (la idea del TF-IDF):
  *
- * Con esto funciona tanto si "infantiles" es una subcategoría propia como si la temática
- * solo aparece en el nombre del producto.
+ *   estor / enrollable / estampado / digital / traslucido → están en los 556 → peso 0
+ *   zen                                                   → está en 58       → peso alto
+ *
+ * Así solo puntúan las palabras que de verdad definen la temática, y después se corta
+ * por umbral para no mezclar familias: si estás viendo un zen, solo salen zen.
  */
 
 // Palabras vacías / genéricas que no aportan nada al parecido entre nombres.
@@ -26,10 +28,15 @@ const STOPWORDS = new Set([
   "de", "del", "la", "el", "los", "las", "un", "una", "unos", "unas", "con", "sin",
   "para", "por", "que", "mas", "muy", "the", "and", "cama", "casa", "hogar", "color",
   "colores", "modelo", "modelos", "talla", "tallas", "ref", "referencia", "medida",
-  "medidas", "tejido", "calidad", "nuevo", "nueva", "pack", "set", "cms", "grs",
+  "medidas", "calidad", "nuevo", "nueva", "pack", "cms", "grs",
 ]);
 
-const MAX_TOKENS = 4;
+/** Tope del corpus que se analiza en memoria (el catálogo ronda los 700 productos). */
+const MAX_CORPUS = 2000;
+/** Un candidato entra si alcanza este % de la puntuación del mejor. */
+const UMBRAL_RELATIVO = 0.55;
+/** Si el corte por umbral deja menos de esto, se completa con los siguientes mejores. */
+const MIN_AFINES = 4;
 
 const normalizar = (texto: string) =>
   texto
@@ -37,42 +44,32 @@ const normalizar = (texto: string) =>
     .replace(/[̀-ͯ]/g, "")
     .toLowerCase();
 
-type Token = { limpio: string; original: string; peso: number };
-
 /**
- * Extrae las palabras significativas del nombre.
- * "Funda Nórdica Estampada 150x270" → [{ limpio: "funda" }, { limpio: "nordica", original: "nórdica" }, ...]
- * Se guardan las dos versiones para buscar también con acentos (por si la colación de MySQL los distingue).
+ * Palabras significativas del nombre, ya normalizadas.
+ * "Happystor HSCZ9324 Estor Enrollable Estampado Digital Zen Tejido Traslúcido"
+ *   → ["estor", "enrollable", "estampado", "digital", "zen", "tejido", "traslucido"]
+ * Se quitan la marca y las referencias porque no relacionan nada (HSCZ9324 es único).
  */
-function extraerTokens(nombre: string): { limpio: string; original: string }[] {
-  const palabras = nombre.split(/[^0-9A-Za-zÀ-ÿñÑ]+/).filter(Boolean);
-  const tokens: { limpio: string; original: string }[] = [];
+function extraerTokens(nombre: string, marca?: string | null): string[] {
+  const palabrasMarca = new Set(marca ? normalizar(marca).split(/\s+/).filter(Boolean) : []);
+  const tokens: string[] = [];
+  const vistos = new Set<string>();
 
-  for (const palabra of palabras) {
+  for (const palabra of nombre.split(/[^0-9A-Za-zÀ-ÿñÑ]+/).filter(Boolean)) {
     const limpio = normalizar(palabra);
-    if (limpio.length < 4) continue;
+    if (limpio.length < 3) continue; // "Zen" tiene 3 letras: el mínimo no puede ser mayor
     if (STOPWORDS.has(limpio)) continue;
-    if (/^\d+$/.test(limpio)) continue; // números sueltos
-    if (/^\d+x\d+/.test(limpio)) continue; // medidas tipo 150x270
-    if (tokens.some((t) => t.limpio === limpio)) continue;
-    tokens.push({ limpio, original: palabra.toLowerCase() });
-    if (tokens.length === MAX_TOKENS) break;
+    if (/\d/.test(limpio)) continue; // referencias (HSCZ9324), medidas (150x270), hilos (144)
+    if (palabrasMarca.has(limpio)) continue; // la marca está en todos los productos
+    if (vistos.has(limpio)) continue;
+    vistos.add(limpio);
+    tokens.push(limpio);
   }
 
   return tokens;
 }
 
-/**
- * Peso de una palabra según lo poco frecuente que sea en el catálogo (idea del IDF).
- * "estor" (en 800 de 3000 productos) → ~17 puntos; "infantil" (en 30) → ~40 puntos.
- */
-function pesoToken(apariciones: number, totalProductos: number): number {
-  if (totalProductos < 2) return 30;
-  const rareza = Math.log(totalProductos / Math.max(apariciones, 1)) / Math.log(totalProductos);
-  return Math.round(Math.min(60, Math.max(8, 8 + 55 * rareza)));
-}
-
-// Campos que necesita la tarjeta del carrusel.
+// Campos que necesita la tarjeta del carrusel (solo se piden para los finalistas).
 const SELECT_TARJETA = {
   id: true,
   nombre: true,
@@ -81,8 +78,6 @@ const SELECT_TARJETA = {
   precioOferta: true,
   stock: true,
   destacado: true,
-  enOferta: true,
-  marcaId: true,
   reglaimpuesto: { select: { porcentaje: true } },
   mapeoProductoPs: { select: { idPrestashop: true }, take: 1 },
   productoimagen: {
@@ -91,12 +86,11 @@ const SELECT_TARJETA = {
     take: 1,
   },
   productocategoria: {
-    select: { categoriaId: true, esPrincipal: true, categoria: { select: { id: true, nombre: true } } },
+    select: { categoria: { select: { id: true, nombre: true } } },
+    take: 1,
   },
   marca: { select: { id: true, nombre: true } },
 } satisfies Prisma.productoSelect;
-
-type Candidato = Prisma.productoGetPayload<{ select: typeof SELECT_TARJETA }>;
 
 export async function GET(req: NextRequest, { params }: RouteParams) {
   try {
@@ -114,7 +108,8 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
         id: true,
         nombre: true,
         marcaId: true,
-        productocategoria: { select: { categoriaId: true, esPrincipal: true } },
+        marca: { select: { nombre: true } },
+        productocategoria: { select: { categoriaId: true } },
       },
     });
 
@@ -122,191 +117,112 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ ok: false, error: "Producto no encontrado" }, { status: 404 });
     }
 
-    const categoriaIds = base.productocategoria.map((pc) => pc.categoriaId);
-    const tokensBase = extraerTokens(base.nombre);
+    const categoriaIds = [...new Set(base.productocategoria.map((pc) => pc.categoriaId))];
+    const tokens = extraerTokens(base.nombre, base.marca?.nombre);
 
-    // Árbol de categorías + frecuencia de cada palabra en el catálogo
-    const [arbol, totalActivos, apariciones] = await Promise.all([
-      prisma.categoria.findMany({ select: { id: true, parentId: true } }),
-      prisma.producto.count({ where: { activo: true } }),
-      Promise.all(
-        tokensBase.map((token) =>
-          prisma.producto.count({ where: { activo: true, nombre: { contains: token.limpio } } })
+    // Si el producto está en varias categorías nos quedamos con la más específica (la que
+    // menos productos tiene): evita que un cajón de sastre tipo "Ofertas" ensucie el corpus.
+    let categoriaObjetivoId: number | null = null;
+    if (categoriaIds.length === 1) {
+      categoriaObjetivoId = categoriaIds[0];
+    } else if (categoriaIds.length > 1) {
+      const conteos = await Promise.all(
+        categoriaIds.map((categoriaId) =>
+          prisma.producto.count({
+            where: { activo: true, productocategoria: { some: { categoriaId } } },
+          })
         )
-      ),
-    ]);
-
-    const tokens: Token[] = tokensBase.map((token, i) => ({
-      ...token,
-      peso: pesoToken(apariciones[i] ?? 0, totalActivos),
-    }));
-
-    // Profundidad de cada categoría en el árbol (raíz = 0). Cuanto más profunda, más específica.
-    const padrePorId = new Map(arbol.map((c) => [c.id, c.parentId]));
-    const profundidadCache = new Map<number, number>();
-    const profundidad = (categoriaId: number): number => {
-      const memo = profundidadCache.get(categoriaId);
-      if (memo !== undefined) return memo;
-
-      let nivel = 0;
-      let actual: number | null | undefined = padrePorId.get(categoriaId);
-      const vistos = new Set<number>([categoriaId]);
-      while (actual != null && !vistos.has(actual) && nivel < 10) {
-        vistos.add(actual);
-        nivel += 1;
-        actual = padrePorId.get(actual);
-      }
-
-      profundidadCache.set(categoriaId, nivel);
-      return nivel;
-    };
-
-    // Categoría objetivo: la más específica del producto ("Estores Digitales Infantiles"
-    // en lugar de "Estores" o "Estores Digitales").
-    const categoriaObjetivoId = categoriaIds.length
-      ? [...categoriaIds].sort((a, b) => profundidad(b) - profundidad(a))[0]
-      : null;
-
-    // Palabras más distintivas del nombre ("dinosaurios", "infantil"... antes que "estor" o "digital").
-    // Se consultan por separado para que ninguna de las dos se quede fuera de los candidatos.
-    const tokensClave = [...tokens].sort((a, b) => b.peso - a.peso).slice(0, 2);
-
-    const baseWhere: Prisma.productoWhereInput = {
-      id: { not: base.id },
-      activo: true,
-    };
-
-    const orden: Prisma.productoOrderByWithRelationInput[] = [
-      { destacado: "desc" },
-      { enOferta: "desc" },
-      { id: "desc" },
-    ];
-
-    // Buscar por nombre con y sin acentos (por si la colación distingue)
-    const contieneToken = (token: Token): Prisma.productoWhereInput[] =>
-      token.limpio === token.original
-        ? [{ nombre: { contains: token.limpio } }]
-        : [{ nombre: { contains: token.limpio } }, { nombre: { contains: token.original } }];
-
-    const [porCategoriaObjetivo, porTokensClave, porCategorias, porNombre, destacados] = await Promise.all([
-      // 1. Misma subcategoría exacta: la fuente principal de recomendaciones
-      categoriaObjetivoId != null
-        ? prisma.producto.findMany({
-            where: { ...baseWhere, productocategoria: { some: { categoriaId: categoriaObjetivoId } } },
-            select: SELECT_TARJETA,
-            orderBy: orden,
-            take: 40,
-          })
-        : Promise.resolve([] as Candidato[]),
-
-      // 2. Misma temática dentro de la familia ("infantil", "dinosaurios"... + alguna categoría
-      //    del producto). Cubre el caso de que la temática solo esté en el nombre y no en una
-      //    subcategoría: sin esta consulta, en una categoría con cientos de productos los
-      //    infantiles podrían no llegar ni a entrar en la lista de candidatos.
-      categoriaIds.length
-        ? Promise.all(
-            tokensClave.map((token) =>
-              prisma.producto.findMany({
-                where: {
-                  ...baseWhere,
-                  OR: contieneToken(token),
-                  productocategoria: { some: { categoriaId: { in: categoriaIds } } },
-                },
-                select: SELECT_TARJETA,
-                orderBy: orden,
-                take: 20,
-              })
-            )
-          ).then((listas) => listas.flat())
-        : Promise.resolve([] as Candidato[]),
-
-      // 3. Resto de categorías del producto (familia amplia): relleno
-      categoriaIds.length
-        ? prisma.producto.findMany({
-            where: { ...baseWhere, productocategoria: { some: { categoriaId: { in: categoriaIds } } } },
-            select: SELECT_TARJETA,
-            orderBy: orden,
-            take: 40,
-          })
-        : Promise.resolve([] as Candidato[]),
-
-      // 4. Nombre parecido en cualquier categoría (misma colección o diseño)
-      tokens.length
-        ? prisma.producto.findMany({
-            where: { ...baseWhere, OR: tokens.flatMap(contieneToken) },
-            select: SELECT_TARJETA,
-            orderBy: orden,
-            take: 30,
-          })
-        : Promise.resolve([] as Candidato[]),
-
-      // 5. Destacados: último recurso para no dejar el carrusel vacío
-      prisma.producto.findMany({
-        where: { ...baseWhere, destacado: true },
-        select: SELECT_TARJETA,
-        orderBy: orden,
-        take: limite,
-      }),
-    ]);
-
-    // Unificamos candidatos (sin duplicados) y puntuamos el parecido
-    const candidatos = new Map<number, Candidato>();
-    for (const p of [...porCategoriaObjetivo, ...porTokensClave, ...porCategorias, ...porNombre, ...destacados]) {
-      if (!candidatos.has(p.id)) candidatos.set(p.id, p);
+      );
+      const indiceMenor = conteos.reduce((mejor, n, i) => (n < conteos[mejor] ? i : mejor), 0);
+      categoriaObjetivoId = categoriaIds[indiceMenor];
     }
 
-    const puntuar = (p: Candidato) => {
-      let puntos = 0;
+    // Corpus a analizar: los productos de esa categoría, solo con campos ligeros
+    const corpus = await prisma.producto.findMany({
+      where: {
+        id: { not: base.id },
+        activo: true,
+        ...(categoriaObjetivoId != null
+          ? { productocategoria: { some: { categoriaId: categoriaObjetivoId } } }
+          : {}),
+      },
+      select: { id: true, nombre: true, destacado: true, enOferta: true, marcaId: true, stock: true },
+      orderBy: { id: "desc" },
+      take: MAX_CORPUS,
+    });
 
-      // Categorías: la coincidencia más específica manda
-      const compartidas = p.productocategoria
-        .map((pc) => pc.categoriaId)
-        .filter((catId) => categoriaIds.includes(catId));
+    if (corpus.length === 0) {
+      return NextResponse.json({ ok: true, productos: [], total: 0 }, { status: 200 });
+    }
 
-      if (compartidas.length) {
-        const nivelMasEspecifico = Math.max(...compartidas.map(profundidad));
-        puntos += 20 + 22 * nivelMasEspecifico;
-        puntos += (compartidas.length - 1) * 8;
-        // Bonus fuerte por estar exactamente en la subcategoría del producto que se está viendo
-        if (categoriaObjetivoId != null && compartidas.includes(categoriaObjetivoId)) puntos += 45;
-      }
+    const candidatos = corpus.map((p) => ({ ...p, normalizado: normalizar(p.nombre) }));
 
-      // Nombre: cada palabra vale según lo distintiva que sea
-      const nombreCandidato = normalizar(p.nombre);
-      for (const token of tokens) {
-        if (nombreCandidato.includes(token.limpio)) puntos += token.peso;
-      }
+    // Peso de cada palabra: cuantos menos productos la lleven, más define la familia.
+    // "estor" está en los 555 → peso 0; "zen" está en 58 → peso 2,24.
+    const pesos = tokens.map((token) => {
+      const apariciones = candidatos.reduce((n, p) => n + (p.normalizado.includes(token) ? 1 : 0), 0);
+      return { token, peso: Math.max(0, Math.log(candidatos.length / (1 + apariciones))) };
+    });
 
-      if (base.marcaId && p.marcaId === base.marcaId) puntos += 12;
+    const puntuar = (p: (typeof candidatos)[number]) => {
+      // x100 para trabajar con enteros cómodos; los bonus de abajo solo desempatan
+      let puntos = Math.round(
+        pesos.reduce((total, w) => total + (p.normalizado.includes(w.token) ? w.peso : 0), 0) * 100
+      );
+
+      if (base.marcaId && p.marcaId === base.marcaId) puntos += 12; // misma marca primero
       if (p.destacado) puntos += 6;
-      if (p.enOferta || (p.precioOferta != null && p.precioOferta < p.precio)) puntos += 4;
+      if (p.enOferta) puntos += 4;
       if ((p.stock ?? 0) > 0) puntos += 3;
-      if (p.productoimagen.length) puntos += 5; // sin foto no luce en el carrusel
 
       return puntos;
     };
 
-    const relacionados = [...candidatos.values()]
-      .map((p) => ({ producto: p, puntos: puntuar(p) }))
-      .sort((a, b) => b.puntos - a.puntos || b.producto.id - a.producto.id)
-      .slice(0, limite)
-      .map(({ producto: p }) => {
-        // El precio en BD es sin IVA → se muestra con IVA, igual que en /api/productos
-        const factorIva = 1 + Number(p.reglaimpuesto?.porcentaje ?? 0) / 100;
-        return {
-          id: p.id,
-          nombre: p.nombre,
-          slug: p.slug,
-          precio: Number(p.precio) * factorIva,
-          precioOferta: p.precioOferta != null ? Number(p.precioOferta) * factorIva : null,
-          stock: p.stock,
-          destacado: p.destacado,
-          imagenPortada: p.productoimagen[0]?.url ?? null,
-          marca: p.marca,
-          categoria: p.productocategoria[0]?.categoria ?? null,
-          prestashopProductId: p.mapeoProductoPs?.[0]?.idPrestashop ?? null,
-        };
-      });
+    const puntuados = candidatos
+      .map((p) => ({ p, puntos: puntuar(p) }))
+      .sort((a, b) => b.puntos - a.puntos || b.p.id - a.p.id);
+
+    // Corte por umbral: solo productos de la misma familia. Si salen muy pocos
+    // (colecciones pequeñas), se completa con los siguientes más parecidos.
+    const mejorPuntuacion = puntuados[0]?.puntos ?? 0;
+    const umbral = mejorPuntuacion * UMBRAL_RELATIVO;
+    const afines = puntuados.filter((x) => x.puntos > 0 && x.puntos >= umbral);
+    const seleccion = (afines.length >= MIN_AFINES ? afines : puntuados).slice(0, limite * 2);
+
+    // Ahora sí, los datos completos de los finalistas
+    const fichas = await prisma.producto.findMany({
+      where: { id: { in: seleccion.map((s) => s.p.id) } },
+      select: SELECT_TARJETA,
+    });
+    const fichaPorId = new Map(fichas.map((f) => [f.id, f]));
+
+    const ordenados = seleccion
+      .map((s) => fichaPorId.get(s.p.id))
+      .filter((f): f is NonNullable<typeof f> => Boolean(f));
+
+    // Los que tienen foto lucen mejor en el carrusel
+    const finales = [
+      ...ordenados.filter((f) => f.productoimagen.length > 0),
+      ...ordenados.filter((f) => f.productoimagen.length === 0),
+    ].slice(0, limite);
+
+    const relacionados = finales.map((p) => {
+      // El precio en BD es sin IVA → se muestra con IVA, igual que en /api/productos
+      const factorIva = 1 + Number(p.reglaimpuesto?.porcentaje ?? 0) / 100;
+      return {
+        id: p.id,
+        nombre: p.nombre,
+        slug: p.slug,
+        precio: Number(p.precio) * factorIva,
+        precioOferta: p.precioOferta != null ? Number(p.precioOferta) * factorIva : null,
+        stock: p.stock,
+        destacado: p.destacado,
+        imagenPortada: p.productoimagen[0]?.url ?? null,
+        marca: p.marca,
+        categoria: p.productocategoria[0]?.categoria ?? null,
+        prestashopProductId: p.mapeoProductoPs?.[0]?.idPrestashop ?? null,
+      };
+    });
 
     return NextResponse.json(
       { ok: true, productos: relacionados, total: relacionados.length },
