@@ -2,8 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useClienteAuth } from "@/context/ClienteAuthContext";
+import { useCheckoutIdentidad } from "@/hooks/useCheckoutIdentidad";
 import { getCart, CartItem, clearCart, getCartSessionId, syncCartSnapshot } from "@/lib/cartService";
+import { clearGuestCheckout } from "@/lib/guestCheckout";
 import { toast } from "react-hot-toast";
 import { DEFAULT_PAYMENT_CONFIG, normalizePaymentConfig, type PaymentCheckoutConfig, calculateContrareembolso } from "@/lib/paymentSettings";
 
@@ -12,7 +13,8 @@ import PasarelaPaypal from "@/components/PasarelaPaypal";
 
 export default function PagoPage() {
   const router = useRouter();
-  const { cliente, loading } = useClienteAuth();
+  const { modo, esInvitado, cliente, invitado, loading, cargandoDireccion, direccionEnvio, nombre, apellidos, email } =
+    useCheckoutIdentidad();
 
   const [carrito, setCarrito] = useState<CartItem[]>([]);
   const [metodoPago, setMetodoPago] = useState<string | null>(null);
@@ -46,11 +48,11 @@ export default function PagoPage() {
 
  useEffect(() => {
     if (!loading) {
-        if (!cliente) {
-            router.push("/auth?redirect=/checkout/pago");
+        if (!modo) {
+            router.push("/checkout/identificacion");
             return;
         }
-        
+
         const cart = getCart();
         if (cart.length === 0) { 
             router.push("/carrito"); 
@@ -95,7 +97,7 @@ export default function PagoPage() {
         // El total es: subtotal + envío - descuento (mínimo 0)
         setTotal(Math.max(0, subtotal + envio - montoDescuento));
     }
-  }, [router, cliente, loading]); 
+  }, [router, modo, loading]);
 
   // Recargo solo visual para contrareembolso
   const calcularTotalMostrado = () => {
@@ -112,7 +114,12 @@ export default function PagoPage() {
         return;
     }
 
-    if (!cliente) return;
+    if (!modo) return;
+
+    if (cargandoDireccion || !direccionEnvio?.direccion) {
+        toast.error("Faltan datos de envío. Revísalos antes de pagar.");
+        return;
+    }
 
     // Guard síncrono: el ref se actualiza inmediatamente, el estado tarda un ciclo de render
     if (procesandoRef.current) return;
@@ -121,7 +128,8 @@ export default function PagoPage() {
 
     // 1. Preparamos los datos para la BD
     const datosPedido = {
-        clienteId: cliente.id,
+        // El invitado no tiene cuenta: el backend crea/reutiliza su ficha por email
+        ...(esInvitado ? { invitado: true } : { clienteId: cliente?.id }),
         carrito: carrito,
         carritoSessionId: getCartSessionId(),
         totalFinal: parseFloat(calcularTotalMostrado()), // Usamos el total final calculado
@@ -130,12 +138,20 @@ export default function PagoPage() {
         notas: shippingData?.comentarios || localStorage.getItem("checkout_comentarios") || "",
 
         cliente: {
-            nombre: cliente.nombre,
-            email: cliente.email,
-            telefono: cliente.telefono || "",
-            direccion: cliente.direccion,
-            ciudad: cliente.ciudad,
-            cp: cliente.codigoPostal
+            nombre: nombre,
+            apellidos: apellidos || "",
+            email: email,
+            telefono: direccionEnvio.telefono || "",
+            nif: direccionEnvio.nif || "",
+            empresa: direccionEnvio.empresa || "",
+            direccion: direccionEnvio.direccion || "",
+            direccionComplementaria: direccionEnvio.direccionComplementaria || "",
+            ciudad: direccionEnvio.ciudad || "",
+            provincia: direccionEnvio.provincia || "",
+            codigoPostal: direccionEnvio.codigoPostal || "",
+            cp: direccionEnvio.codigoPostal || "",
+            pais: direccionEnvio.pais || "España",
+            ...(esInvitado ? { aceptaMarketing: Boolean(invitado?.aceptaMarketing) } : {}),
         },
 
         metodoPago: { metodo: metodoPago },
@@ -215,6 +231,10 @@ export default function PagoPage() {
                 }
             }
 
+        } else if (data.cuentaExistente) {
+            // El email de invitado pertenece a una cuenta real: hay que iniciar sesión
+            toast.error(data.error);
+            router.push("/auth?redirect=/checkout/direcciones");
         } else {
             toast.error(data.error || "Error al iniciar el pedido");
         }
@@ -232,6 +252,7 @@ export default function PagoPage() {
     setShowRedsys(false);
     setShowPaypal(false);
     clearCart(); // Limpiamos carrito al confirmar pago exitoso
+    clearGuestCheckout(); // Los datos de invitado no sobreviven al pedido
     localStorage.removeItem("checkout_descuento");
     window.dispatchEvent(new Event("storage"));
     router.push(`/checkout/confirmacion?pedido=${pedidoTempId}`);
@@ -258,7 +279,7 @@ export default function PagoPage() {
                 
                 {/* Breadcrumbs */}
                 <div className="hidden md:flex justify-center mt-6 gap-3 text-xs font-bold text-gray-400 uppercase tracking-widest">
-                    <span className="text-green-500 cursor-pointer hover:underline" onClick={() => router.push('/checkout/direcciones')}>1. Dirección</span> 
+                    <span className="text-green-500 cursor-pointer hover:underline" onClick={() => router.push(esInvitado ? '/checkout/invitado' : '/checkout/direcciones')}>1. Dirección</span> 
                     <span className="text-gray-300 dark:text-gray-600">&rarr;</span> 
                     <span className="text-green-500 cursor-pointer hover:underline" onClick={() => router.push('/checkout/envio')}>2. Envío</span> 
                     <span className="text-gray-300 dark:text-gray-600">&rarr;</span> 

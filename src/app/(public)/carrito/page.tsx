@@ -11,6 +11,7 @@ import {
   CartItem,
 } from "@/lib/cartService";
 import { useClienteAuth } from "@/context/ClienteAuthContext";
+import { getGuestCheckout } from "@/lib/guestCheckout";
 import toast from "react-hot-toast";
 
 export default function CarritoPage() {
@@ -82,8 +83,9 @@ export default function CarritoPage() {
     }
 
     if (!cliente) {
-      toast("Inicia sesión para continuar 🔒");
-      router.push("/auth?redirect=/checkout/direcciones");
+      // Sin cuenta: dejamos elegir entre iniciar sesión o comprar como invitado
+      const invitado = getGuestCheckout();
+      router.push(invitado ? "/checkout/envio" : "/checkout/identificacion");
       return;
     }
 

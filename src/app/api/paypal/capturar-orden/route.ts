@@ -1,4 +1,5 @@
 import { ordersController } from "@/lib/paypal-client";
+import { buildPedidoUrl } from "@/lib/pedidoUrl";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
@@ -84,7 +85,7 @@ export async function POST(req: NextRequest) {
                 nombre: pedido.nombre || "Cliente",
                 numeroPedido: pedido.numeroPedido,
                 total: `${Number(pedido.totalFinal).toFixed(2)} €`,
-                pedidoUrl: `${appUrl}/account/orders`,
+                pedidoUrl: await buildPedidoUrl(appUrl, pedido),
               },
             }).catch((err: any) => console.error("❌ Email cliente PayPal:", err?.message));
           }
@@ -164,7 +165,7 @@ export async function POST(req: NextRequest) {
                 nombre: pedidoFallido.nombre || "Cliente",
                 numeroPedido: pedidoFallido.numeroPedido,
                 total: `${Number(pedidoFallido.totalFinal).toFixed(2)} €`,
-                pedidoUrl: `${process.env.APP_URL || "https://www.elhogardetusuenos.com"}/account/orders`,
+                pedidoUrl: await buildPedidoUrl(process.env.APP_URL || "https://www.elhogardetusuenos.com", pedidoFallido),
               },
             }).catch((err: any) => console.error("❌ Email cliente PayPal fallido:", err?.message));
           }

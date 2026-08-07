@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
-import { useClienteAuth } from "@/context/ClienteAuthContext";
+import { useCheckoutIdentidad } from "@/hooks/useCheckoutIdentidad";
 import { getCart } from "@/lib/cartService";
 
 type CheckoutShippingOption = {
@@ -27,7 +27,7 @@ type CheckoutShippingSelection = CheckoutShippingOption & {
 
 export default function EnvioPage() {
   const router = useRouter();
-  const { cliente, loading, token } = useClienteAuth();
+  const { modo, esInvitado, loading, cargandoDireccion, direccionEnvio } = useCheckoutIdentidad();
 
   const [envioSeleccionado, setEnvioSeleccionado] = useState<string | null>(null);
   const [subtotal, setSubtotal] = useState(0);
@@ -38,11 +38,10 @@ export default function EnvioPage() {
   const [comentarios, setComentarios] = useState("");
 
   useEffect(() => {
-    if (!loading && !cliente) {
-      toast.error("Debes iniciar sesión antes de continuar.");
-      router.push("/auth?redirect=/checkout/envio");
+    if (!loading && !modo) {
+      router.push("/checkout/identificacion");
     }
-  }, [cliente, loading, router]);
+  }, [modo, loading, router]);
 
   useEffect(() => {
     const items = getCart();
@@ -54,17 +53,14 @@ export default function EnvioPage() {
     let active = true;
 
     async function loadShippingOptions() {
-      if (!token || !cliente) return;
+      if (!modo || cargandoDireccion) return;
 
       setLoadingOptions(true);
       setWarning("");
 
       try {
-        const direccionRes = await fetch("/api/clientes/direccion", {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        const direccionData = await direccionRes.json();
-        const direccion = direccionData?.direccion;
+        // La dirección viene del cliente autenticado o de los datos de invitado
+        const direccion = direccionEnvio;
 
         const params = new URLSearchParams({ subtotal: String(subtotal) });
         if (direccion?.pais) params.set("pais", String(direccion.pais));
@@ -125,12 +121,15 @@ export default function EnvioPage() {
     return () => {
       active = false;
     };
-  }, [cliente, subtotal, token]);
+  }, [modo, subtotal, cargandoDireccion, direccionEnvio]);
 
   const selectedOption = useMemo(
     () => options.find((option) => option.id === envioSeleccionado) || null,
     [envioSeleccionado, options]
   );
+
+  // Los invitados editan su dirección en el formulario de invitado, no en /checkout/direcciones
+  const rutaDireccion = esInvitado ? "/checkout/invitado" : "/checkout/direcciones";
 
   const handleContinue = () => {
     if (!selectedOption) {
@@ -168,7 +167,7 @@ export default function EnvioPage() {
             <p className="text-gray-500 dark:text-gray-400">Elige cómo quieres recibir tu pedido.</p>
 
             <div className="hidden md:flex justify-center mt-6 gap-3 text-xs font-bold text-gray-400 uppercase tracking-widest">
-              <span className="text-green-500 cursor-pointer hover:underline" onClick={() => router.push('/checkout/direcciones')}>1. Dirección</span>
+              <span className="text-green-500 cursor-pointer hover:underline" onClick={() => router.push(rutaDireccion)}>1. Dirección</span>
               <span className="text-gray-300 dark:text-gray-600">&rarr;</span>
               <span className="text-primary border-b-2 border-primary pb-1">2. Envío</span>
               <span className="text-gray-300 dark:text-gray-600">&rarr;</span>
@@ -278,7 +277,7 @@ export default function EnvioPage() {
 
             <div className="flex flex-col-reverse md:flex-row justify-between gap-4 mt-10 pt-6 border-t border-gray-100 dark:border-gray-700">
               <button
-                onClick={() => router.push('/checkout/direcciones')}
+                onClick={() => router.push(rutaDireccion)}
                 className="px-6 py-3 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-sm font-bold"
               >
                 &larr; Atrás

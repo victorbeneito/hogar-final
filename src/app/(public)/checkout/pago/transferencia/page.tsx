@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import { clearCart } from "@/lib/cartService";
+import { clearGuestCheckout } from "@/lib/guestCheckout";
 import { DEFAULT_PAYMENT_CONFIG, normalizePaymentConfig, type PaymentCheckoutConfig } from "@/lib/paymentSettings";
 
 export default function TransferenciaPage() {
@@ -55,6 +56,10 @@ export default function TransferenciaPage() {
 
       if (!data.ok) {
         toast.error(data.error || "Error al crear el pedido");
+        if (data.cuentaExistente) {
+          // Email de invitado ligado a una cuenta real: hay que iniciar sesion
+          router.push("/auth?redirect=/checkout/direcciones");
+        }
         setLoading(false);
         return;
       }
@@ -72,6 +77,7 @@ export default function TransferenciaPage() {
       // 3. Limpiar y redirigir
       sessionStorage.removeItem("checkout_pedido_pending");
       clearCart();
+      clearGuestCheckout();
       localStorage.removeItem("checkout_descuento");
       localStorage.removeItem("checkout_envio");
       window.dispatchEvent(new Event("storage"));

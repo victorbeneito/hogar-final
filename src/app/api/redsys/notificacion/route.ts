@@ -1,4 +1,5 @@
 import type { NextRequest } from "next/server";
+import { buildPedidoUrl } from "@/lib/pedidoUrl";
 import { createRedsysAPI, SANDBOX_URLS, PRODUCTION_URLS } from "redsys-easy";
 import { prisma } from "@/lib/prisma";
 import { normalizePaymentConfig } from "@/lib/paymentSettings";
@@ -102,7 +103,7 @@ export async function POST(req: NextRequest) {
             nombre: pedido.nombre || "Cliente",
             numeroPedido: pedido.numeroPedido,
             total: `${Number(pedido.totalFinal).toFixed(2)} €`,
-            pedidoUrl: `${appUrl}/account/orders`,
+            pedidoUrl: await buildPedidoUrl(appUrl, pedido),
           },
         }).catch((err: any) => console.error("❌ Email cliente Redsys:", err?.message));
       }
@@ -175,7 +176,7 @@ export async function POST(req: NextRequest) {
             nombre: pedido.nombre || "Cliente",
             numeroPedido: pedido.numeroPedido,
             total: `${Number(pedido.totalFinal).toFixed(2)} €`,
-            pedidoUrl: `${process.env.APP_URL || "https://www.elhogardetusuenos.com"}/account/orders`,
+            pedidoUrl: await buildPedidoUrl(process.env.APP_URL || "https://www.elhogardetusuenos.com", pedido),
           },
         }).catch((err: any) => console.error("❌ Email cliente Redsys fallido:", err?.message));
       }

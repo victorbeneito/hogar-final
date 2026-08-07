@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { clearCart } from "@/lib/cartService"; 
+import { clearCart } from "@/lib/cartService";
+import { clearGuestCheckout } from "@/lib/guestCheckout";
 
 export default function ConfirmacionPage() {
   const router = useRouter();
@@ -20,7 +21,8 @@ export default function ConfirmacionPage() {
       
       // 2. Vaciar el carrito
       if (typeof window !== "undefined") {
-         clearCart(); 
+         clearCart();
+         clearGuestCheckout();
          localStorage.removeItem("checkout_envio"); 
          // Lanzamos evento para actualizar el contador del header a 0
          window.dispatchEvent(new Event("storage"));

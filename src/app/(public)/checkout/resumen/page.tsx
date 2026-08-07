@@ -3,14 +3,17 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getCart, CartItem } from "@/lib/cartService";
-import { useClienteAuth } from "@/context/ClienteAuthContext";
+import { useCheckoutIdentidad } from "@/hooks/useCheckoutIdentidad";
 import { toast } from "react-hot-toast";
 import Link from "next/link";
 
 export default function ResumenPage() {
   const router = useRouter();
-  const { cliente, loading, token } = useClienteAuth();
-  
+  const { modo, esInvitado, loading, token, direccionEnvio, nombre, apellidos, email } = useCheckoutIdentidad();
+
+  // Los invitados editan su dirección en el formulario de invitado
+  const rutaDireccion = esInvitado ? "/checkout/invitado" : "/checkout/direcciones";
+
   // Estados
   const [cart, setCart] = useState<CartItem[]>([]);
   const [subtotal, setSubtotal] = useState(0);
@@ -27,15 +30,7 @@ export default function ResumenPage() {
     zonaNombre?: string | null;
     comentarios?: string;
     } | null>(null);
-  const [direccionEntrega, setDireccionEntrega] = useState<{
-    direccion?: string;
-    direccionComplementaria?: string;
-    codigoPostal?: string;
-    ciudad?: string;
-    provincia?: string;
-    pais?: string;
-  } | null>(null);
-  
+
   // Cupón
   const [codigo, setCodigo] = useState("");
   const [descuento, setDescuento] = useState(0);
@@ -44,8 +39,8 @@ export default function ResumenPage() {
   // 1. Cargar Datos
   useEffect(() => {
     if (!loading) {
-      if (!cliente) {
-        router.push("/auth?redirect=/checkout/resumen");
+      if (!modo) {
+        router.push("/checkout/identificacion");
         return;
       }
 
@@ -87,57 +82,10 @@ export default function ResumenPage() {
       }
 
     }
-  }, [cliente, loading, router]);
+  }, [modo, loading, router]);
 
-  useEffect(() => {
-    if (loading || !cliente) return;
-
-    const loadDireccion = async () => {
-      if (!token) {
-        setDireccionEntrega({
-          direccion: cliente.direccion,
-          direccionComplementaria: cliente.direccionComplementaria,
-          codigoPostal: cliente.codigoPostal,
-          ciudad: cliente.ciudad,
-          provincia: cliente.provincia,
-          pais: cliente.pais,
-        });
-        return;
-      }
-
-      try {
-        const res = await fetch("/api/clientes/direccion", {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        const data = await res.json();
-
-        if (res.ok && data?.ok && data?.direccion) {
-          setDireccionEntrega({
-            direccion: data.direccion.direccion || "",
-            direccionComplementaria: data.direccion.direccionComplementaria || "",
-            codigoPostal: data.direccion.codigoPostal || "",
-            ciudad: data.direccion.ciudad || "",
-            provincia: data.direccion.provincia || "",
-            pais: data.direccion.pais || "",
-          });
-          return;
-        }
-      } catch (error) {
-        console.error("Error cargando la dirección del resumen:", error);
-      }
-
-      setDireccionEntrega({
-        direccion: cliente.direccion,
-        direccionComplementaria: cliente.direccionComplementaria,
-        codigoPostal: cliente.codigoPostal,
-        ciudad: cliente.ciudad,
-        provincia: cliente.provincia,
-        pais: cliente.pais,
-      });
-    };
-
-    void loadDireccion();
-  }, [cliente, loading, token]);
+  // La dirección de entrega la resuelve useCheckoutIdentidad (cuenta o invitado)
+  const direccionEntrega = direccionEnvio;
 
   // 2. Lógica de Cupón
   const aplicarCupon = async () => {
@@ -199,8 +147,8 @@ export default function ResumenPage() {
     </div>
   );
 
-  // 🛑 CORRECCIÓN AQUÍ: Si no hay cliente (mientras redirige), no renderizamos nada más
-  if (!cliente) return null; 
+  // Sin identidad (cuenta ni invitado) no renderizamos: estamos redirigiendo
+  if (!modo) return null;
 
   return (
     <div className="min-h-screen bg-fondo dark:bg-darkBg flex flex-col transition-colors duration-300">
@@ -216,7 +164,7 @@ export default function ResumenPage() {
                 
                 {/* Breadcrumbs */}
                 <div className="hidden md:flex justify-center mt-6 gap-3 text-xs font-bold text-gray-400 uppercase tracking-widest">
-                    <span className="text-green-500 cursor-pointer hover:underline" onClick={() => router.push('/checkout/direcciones')}>1. Dirección</span> 
+                    <span className="text-green-500 cursor-pointer hover:underline" onClick={() => router.push(rutaDireccion)}>1. Dirección</span> 
                     <span className="text-gray-300 dark:text-gray-600">&rarr;</span> 
                     <span className="text-green-500 cursor-pointer hover:underline" onClick={() => router.push('/checkout/envio')}>2. Envío</span> 
                     <span className="text-gray-300 dark:text-gray-600">&rarr;</span> 
@@ -309,13 +257,32 @@ export default function ResumenPage() {
                         <div className="min-w-0">
                             <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-1">Dirección de Entrega</h3>
                             <p className="text-gray-900 dark:text-white text-sm font-semibold break-words">
-                                {addressLineOne || cliente.direccion || "-"}
+                                {addressLineOne || "-"}
                             </p>
                             <p className="text-gray-500 dark:text-gray-400 text-sm mt-1 break-words">
-                                {addressLineTwo || [cliente.ciudad, cliente.codigoPostal, cliente.provincia].filter(Boolean).join(" · ")}
+                                {addressLineTwo}
                             </p>
                         </div>
-                        <Link href="/checkout/direcciones" className="text-sm font-bold text-primary hover:text-primaryHover underline">
+                        <Link href={rutaDireccion} className="text-sm font-bold text-primary hover:text-primaryHover underline">
+                            Editar
+                        </Link>
+                    </div>
+
+                    {/* Contacto: para el invitado el email es su único canal con el pedido */}
+                    <div className="bg-white dark:bg-darkNavBg rounded-xl p-6 shadow-sm border border-gray-100 dark:border-gray-700 flex flex-col gap-4 sm:flex-row sm:justify-between sm:items-center">
+                        <div className="min-w-0">
+                            <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-1">Contacto</h3>
+                            <p className="text-gray-900 dark:text-white text-sm font-semibold break-words">
+                                {[nombre, apellidos].filter(Boolean).join(" ")}
+                            </p>
+                            <p className="text-gray-500 dark:text-gray-400 text-sm mt-1 break-words">{email}</p>
+                            {esInvitado && (
+                                <p className="text-xs text-gray-400 mt-2">
+                                    Compra como invitado · te avisaremos aquí de la confirmación y del envío
+                                </p>
+                            )}
+                        </div>
+                        <Link href={rutaDireccion} className="text-sm font-bold text-primary hover:text-primaryHover underline">
                             Editar
                         </Link>
                     </div>

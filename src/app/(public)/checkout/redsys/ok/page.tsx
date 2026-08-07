@@ -3,6 +3,7 @@
 import { useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { clearCart } from "@/lib/cartService";
+import { clearGuestCheckout } from "@/lib/guestCheckout";
 
 export default function RedsysOkPage() {
   return (
@@ -23,6 +24,7 @@ function RedsysOkContent() {
 
   useEffect(() => {
     clearCart();
+    clearGuestCheckout();
     localStorage.removeItem("checkout_descuento");
     localStorage.removeItem("checkout_envio");
     window.dispatchEvent(new Event("storage"));

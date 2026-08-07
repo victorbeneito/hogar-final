@@ -1,4 +1,5 @@
 import { NextResponse, NextRequest } from "next/server";
+import { buildPedidoUrl } from "@/lib/pedidoUrl";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import bcrypt from "bcryptjs";
@@ -374,30 +375,94 @@ export async function POST(req: Request) {
 
     let clienteId: number | null = null;
     const datosCliente = body.cliente || {};
+    // Compra como invitado: sin cuenta, identificado sólo por el email de contacto
+    const esCompraInvitado = body.invitado === true;
+    const emailCliente = typeof datosCliente.email === "string" ? datosCliente.email.trim().toLowerCase() : "";
+    const cpCliente = datosCliente.codigoPostal || datosCliente.cp || "";
 
     // Validar que tenemos los datos mínimos
-    if (!datosCliente.email && !body.clienteId) {
+    if (!emailCliente && !body.clienteId) {
       console.error("❌ ERROR: No hay email ni clienteId proporcionados");
       return NextResponse.json({ error: "Datos de cliente incompletos" }, { status: 400 });
     }
 
+    if (esCompraInvitado && !emailCliente) {
+      return NextResponse.json({ error: "El email es obligatorio para comprar como invitado" }, { status: 400 });
+    }
+
     // 1. Intentar vincular cliente
-    if (datosCliente.email) {
+    let clienteExistenteEsInvitado = false;
+    if (emailCliente) {
       const c = await prisma.cliente.findUnique({
-        where: { email: datosCliente.email },
-        select: { id: true, email: true },
+        where: { email: emailCliente },
+        select: { id: true, email: true, esInvitado: true },
       });
       if (c) {
+          // Un invitado no puede colgar pedidos de una cuenta registrada ajena
+          if (esCompraInvitado && !c.esInvitado) {
+            console.warn("⛔ Compra como invitado con email de cuenta registrada:", c.email);
+            return NextResponse.json(
+              {
+                error: "Ya existe una cuenta con este email. Inicia sesión para completar tu compra.",
+                cuentaExistente: true,
+              },
+              { status: 409 }
+            );
+          }
           clienteId = c.id;
-          console.log("✅ Cliente encontrado por email:", c.email, "ID:", c.id);
+          clienteExistenteEsInvitado = c.esInvitado;
+          console.log("✅ Cliente encontrado por email:", c.email, "ID:", c.id, c.esInvitado ? "(invitado)" : "");
       } else {
-          console.warn("⚠️ No existe cliente con email:", datosCliente.email);
+          console.warn("⚠️ No existe cliente con email:", emailCliente);
       }
     }
 
-    if (!clienteId && body.clienteId) {
+    if (!clienteId && !esCompraInvitado && body.clienteId) {
         clienteId = parseInt(body.clienteId);
         console.log("✅ Cliente encontrado por ID directo:", clienteId);
+    }
+
+    // 1.b Invitado: reutilizar su ficha si ya compró antes, o crearla ahora.
+    // Se guarda con `esInvitado: true` y sin NIF (el campo es único en cliente
+    // y el NIF real queda registrado en el propio pedido).
+    if (esCompraInvitado) {
+      const datosInvitado = {
+        nombre: datosCliente.nombre || "Cliente",
+        apellidos: datosCliente.apellidos || "",
+        telefono: datosCliente.telefono || "",
+        empresa: datosCliente.empresa || null,
+        direccion: datosCliente.direccion || "",
+        direccionComplementaria: datosCliente.direccionComplementaria || null,
+        codigoPostal: cpCliente,
+        ciudad: datosCliente.ciudad || "",
+        provincia: datosCliente.provincia || "",
+        pais: datosCliente.pais || "España",
+        aceptaMarketing: Boolean(datosCliente.aceptaMarketing),
+      };
+
+      if (clienteId && clienteExistenteEsInvitado) {
+        // Compra repetida del mismo invitado: refrescamos sus datos de envío
+        await prisma.cliente.update({
+          where: { id: clienteId },
+          data: { ...datosInvitado, updatedAt: new Date() },
+        });
+        console.log("♻️ Ficha de invitado reutilizada y actualizada. ID:", clienteId);
+      } else if (!clienteId) {
+        const passwordAleatoria = `Inv${Math.random().toString(36).slice(2, 12)}!${Date.now().toString(36)}`;
+        const nuevoInvitado = await prisma.cliente.create({
+          data: {
+            ...datosInvitado,
+            email: emailCliente,
+            password: await bcrypt.hash(passwordAleatoria, 10),
+            esInvitado: true,
+            role: "cliente",
+            updatedAt: new Date(),
+          },
+          select: { id: true, email: true },
+        });
+        clienteId = nuevoInvitado.id;
+        console.log("✅ Cliente invitado creado:", nuevoInvitado.email, "ID:", nuevoInvitado.id);
+      }
     }
 
     if (!clienteId && body.origen === "admin-manual" && datosCliente.email) {
@@ -520,13 +585,14 @@ export async function POST(req: Request) {
             clienteId: clienteId!,
             nombre: datosCliente.nombre || "Cliente Sin Nombre",
             apellidos: datosCliente.apellidos || null,
-            email: datosCliente.email,
+            email: emailCliente || datosCliente.email,
             telefono: datosCliente.telefono,
             nif: datosCliente.nif || null,
             direccion: datosCliente.direccion,
+            direccionComplementaria: datosCliente.direccionComplementaria || null,
             ciudad: datosCliente.ciudad,
             provincia: datosCliente.provincia || null,
-            cp: datosCliente.cp || datosCliente.codigoPostal || null,
+            cp: cpCliente || null,
             pais: datosCliente.pais || "España",
             envioMetodo: String(body.metodoEnvio?.metodo || body.envioMetodo?.metodo || "estándar"),
             envioCoste: parseFloat(String(body.metodoEnvio?.coste || body.envioMetodo?.coste || 0)),
@@ -556,6 +622,7 @@ export async function POST(req: Request) {
             telefono: true,
             nif: true,
             direccion: true,
+            direccionComplementaria: true,
             ciudad: true,
             provincia: true,
             cp: true,
@@ -636,7 +703,7 @@ export async function POST(req: Request) {
             nombre: result.nombre || "Cliente",
             numeroPedido: result.numeroPedido,
             total: `${Number(result.totalFinal).toFixed(2)} €`,
-            pedidoUrl: `${appUrl}/account/orders`,
+            pedidoUrl: await buildPedidoUrl(appUrl, result),
           },
         }).catch((err) => console.error("❌ Email confirmación pedido:", err?.message));
       }

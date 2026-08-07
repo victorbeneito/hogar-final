@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { buildPedidoUrl } from "@/lib/pedidoUrl";
 import { prisma } from "@/lib/prisma";
 import { sendTemplateEmail, sendRawEmail, buildAdminOrderEmail, loadEmailSettings } from "@/lib/emailService";
 
@@ -47,7 +48,7 @@ export async function POST(req: NextRequest) {
           nombre: pedidoActualizado.nombre || "Cliente",
           numeroPedido: pedidoActualizado.numeroPedido,
           total: `${Number(pedidoActualizado.totalFinal).toFixed(2)} €`,
-          pedidoUrl: `${appUrl}/account/orders`,
+          pedidoUrl: await buildPedidoUrl(appUrl, pedidoActualizado),
         },
       }).catch((err: any) => console.error("❌ Email cliente OK-fallback:", err?.message));
     }
