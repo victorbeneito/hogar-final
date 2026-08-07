@@ -8,11 +8,17 @@ type RouteParams = {
 /**
  * Productos relacionados.
  *
- * Estrategia (se combinan y se puntúan los candidatos):
- *  1. Misma categoría  → estores, cortinas, alfombras... (productos del mismo tipo)
- *  2. Nombre parecido  → "Funda nórdica", "Colcha", "Sábanas"... (misma familia textil)
- *  3. Misma marca      → refuerzo suave
- *  4. Destacados       → relleno si no hay suficientes coincidencias
+ * La idea: si el cliente está viendo un estor digital INFANTIL, lo que quiere ver
+ * son otros diseños infantiles, no estores de cocina o zen. Por eso mandan dos señales:
+ *
+ *  1. La categoría MÁS ESPECÍFICA del producto (la más profunda del árbol) pesa mucho
+ *     más que las categorías generales que comparten todos los productos de la familia.
+ *  2. Las palabras del nombre se pesan por lo raras que son en el catálogo: "estor" o
+ *     "digital" están en cientos de productos y casi no informan; "infantil" o el nombre
+ *     de la colección sí distinguen, así que valen mucho más.
+ *
+ * Con esto funciona tanto si "infantiles" es una subcategoría propia como si la temática
+ * solo aparece en el nombre del producto.
  */
 
 // Palabras vacías / genéricas que no aportan nada al parecido entre nombres.
@@ -23,11 +29,15 @@ const STOPWORDS = new Set([
   "medidas", "tejido", "calidad", "nuevo", "nueva", "pack", "set", "cms", "grs",
 ]);
 
+const MAX_TOKENS = 4;
+
 const normalizar = (texto: string) =>
   texto
     .normalize("NFD")
     .replace(/[̀-ͯ]/g, "")
     .toLowerCase();
+
+type Token = { limpio: string; original: string; peso: number };
 
 /**
  * Extrae las palabras significativas del nombre.
@@ -44,11 +54,22 @@ function extraerTokens(nombre: string): { limpio: string; original: string }[] {
     if (STOPWORDS.has(limpio)) continue;
     if (/^\d+$/.test(limpio)) continue; // números sueltos
     if (/^\d+x\d+/.test(limpio)) continue; // medidas tipo 150x270
+    if (tokens.some((t) => t.limpio === limpio)) continue;
     tokens.push({ limpio, original: palabra.toLowerCase() });
-    if (tokens.length === 3) break; // las primeras palabras definen el tipo de producto
+    if (tokens.length === MAX_TOKENS) break;
   }
 
   return tokens;
+}
+
+/**
+ * Peso de una palabra según lo poco frecuente que sea en el catálogo (idea del IDF).
+ * "estor" (en 800 de 3000 productos) → ~17 puntos; "infantil" (en 30) → ~40 puntos.
+ */
+function pesoToken(apariciones: number, totalProductos: number): number {
+  if (totalProductos < 2) return 30;
+  const rareza = Math.log(totalProductos / Math.max(apariciones, 1)) / Math.log(totalProductos);
+  return Math.round(Math.min(60, Math.max(8, 8 + 55 * rareza)));
 }
 
 // Campos que necesita la tarjeta del carrusel.
@@ -102,57 +123,124 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     }
 
     const categoriaIds = base.productocategoria.map((pc) => pc.categoriaId);
-    const categoriaPrincipalId =
-      base.productocategoria.find((pc) => pc.esPrincipal)?.categoriaId ?? categoriaIds[0] ?? null;
-    const tokens = extraerTokens(base.nombre);
+    const tokensBase = extraerTokens(base.nombre);
+
+    // Árbol de categorías + frecuencia de cada palabra en el catálogo
+    const [arbol, totalActivos, apariciones] = await Promise.all([
+      prisma.categoria.findMany({ select: { id: true, parentId: true } }),
+      prisma.producto.count({ where: { activo: true } }),
+      Promise.all(
+        tokensBase.map((token) =>
+          prisma.producto.count({ where: { activo: true, nombre: { contains: token.limpio } } })
+        )
+      ),
+    ]);
+
+    const tokens: Token[] = tokensBase.map((token, i) => ({
+      ...token,
+      peso: pesoToken(apariciones[i] ?? 0, totalActivos),
+    }));
+
+    // Profundidad de cada categoría en el árbol (raíz = 0). Cuanto más profunda, más específica.
+    const padrePorId = new Map(arbol.map((c) => [c.id, c.parentId]));
+    const profundidadCache = new Map<number, number>();
+    const profundidad = (categoriaId: number): number => {
+      const memo = profundidadCache.get(categoriaId);
+      if (memo !== undefined) return memo;
+
+      let nivel = 0;
+      let actual: number | null | undefined = padrePorId.get(categoriaId);
+      const vistos = new Set<number>([categoriaId]);
+      while (actual != null && !vistos.has(actual) && nivel < 10) {
+        vistos.add(actual);
+        nivel += 1;
+        actual = padrePorId.get(actual);
+      }
+
+      profundidadCache.set(categoriaId, nivel);
+      return nivel;
+    };
+
+    // Categoría objetivo: la más específica del producto ("Estores Digitales Infantiles"
+    // en lugar de "Estores" o "Estores Digitales").
+    const categoriaObjetivoId = categoriaIds.length
+      ? [...categoriaIds].sort((a, b) => profundidad(b) - profundidad(a))[0]
+      : null;
+
+    // Palabras más distintivas del nombre ("dinosaurios", "infantil"... antes que "estor" o "digital").
+    // Se consultan por separado para que ninguna de las dos se quede fuera de los candidatos.
+    const tokensClave = [...tokens].sort((a, b) => b.peso - a.peso).slice(0, 2);
 
     const baseWhere: Prisma.productoWhereInput = {
       id: { not: base.id },
       activo: true,
     };
 
-    // Los candidatos más recientes/destacados primero; el scoring posterior decide el orden final.
     const orden: Prisma.productoOrderByWithRelationInput[] = [
       { destacado: "desc" },
       { enOferta: "desc" },
       { id: "desc" },
     ];
 
-    const [porCategoria, porNombre, porMarca, destacados] = await Promise.all([
-      categoriaIds.length
-        ? prisma.producto.findMany({
-            where: { ...baseWhere, productocategoria: { some: { categoriaId: { in: categoriaIds } } } },
-            select: SELECT_TARJETA,
-            orderBy: orden,
-            take: 60,
-          })
-        : Promise.resolve([] as Candidato[]),
+    // Buscar por nombre con y sin acentos (por si la colación distingue)
+    const contieneToken = (token: Token): Prisma.productoWhereInput[] =>
+      token.limpio === token.original
+        ? [{ nombre: { contains: token.limpio } }]
+        : [{ nombre: { contains: token.limpio } }, { nombre: { contains: token.original } }];
 
-      tokens.length
+    const [porCategoriaObjetivo, porTokensClave, porCategorias, porNombre, destacados] = await Promise.all([
+      // 1. Misma subcategoría exacta: la fuente principal de recomendaciones
+      categoriaObjetivoId != null
         ? prisma.producto.findMany({
-            where: {
-              ...baseWhere,
-              OR: tokens.flatMap((token) =>
-                token.limpio === token.original
-                  ? [{ nombre: { contains: token.limpio } }]
-                  : [{ nombre: { contains: token.limpio } }, { nombre: { contains: token.original } }]
-              ),
-            },
+            where: { ...baseWhere, productocategoria: { some: { categoriaId: categoriaObjetivoId } } },
             select: SELECT_TARJETA,
             orderBy: orden,
             take: 40,
           })
         : Promise.resolve([] as Candidato[]),
 
-      base.marcaId
+      // 2. Misma temática dentro de la familia ("infantil", "dinosaurios"... + alguna categoría
+      //    del producto). Cubre el caso de que la temática solo esté en el nombre y no en una
+      //    subcategoría: sin esta consulta, en una categoría con cientos de productos los
+      //    infantiles podrían no llegar ni a entrar en la lista de candidatos.
+      categoriaIds.length
+        ? Promise.all(
+            tokensClave.map((token) =>
+              prisma.producto.findMany({
+                where: {
+                  ...baseWhere,
+                  OR: contieneToken(token),
+                  productocategoria: { some: { categoriaId: { in: categoriaIds } } },
+                },
+                select: SELECT_TARJETA,
+                orderBy: orden,
+                take: 20,
+              })
+            )
+          ).then((listas) => listas.flat())
+        : Promise.resolve([] as Candidato[]),
+
+      // 3. Resto de categorías del producto (familia amplia): relleno
+      categoriaIds.length
         ? prisma.producto.findMany({
-            where: { ...baseWhere, marcaId: base.marcaId },
+            where: { ...baseWhere, productocategoria: { some: { categoriaId: { in: categoriaIds } } } },
             select: SELECT_TARJETA,
             orderBy: orden,
-            take: 20,
+            take: 40,
           })
         : Promise.resolve([] as Candidato[]),
 
+      // 4. Nombre parecido en cualquier categoría (misma colección o diseño)
+      tokens.length
+        ? prisma.producto.findMany({
+            where: { ...baseWhere, OR: tokens.flatMap(contieneToken) },
+            select: SELECT_TARJETA,
+            orderBy: orden,
+            take: 30,
+          })
+        : Promise.resolve([] as Candidato[]),
+
+      // 5. Destacados: último recurso para no dejar el carrusel vacío
       prisma.producto.findMany({
         where: { ...baseWhere, destacado: true },
         select: SELECT_TARJETA,
@@ -163,21 +251,31 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 
     // Unificamos candidatos (sin duplicados) y puntuamos el parecido
     const candidatos = new Map<number, Candidato>();
-    for (const p of [...porCategoria, ...porNombre, ...porMarca, ...destacados]) {
+    for (const p of [...porCategoriaObjetivo, ...porTokensClave, ...porCategorias, ...porNombre, ...destacados]) {
       if (!candidatos.has(p.id)) candidatos.set(p.id, p);
     }
 
     const puntuar = (p: Candidato) => {
       let puntos = 0;
 
-      const catsCandidato = p.productocategoria.map((pc) => pc.categoriaId);
-      const compartidas = catsCandidato.filter((catId) => categoriaIds.includes(catId));
-      if (compartidas.length) puntos += 35 + (compartidas.length - 1) * 10;
-      if (categoriaPrincipalId != null && compartidas.includes(categoriaPrincipalId)) puntos += 25;
+      // Categorías: la coincidencia más específica manda
+      const compartidas = p.productocategoria
+        .map((pc) => pc.categoriaId)
+        .filter((catId) => categoriaIds.includes(catId));
 
+      if (compartidas.length) {
+        const nivelMasEspecifico = Math.max(...compartidas.map(profundidad));
+        puntos += 20 + 22 * nivelMasEspecifico;
+        puntos += (compartidas.length - 1) * 8;
+        // Bonus fuerte por estar exactamente en la subcategoría del producto que se está viendo
+        if (categoriaObjetivoId != null && compartidas.includes(categoriaObjetivoId)) puntos += 45;
+      }
+
+      // Nombre: cada palabra vale según lo distintiva que sea
       const nombreCandidato = normalizar(p.nombre);
-      const coincidencias = tokens.filter((token) => nombreCandidato.includes(token.limpio)).length;
-      puntos += coincidencias * 20;
+      for (const token of tokens) {
+        if (nombreCandidato.includes(token.limpio)) puntos += token.peso;
+      }
 
       if (base.marcaId && p.marcaId === base.marcaId) puntos += 12;
       if (p.destacado) puntos += 6;
