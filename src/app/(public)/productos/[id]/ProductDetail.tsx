@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { addToCart } from "@/lib/cartService";
 import CartModal from "@/components/CartModal";
+import ProductosRelacionados from "@/components/ProductosRelacionados";
 import { calcularPrecioVariante, ordenarValoresNaturales } from "@/lib/productVariantPricing";
 
 interface CategoriaProducto {
@@ -771,6 +772,9 @@ export default function ProductDetail({
           )}
         </div>
       </div>
+
+      {/* Carrusel de productos relacionados */}
+      <ProductosRelacionados productoId={producto.id} />
 
       <CartModal
         isOpen={modalAbierto}
