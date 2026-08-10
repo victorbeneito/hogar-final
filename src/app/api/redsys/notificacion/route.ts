@@ -43,11 +43,35 @@ export async function POST(req: NextRequest) {
       urls: isProduction ? PRODUCTION_URLS : SANDBOX_URLS,
     });
 
-    const result = processRedirectNotification({
-      Ds_SignatureVersion,
-      Ds_MerchantParameters,
-      Ds_Signature,
-    });
+    let result;
+    try {
+      result = processRedirectNotification({
+        Ds_SignatureVersion,
+        Ds_MerchantParameters,
+        Ds_Signature,
+      });
+    } catch (err: any) {
+      // Firma inválida: nadie legítimo llega aquí. Se registra porque, con la
+      // clave expuesta, estos intentos son la señal de que alguien está
+      // probando; sin registro no habría forma de detectarlo.
+      console.error("⛔ Notificación Redsys con firma inválida:", err?.message);
+      try {
+        await prisma.redsys_notificacion.create({
+          data: {
+            aceptada: false,
+            motivoRechazo: `firma inválida: ${String(err?.message ?? "").slice(0, 180)}`,
+            ip:
+              req.headers.get("x-forwarded-for")?.split(",")[0].trim() ||
+              req.headers.get("x-real-ip") ||
+              null,
+            payloadCrudo: body.slice(0, 60000),
+          },
+        });
+      } catch (e: any) {
+        console.warn("⚠️ No se pudo registrar la firma inválida:", e?.message);
+      }
+      return new Response("BAD_SIGNATURE", { status: 400 });
+    }
 
     const responseCode = Number(result.Ds_Response);
     // Ds_Order format: {idPadded}{4hexSuffix} — strip last 4 chars to recover pedidoId
@@ -55,6 +79,79 @@ export async function POST(req: NextRequest) {
     const pedidoId = dsOrder.length > 4
       ? parseInt(dsOrder.slice(0, -4), 10)
       : parseInt(dsOrder, 10);
+
+    const importeCent = Number(result.Ds_Amount);
+    const ip =
+      req.headers.get("x-forwarded-for")?.split(",")[0].trim() ||
+      req.headers.get("x-real-ip") ||
+      null;
+
+    // Deja constancia de cada notificación recibida. Nunca debe tumbar un
+    // cobro: si el registro falla, se avisa por consola y se sigue.
+    const registrar = async (aceptada: boolean, motivoRechazo?: string) => {
+      try {
+        await prisma.redsys_notificacion.create({
+          data: {
+            pedidoId: Number.isNaN(pedidoId) ? null : pedidoId,
+            dsOrder,
+            dsResponse: String(result.Ds_Response ?? ""),
+            importeCent: Number.isFinite(importeCent) ? importeCent : null,
+            merchantCode: String(result.Ds_MerchantCode ?? ""),
+            aceptada,
+            motivoRechazo: motivoRechazo ?? null,
+            ip,
+            payloadCrudo: body.slice(0, 60000),
+          },
+        });
+      } catch (err: any) {
+        console.warn("⚠️ No se pudo registrar la notificación Redsys:", err?.message);
+      }
+    };
+
+    /**
+     * La clave secreta de Redsys estuvo expuesta y no puede rotarse, así que la
+     * firma ya no basta como garantía: quien la tenga puede fabricar
+     * notificaciones válidas. Antes de dar nada por cobrado comprobamos que la
+     * notificación cuadre con un pedido real y con su importe.
+     */
+    const pedidoPrevio = Number.isNaN(pedidoId)
+      ? null
+      : await prisma.pedido.findUnique({
+          where: { id: pedidoId },
+          select: { id: true, estadoPago: true, totalFinal: true },
+        });
+
+    const rechazar = async (motivo: string) => {
+      console.error(`⛔ Notificación Redsys rechazada (pedido ${dsOrder}): ${motivo}`);
+      await registrar(false, motivo);
+      // 200 para que Redsys no reintente en bucle; el rechazo queda registrado.
+      return new Response("OK", { status: 200 });
+    };
+
+    if (!pedidoPrevio) {
+      return await rechazar("el pedido no existe");
+    }
+
+    const merchantEsperado = process.env.REDSYS_MERCHANT_CODE || redsysCfg.merchantCode;
+    if (merchantEsperado && String(result.Ds_MerchantCode) !== String(merchantEsperado)) {
+      return await rechazar(`merchantCode no coincide (llegó ${result.Ds_MerchantCode})`);
+    }
+
+    // Ds_Amount viene en céntimos
+    const esperadoCent = Math.round(Number(pedidoPrevio.totalFinal) * 100);
+    if (!Number.isFinite(importeCent) || importeCent !== esperadoCent) {
+      return await rechazar(`importe no coincide (llegó ${importeCent}, esperado ${esperadoCent})`);
+    }
+
+    // Idempotencia: si ya está cobrado no se reprocesa ni se reenvían correos,
+    // y una notificación de rechazo no puede tumbar un pago ya aceptado.
+    if (pedidoPrevio.estadoPago === "PAGADO") {
+      console.log(`ℹ️ Pedido ${pedidoId} ya estaba PAGADO: notificación ignorada.`);
+      await registrar(false, "duplicada: el pedido ya estaba pagado");
+      return new Response("OK", { status: 200 });
+    }
+
+    await registrar(true);
 
     // Código de respuesta < 100 significa pago autorizado
     if (!isNaN(pedidoId) && responseCode < 100) {

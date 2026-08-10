@@ -1,19 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { canEdit } from "@/lib/adminAuth";
+import { generarSlugUnico } from "@/lib/slugArticulo";
 
 export const dynamic = "force-dynamic";
-
-function slugify(text: string): string {
-  return text
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .replace(/[^a-z0-9\s-]/g, "")
-    .trim()
-    .replace(/\s+/g, "-")
-    .replace(/-+/g, "-");
-}
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -66,17 +57,14 @@ export async function POST(req: NextRequest) {
   }
   try {
     const body = await req.json();
-    const { titulo, extracto, contenidoHtml, imagenPortada, autor, activo, destacado, metaTitulo, metaDescripcion, etiquetas, fechaPublicacion } = body;
+    const { titulo, slug: slugPedido, extracto, contenidoHtml, imagenPortada, autor, activo, destacado, metaTitulo, metaDescripcion, etiquetas, fechaPublicacion } = body;
 
     if (!titulo?.trim()) {
       return NextResponse.json({ ok: false, error: "El título es obligatorio" }, { status: 400 });
     }
 
-    let slug = slugify(titulo);
-    const existente = await prisma.articulo.findUnique({ where: { slug } });
-    if (existente) {
-      slug = `${slug}-${Date.now()}`;
-    }
+    // Se respeta el slug escrito en el panel; si viene vacío se deriva del título
+    const slug = await generarSlugUnico(slugPedido, titulo);
 
     const articulo = await prisma.articulo.create({
       data: {
@@ -95,6 +83,11 @@ export async function POST(req: NextRequest) {
         updatedAt: new Date(),
       },
     });
+
+    // El contenido se guarda en crudo (sin escapar ni sanear). Invalidamos el
+    // caché del blog para que el artículo se vea de inmediato.
+    revalidatePath("/blog");
+    revalidatePath(`/blog/${articulo.slug}`);
 
     return NextResponse.json({ ok: true, articulo }, { status: 201 });
   } catch (error: any) {

@@ -6,6 +6,8 @@ import { Calendar, User, Eye, Tag } from "lucide-react";
 export const metadata: Metadata = {
   title: "El blog de tu Hogar | Decoración, consejos y tendencias",
   description: "Descubre las últimas tendencias en decoración del hogar, consejos de estilo y guías de compra en el blog de tu Hogar.",
+  // Sin esto se hereda el canonical del layout raíz, que apunta a la home
+  alternates: { canonical: "/blog" },
 };
 
 export const dynamic = "force-dynamic";

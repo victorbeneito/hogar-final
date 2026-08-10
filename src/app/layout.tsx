@@ -35,7 +35,10 @@ export const metadata: Metadata = {
     googleBot: { index: true, follow: true },
   },
   alternates: {
-    canonical: "https://elhogardetusuenos.com",
+    // "./" lo resuelve Next contra la ruta actual, así cada página se
+    // auto-referencia. Si se pone una URL fija aquí, TODA página que no
+    // sobreescriba su canonical le dice a Google que es la home.
+    canonical: "./",
   },
 };
 

@@ -580,6 +580,27 @@ model busqueda_log {
   @@index([termino])
 }
 
+/// Registro de las notificaciones de pago recibidas de Redsys.
+/// Sirve para auditar: si un pedido aparece cobrado y no hay ingreso en el
+/// banco, aquí queda qué llegó exactamente y si se aceptó o se rechazó.
+model redsys_notificacion {
+  id            Int      @id @default(autoincrement())
+  pedidoId      Int?
+  dsOrder       String?  @db.VarChar(32)
+  dsResponse    String?  @db.VarChar(8)
+  importeCent   Int?
+  merchantCode  String?  @db.VarChar(32)
+  aceptada      Boolean  @default(false)
+  motivoRechazo String?  @db.VarChar(255)
+  ip            String?  @db.VarChar(64)
+  payloadCrudo  String?  @db.Text
+  timestamp     DateTime @default(now())
+
+  @@index([pedidoId])
+  @@index([timestamp])
+  @@index([aceptada])
+}
+
 model articulo {
   id               Int      @id @default(autoincrement())
   titulo           String

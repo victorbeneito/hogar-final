@@ -106,6 +106,13 @@ export default function BlogEditarPage() {
       });
       const data = await res.json();
       if (!data.ok) throw new Error(data.error);
+      // El servidor puede normalizar el slug (o añadirle sufijo si ya existía),
+      // así que reflejamos el definitivo en el formulario y en el enlace "Ver"
+      if (data.articulo?.slug && data.articulo.slug !== form.slug) {
+        set("slug", data.articulo.slug);
+        toast.success(`Artículo guardado · URL: /blog/${data.articulo.slug}`);
+        return;
+      }
       toast.success("Artículo guardado");
     } catch (e: any) {
       toast.error(e.message || "Error guardando artículo");

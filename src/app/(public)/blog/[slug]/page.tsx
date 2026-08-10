@@ -19,13 +19,17 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
   const title = articulo.metaTitulo || articulo.titulo;
   const description = articulo.metaDescripcion || articulo.extracto || "";
+  // Sin esto se hereda el canonical del layout raíz, que apunta a la home
+  const url = `/blog/${slug}`;
 
   return {
     title: `${title} | El blog de tu Hogar`,
     description,
+    alternates: { canonical: url },
     openGraph: {
       title,
       description,
+      url,
       images: articulo.imagenPortada ? [{ url: articulo.imagenPortada }] : [],
       type: "article",
     },
