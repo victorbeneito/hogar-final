@@ -5,8 +5,8 @@ import toast from "react-hot-toast";
 import type { OnApproveData, CreateOrderData } from "@paypal/checkout-server-sdk";
 
 interface PaypalCheckoutProps {
+  /** El importe no se pasa: lo resuelve el servidor a partir del pedido. */
   pedidoId: string;
-  total: number;
   currency?: string;
   onSuccess?: (data: any) => void;
   onError?: (error: any) => void;
@@ -14,7 +14,6 @@ interface PaypalCheckoutProps {
 
 export function PaypalCheckout({
   pedidoId,
-  total,
   currency = "EUR",
   onSuccess,
   onError,
@@ -33,7 +32,8 @@ export function PaypalCheckout({
             const res = await fetch("/api/paypal/crear-orden", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ pedidoId, total, currency }),
+              // Sin importe: lo pone el servidor desde el pedido guardado
+              body: JSON.stringify({ pedidoId, currency }),
             });
 
             const data = await res.json();

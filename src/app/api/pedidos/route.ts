@@ -5,6 +5,7 @@ import { Prisma } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { sendTemplateEmail, sendRawEmail, buildAdminOrderEmail, loadEmailSettings } from "@/lib/emailService";
 import { canEdit } from "@/lib/adminAuth";
+import { calcularTotalesPedido, ErrorCalculoPedido, type TotalesPedido } from "@/lib/checkoutPricing";
 
 async function getEstadoInicialPorMetodo(metodoPago: string, tx: any): Promise<{ nombre: string; color: string; clave: string }> {
   const metodo = (metodoPago || "").toLowerCase().trim();
@@ -518,25 +519,71 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: "Carrito vacío" }, { status: 400 });
     }
 
-    const productosParaInsertar = listaItems.map((p: any) => {
-      // Construir varianteInfo desde los campos del carrito
-      const partes: string[] = [];
-      if (p.tamanoSeleccionado) partes.push(`Tamaño : ${p.tamanoSeleccionado}`);
-      if (p.colorSeleccionado)  partes.push(`Color : ${p.colorSeleccionado}`);
-      if (p.tiradorSeleccionado) partes.push(`Tirador : ${p.tiradorSeleccionado}`);
-      const varianteInfo = p.varianteInfo ?? p.atributo ?? (partes.length > 0 ? partes.join("- ") : null);
-      // Incluir la variante en el nombre para compatibilidad con datos históricos
-      const nombreCompleto = partes.length > 0 ? `${p.nombre} - ${partes.join("- ")}` : p.nombre;
-      return {
-        nombre: nombreCompleto,
-        cantidad: p.cantidad,
-        precioUnitario: parseFloat(p.precioFinal ?? p.precio),
-        subtotal: parseFloat(p.precioFinal ?? p.precio) * p.cantidad,
-        productoIdRef: p.id,
-        varianteIdRef: p.varianteId ?? null,
-        varianteInfo,
-      };
-    });
+    // El carrito vive en localStorage: sus precios son manipulables desde el
+    // navegador. Para pedidos de tienda recalculamos todos los importes contra
+    // la BD. Los pedidos manuales del admin (ya protegidos por canEdit) sí
+    // pueden llevar precios a medida, así que conservan el cálculo antiguo.
+    const esPedidoManualAdmin = body.origen === "admin-manual";
+
+    let totales: TotalesPedido | null = null;
+    let productosParaInsertar;
+
+    if (esPedidoManualAdmin) {
+      productosParaInsertar = listaItems.map((p: any) => {
+        // Construir varianteInfo desde los campos del carrito
+        const partes: string[] = [];
+        if (p.tamanoSeleccionado) partes.push(`Tamaño : ${p.tamanoSeleccionado}`);
+        if (p.colorSeleccionado)  partes.push(`Color : ${p.colorSeleccionado}`);
+        if (p.tiradorSeleccionado) partes.push(`Tirador : ${p.tiradorSeleccionado}`);
+        const varianteInfo = p.varianteInfo ?? p.atributo ?? (partes.length > 0 ? partes.join("- ") : null);
+        // Incluir la variante en el nombre para compatibilidad con datos históricos
+        const nombreCompleto = partes.length > 0 ? `${p.nombre} - ${partes.join("- ")}` : p.nombre;
+        return {
+          nombre: nombreCompleto,
+          cantidad: p.cantidad,
+          precioUnitario: parseFloat(p.precioFinal ?? p.precio),
+          subtotal: parseFloat(p.precioFinal ?? p.precio) * p.cantidad,
+          productoIdRef: p.id,
+          varianteIdRef: p.varianteId ?? null,
+          varianteInfo,
+        };
+      });
+    } else {
+      try {
+        totales = await calcularTotalesPedido({
+          items: listaItems,
+          direccion: {
+            pais: datosCliente.pais || "España",
+            provincia: datosCliente.provincia,
+            codigoPostal: cpCliente,
+            ciudad: datosCliente.ciudad,
+          },
+          metodoEnvioId: body.metodoEnvio?.id ?? body.envioMetodo?.id ?? null,
+          metodoPago: body.metodoPago?.metodo || body.pagoMetodo?.metodo || "tarjeta",
+          cuponCodigo: body.cuponCodigo || body.cupon?.codigo || null,
+          clienteId,
+        });
+      } catch (err) {
+        if (err instanceof ErrorCalculoPedido) {
+          console.error("❌ Recálculo de pedido rechazado:", err.message);
+          return NextResponse.json({ error: err.message }, { status: err.status });
+        }
+        throw err;
+      }
+
+      if (totales.avisos.length > 0) {
+        console.warn("⚠️ Ajustes en el recálculo del pedido:", totales.avisos.join(" | "));
+      }
+
+      const totalCliente = parseFloat(body.totalFinal || 0);
+      if (Math.abs(totalCliente - totales.totalFinal) > 0.01) {
+        console.warn(
+          `⚠️ El total enviado por el cliente (${totalCliente.toFixed(2)} €) no coincide con el calculado en servidor (${totales.totalFinal.toFixed(2)} €). Se cobra el del servidor.`
+        );
+      }
+
+      productosParaInsertar = totales.lineas;
+    }
 
     // 3. Ejecutar Transacción
     console.log("💾 Iniciando transacción en Prisma...");
@@ -594,17 +641,27 @@ export async function POST(req: Request) {
             provincia: datosCliente.provincia || null,
             cp: cpCliente || null,
             pais: datosCliente.pais || "España",
-            envioMetodo: String(body.metodoEnvio?.metodo || body.envioMetodo?.metodo || "estándar"),
-            envioCoste: parseFloat(String(body.metodoEnvio?.coste || body.envioMetodo?.coste || 0)),
+            envioMetodo: totales
+              ? (totales.envio?.metodo ?? "estándar")
+              : String(body.metodoEnvio?.metodo || body.envioMetodo?.metodo || "estándar"),
+            envioCoste: totales
+              ? totales.envioCoste
+              : parseFloat(String(body.metodoEnvio?.coste || body.envioMetodo?.coste || 0)),
             pagoMetodo: metodoPagoStr,
-            pagoRecargo: parseFloat(String(body.pagoRecargo || 0)),
+            pagoRecargo: totales ? totales.recargoPago : parseFloat(String(body.pagoRecargo || 0)),
             estadoPago: body.estadoPago || "PENDIENTE",
-            subtotal: parseFloat(body.subtotal || 0),
-            descuento: parseFloat(body.descuento || body.descuentoAplicado || body.cuponDescuento || 0),
-            totalFinal: parseFloat(body.totalFinal || 0),
+            subtotal: totales ? totales.subtotal : parseFloat(body.subtotal || 0),
+            descuento: totales
+              ? totales.descuento
+              : parseFloat(body.descuento || body.descuentoAplicado || body.cuponDescuento || 0),
+            totalFinal: totales ? totales.totalFinal : parseFloat(body.totalFinal || 0),
             estado: estadoInicial.nombre,
-            cuponCodigo: body.cuponCodigo || body.cupon?.codigo || null,
-            cuponDescuento: body.cuponDescuento || body.descuentoAplicado || body.cupon?.descuento || null,
+            cuponCodigo: totales
+              ? (totales.cupon?.codigo ?? null)
+              : body.cuponCodigo || body.cupon?.codigo || null,
+            cuponDescuento: totales
+              ? (totales.cupon?.descuento ?? null)
+              : body.cuponDescuento || body.descuentoAplicado || body.cupon?.descuento || null,
             notas: null,
             fechaPedido: new Date(),
             updatedAt: new Date(),

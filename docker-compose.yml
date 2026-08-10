@@ -1,32 +1,54 @@
+# Base de datos local de hogar-final.
+#
+# Las credenciales NO van aquí (este fichero está versionado): se interpolan
+# desde `.env`, que está en .gitignore. Los valores por defecto solo sirven para
+# que `docker compose config` no falle si falta alguna variable.
+#
+# La primera vez que arranca sobre un volumen vacío, MariaDB ejecuta todo lo que
+# haya en ./docker/initdb, así que el volcado siembra la BD automáticamente.
+# En arranques posteriores ese directorio se ignora.
+
 services:
-  mi_tienda:
-    image: mariadb:10.11
-    container_name: mi_tienda
-    restart: always
+  db:
+    image: mariadb:12.1
+    container_name: hogar_mariadb
+    restart: unless-stopped
     ports:
-      - "3306:3306"
+      # Puerto propio del proyecto: evita pelearse con otras MariaDB locales
+      - "${DB_PORT:-3306}:3306"
     environment:
-      MYSQL_ROOT_PASSWORD: root
-      MYSQL_DATABASE: mi_tienda
-      MYSQL_USER: admin
-      MYSQL_PASSWORD: password123
+      MARIADB_ROOT_PASSWORD: "${MARIADB_ROOT_PASSWORD:-root}"
+      MARIADB_DATABASE: "${MARIADB_DATABASE:-mi_tienda}"
+      MARIADB_USER: "${MARIADB_USER:-hogar_user}"
+      MARIADB_PASSWORD: "${MARIADB_PASSWORD:-changeme}"
     command:
-      - "--innodb-use-native-aio=0"
       - "--innodb-flush-log-at-trx-commit=2"
       - "--innodb-flush-method=O_DSYNC"
       - "--sync-binlog=0"
       - "--skip-name-resolve"
     volumes:
-      - mysql_data:/var/lib/mysql
+      - hogar_db_data:/var/lib/mysql
+      - ./docker/initdb:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      # El volcado inicial tarda: no marcar el contenedor como caído mientras importa
+      start_period: 180s
 
   phpmyadmin:
     image: phpmyadmin/phpmyadmin
+    container_name: hogar_phpmyadmin
+    restart: unless-stopped
     ports:
-      - "8081:80"
+      - "${PHPMYADMIN_PORT:-8081}:80"
     environment:
-      PMA_HOST: mi_tienda
+      PMA_HOST: db
+      UPLOAD_LIMIT: 256M
     depends_on:
-      - mi_tienda
+      db:
+        condition: service_healthy
 
 volumes:
-  mysql_data:
+  hogar_db_data:

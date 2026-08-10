@@ -52,9 +52,15 @@ importacion/
 
 /public/img/p
 
+# Imágenes subidas desde el módulo Pop-ups (se generan en el servidor)
+/public/img/popups
+
 /prestashop
 
 /db_backups
 
 # Docker Desktop WSL disk (local only, never commit)
 DockerDesktopWSL/
+
+# Volcados que siembran la BD local: contienen datos reales de clientes
+docker/initdb/*.sql

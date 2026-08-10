@@ -28,10 +28,16 @@ export async function POST(req: NextRequest) {
     const ext = file.name.split(".").pop()?.toLowerCase() ?? "jpg";
     const filename = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
 
+    // Subcarpeta de destino dentro de /public/img. Por compatibilidad, si no se
+    // indica nada (o no está en la lista permitida) se usa "productos" como siempre.
+    const CARPETAS_PERMITIDAS = ["productos", "popups"];
+    const carpetaPedida = String(formData.get("carpeta") ?? "");
+    const carpeta = CARPETAS_PERMITIDAS.includes(carpetaPedida) ? carpetaPedida : "productos";
+
     // En Plesk el proceso arranca desde el directorio del proyecto (donde está server.js)
     // process.cwd() puede variar; usamos la ruta relativa al módulo como fallback
     const projectRoot = process.cwd();
-    const uploadDir = path.join(projectRoot, "public", "img", "productos");
+    const uploadDir = path.join(projectRoot, "public", "img", carpeta);
 
     // Crear el directorio si no existe (primera subida)
     await mkdir(uploadDir, { recursive: true });
@@ -40,7 +46,7 @@ export async function POST(req: NextRequest) {
     const buffer = Buffer.from(await file.arrayBuffer());
     await writeFile(savePath, buffer);
 
-    return NextResponse.json({ url: `/img/productos/${filename}` });
+    return NextResponse.json({ url: `/img/${carpeta}/${filename}` });
   } catch (err: any) {
     console.error("Error subiendo imagen:", err?.message ?? err);
     return NextResponse.json(

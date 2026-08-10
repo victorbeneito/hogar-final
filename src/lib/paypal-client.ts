@@ -30,4 +30,10 @@ export const ordersController = {
     getOrdersController().createOrder(...args),
   captureOrder: (...args: Parameters<OrdersController["captureOrder"]>) =>
     getOrdersController().captureOrder(...args),
+  // Necesarios para el checkout express: leer la dirección que elige el
+  // comprador en el popup y corregir el importe antes de cobrar.
+  getOrder: (...args: Parameters<OrdersController["getOrder"]>) =>
+    getOrdersController().getOrder(...args),
+  patchOrder: (...args: Parameters<OrdersController["patchOrder"]>) =>
+    getOrdersController().patchOrder(...args),
 };

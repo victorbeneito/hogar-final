@@ -5,6 +5,7 @@ import Link from "next/link";
 import { addToCart } from "@/lib/cartService";
 import CartModal from "@/components/CartModal";
 import ProductosRelacionados from "@/components/ProductosRelacionados";
+import PaypalExpressButton from "@/components/PaypalExpressButton";
 import { calcularPrecioVariante, ordenarValoresNaturales } from "@/lib/productVariantPricing";
 
 interface CategoriaProducto {
@@ -550,6 +551,27 @@ export default function ProductDetail({
             </button>
           </div>
 
+          {/* Compra rápida: sólo este producto, sin pasar por el carrito */}
+          {puedeComprar && (
+            <div className="mt-3">
+              <PaypalExpressButton
+                disabled={!puedeComprar}
+                items={[
+                  {
+                    id: Number(producto.id),
+                    nombre: producto.nombre,
+                    precio: producto.precio,
+                    precioFinal: precioFinalProducto,
+                    cantidad,
+                    tamanoSeleccionado: tamanoSeleccionado ?? undefined,
+                    tiradorSeleccionado: tiradorSeleccionado ?? undefined,
+                    colorSeleccionado: colorSeleccionado ?? undefined,
+                  },
+                ]}
+              />
+            </div>
+          )}
+
           {/* Widget REVI - Opiniones */}
           {producto.prestashopProductId && (
             <div className="mt-4">
@@ -613,7 +635,11 @@ export default function ProductDetail({
             </div>
             <div className="flex items-center gap-3">
               <span className="text-2xl">🚚</span>
-              <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Envíos</p>
+              <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Envíos al día siguiente de realizar el pedido</p>
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">📦</span>
+              <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Entrega 24-72 horas</p>
             </div>
             <div className="flex items-center gap-3">
               <span className="text-2xl">↔️</span>

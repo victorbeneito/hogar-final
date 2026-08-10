@@ -29,7 +29,8 @@ export default function PasarelaPaypal({ isOpen, onClose, onSuccess, importe, or
       const res = await fetch("/api/paypal/crear-orden", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pedidoId: orderId, total: importe, currency: "EUR" }),
+        // Sin importe: lo pone el servidor desde el pedido guardado
+        body: JSON.stringify({ pedidoId: orderId, currency: "EUR" }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Error creando orden PayPal");

@@ -35,7 +35,6 @@ export default function TestPaypalPage() {
           <h2 className="font-semibold mb-4 text-gray-900 dark:text-white">Botón de pago</h2>
           <PaypalCheckout
             pedidoId="TEST-001"
-            total={29.99}
             currency="EUR"
             onSuccess={(data) => {
               setPaymentStatus('success');

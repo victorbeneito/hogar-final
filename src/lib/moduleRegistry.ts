@@ -1,4 +1,4 @@
-export type ModuleSlug = "redsys" | "paypal" | "revi" | "seo" | "cookies";
+export type ModuleSlug = "redsys" | "paypal" | "revi" | "seo" | "cookies" | "popups";
 
 export type ModuleDefinition = {
   slug: ModuleSlug;
@@ -132,6 +132,20 @@ export const MODULES: ModuleDefinition[] = [
       { key: "mostrarTextoSeoCat", label: "Mostrar texto SEO al pie de categorías", type: "boolean" },
       { key: "opengraph", label: "Open Graph (vista previa en redes sociales)", type: "boolean" },
     ],
+  },
+  {
+    slug: "popups",
+    name: "Pop-ups",
+    description: "Ventanas emergentes con imagen o HTML en las páginas que elijas.",
+    category: "Marketing",
+    route: "/admin/personalizar/modulos/popups",
+    icon: "MessageSquare",
+    defaults: {
+      activa: false,
+      popups: [],
+    },
+    // La ficha de este módulo es propia (no usa el editor genérico de campos).
+    fields: [{ key: "activa", label: "Módulo activo", type: "boolean" }],
   },
   {
     slug: "cookies",

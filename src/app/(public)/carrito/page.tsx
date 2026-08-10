@@ -13,6 +13,7 @@ import {
 import { useClienteAuth } from "@/context/ClienteAuthContext";
 import { getGuestCheckout } from "@/lib/guestCheckout";
 import toast from "react-hot-toast";
+import PaypalExpressButton from "@/components/PaypalExpressButton";
 
 export default function CarritoPage() {
   const [carrito, setCarrito] = useState<CartItem[]>([]);
@@ -254,6 +255,20 @@ export default function CarritoPage() {
                     >
                         Tramitar Pedido &rarr;
                     </button>
+
+                    {/* Vía rápida: PayPal aporta email y dirección, así que el
+                        cliente se salta identificación, direcciones y envío. */}
+                    <div className="mt-4">
+                        <div className="relative mb-4 flex items-center">
+                            <div className="flex-1 border-t border-gray-200 dark:border-gray-700"></div>
+                            <span className="px-3 text-xs uppercase tracking-wide text-gray-400">o paga en un paso</span>
+                            <div className="flex-1 border-t border-gray-200 dark:border-gray-700"></div>
+                        </div>
+                        <PaypalExpressButton items={carrito} />
+                        <p className="mt-2 text-center text-[11px] leading-snug text-gray-400">
+                            Usaremos la dirección de envío de tu cuenta PayPal
+                        </p>
+                    </div>
 
                     <div className="mt-6 flex justify-center gap-4 opacity-50 grayscale">
                         <div className="text-[10px] border border-gray-300 dark:border-gray-600 px-2 py-1 rounded text-gray-500 dark:text-gray-400 font-bold">VISA</div>

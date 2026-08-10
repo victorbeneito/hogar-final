@@ -183,6 +183,11 @@ function summarizeModule(module: ModuleDefinition, state: Record<string, any>) {
   if (module.slug === "paypal") return `PayPal · ${state.entorno} · clientId ${state.clientId ? "configurado" : "pendiente"}`;
   if (module.slug === "revi") return `Revi · ${state.apiKey ? "API lista" : "pendiente"}`;
   if (module.slug === "seo") return `SEO · ${state.proveedor || "interno"}`;
+  if (module.slug === "popups") {
+    const total = Array.isArray(state.popups) ? state.popups.length : 0;
+    const activos = Array.isArray(state.popups) ? state.popups.filter((p: any) => p?.activo).length : 0;
+    return `Pop-ups · ${total} creado${total === 1 ? "" : "s"} · ${activos} activo${activos === 1 ? "" : "s"}`;
+  }
   return `Cookies · ${state.banner ? "banner activo" : "banner oculto"}`;
 }
 

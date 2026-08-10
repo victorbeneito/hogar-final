@@ -3,6 +3,7 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import CookieConsent from "@/components/CookieConsent";
 import ChatWidgets from "@/components/ChatWidgets";
+import PopupManager from "@/components/PopupManager";
 
 export default function PublicLayout({
   children,
@@ -29,6 +30,9 @@ export default function PublicLayout({
 
       {/* Chat de atención al cliente: tawk.to + WhatsApp */}
       <ChatWidgets />
+
+      {/* Ventanas emergentes configurables (módulo Pop-ups) */}
+      <PopupManager />
     </>
   );
 }

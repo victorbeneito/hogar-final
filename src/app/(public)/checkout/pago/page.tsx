@@ -212,11 +212,8 @@ export default function PagoPage() {
                     const ppRes = await fetch("/api/paypal/crear-orden", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                            pedidoId: realId,
-                            total: datosPedido.totalFinal,
-                            currency: "EUR",
-                        }),
+                        // Sin importe: lo pone el servidor desde el pedido guardado
+                        body: JSON.stringify({ pedidoId: realId, currency: "EUR" }),
                     });
                     const ppData = await ppRes.json();
                     toast.dismiss(toastPaypal);

@@ -1,13 +1,39 @@
 import { ordersController } from "@/lib/paypal-client";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
 
 export async function POST(req: NextRequest) {
   try {
-    const { pedidoId, total, currency = "EUR" } = await req.json();
+    const { pedidoId, currency = "EUR" } = await req.json();
 
-    if (!pedidoId || !total) {
-      return NextResponse.json({ error: "Missing pedidoId or total" }, { status: 400 });
+    if (!pedidoId) {
+      return NextResponse.json({ error: "Missing pedidoId" }, { status: 400 });
+    }
+
+    const id = parseInt(String(pedidoId), 10);
+    if (Number.isNaN(id)) {
+      return NextResponse.json({ error: "pedidoId no válido" }, { status: 400 });
+    }
+
+    // El importe se lee del pedido ya guardado, nunca del body: el navegador no
+    // decide cuánto se cobra. `POST /api/pedidos` lo calculó contra la BD.
+    const pedido = await prisma.pedido.findUnique({
+      where: { id },
+      select: { id: true, totalFinal: true, estadoPago: true },
+    });
+
+    if (!pedido) {
+      return NextResponse.json({ error: "Pedido no encontrado" }, { status: 404 });
+    }
+
+    if (pedido.estadoPago === "PAGADO") {
+      return NextResponse.json({ error: "Este pedido ya está pagado" }, { status: 409 });
+    }
+
+    const total = Number(pedido.totalFinal);
+    if (!Number.isFinite(total) || total <= 0) {
+      return NextResponse.json({ error: "El importe del pedido no es válido" }, { status: 400 });
     }
 
     const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
@@ -17,10 +43,10 @@ export async function POST(req: NextRequest) {
         intent: "CAPTURE",
         purchaseUnits: [
           {
-            referenceId: String(pedidoId),
+            referenceId: String(pedido.id),
             amount: {
               currencyCode: currency,
-              value: parseFloat(total).toFixed(2),
+              value: total.toFixed(2),
             },
           },
         ],
