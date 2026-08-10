@@ -40,6 +40,12 @@ module.exports = {
     },
   },
   plugins: [
+    // Genera las clases `prose` / `prose-*` que usa el contenido del blog
+    // (src/app/(public)/blog/[slug]/page.tsx). Sin este plugin esas clases
+    // no producen CSS y el artículo se ve sin títulos ni separación entre
+    // párrafos, porque Preflight ya ha quitado los estilos del navegador.
+    require('@tailwindcss/typography'),
+
     // He rescatado tu plugin de bordes del archivo .cjs
     plugin(function({ matchUtilities, theme }) {
       matchUtilities(

@@ -58,6 +58,7 @@
   },
   "devDependencies": {
     "@prisma/client": "^6.19.2",
+    "@tailwindcss/typography": "^0.5.20",
     "@types/axios": "^0.9.36",
     "@types/node": "^20.19.27",
     "@types/nodemailer": "^8.0.0",
