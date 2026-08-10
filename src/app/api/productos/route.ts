@@ -1,6 +1,40 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { Prisma } from "@prisma/client";
+import { prisma, type Prisma } from "@/lib/prisma";
+import {
+  MAX_CANDIDATOS_AMPLIADA,
+  filtroBusqueda,
+  puntuarPorNombre,
+  tokenizarBusqueda,
+} from "@/lib/busquedaProductos";
+
+// Campos que necesita la tarjeta de producto en el listado.
+const SELECT_LISTA = {
+  id:          true,
+  nombre:      true,
+  slug:        true,
+  referencia:  true,
+  precio:      true,
+  precioOferta:true,
+  stock:       true,
+  activo:      true,
+  destacado:   true,
+  enOferta:    true,
+  createdAt:   true,
+  mapeoProductoPs: { select: { idPrestashop: true }, take: 1 },
+  reglaimpuesto: { select: { porcentaje: true } },
+  productoimagen: {                          // ← Imagenes con mayúscula
+    where:  { esPortada: true },
+    select: { url: true },
+    take:   1,
+  },
+  productocategoria: {                        // ← Categorias en plural
+    select: {
+      categoria: { select: { id: true, nombre: true } },
+    },
+    take: 1,
+  },
+  marca: { select: { id: true, nombre: true } },
+} satisfies Prisma.productoSelect;
 
 // Helper para formatear variantes en la lista (MANTENIDO TU CÓDIGO ORIGINAL)
 function formatearVariantesParaFrontend(variantes: any[]) {
@@ -48,24 +82,25 @@ export async function GET(req: NextRequest) {
     referencia: "referencia",
     createdAt: "createdAt",
   };
-  const orderBy = sortBy === "relevance"
-    ? [
-        { destacado: "desc" },
-        { enOferta: "desc" },
-        { createdAt: "desc" },
-        { id: "desc" },
-      ]
-    : { [fieldMap[sortBy] ?? "id"]: sortDir };
+  const orderBy: Prisma.productoOrderByWithRelationInput | Prisma.productoOrderByWithRelationInput[] =
+    sortBy === "relevance"
+      ? [
+          { destacado: "desc" },
+          { enOferta: "desc" },
+          { createdAt: "desc" },
+          { id: "desc" },
+        ]
+      : { [fieldMap[sortBy] ?? "id"]: sortDir };
 
-  const where: Prisma.ProductoWhereInput = {};
+  const where: Prisma.productoWhereInput = {};
 
   const q = searchParams.get("q")?.trim();
+  // La frase se parte en palabras y cada una se busca por separado (nombre, resumen,
+  // etiquetas, marca, categoría...). Ver src/lib/busquedaProductos.ts
+  const tokensBusqueda = q ? tokenizarBusqueda(q) : [];
   if (q) {
-    where.OR = [
-      { nombre: { contains: q } },
-      { referencia: { contains: q } },
-      { slug: { contains: q } },
-    ];
+    const filtro = filtroBusqueda(tokensBusqueda, "todas");
+    if (filtro) where.AND = [filtro];
 
     // Registrar búsqueda (sin romper el flujo si falla)
     if (q.length > 2) {
@@ -123,39 +158,60 @@ export async function GET(req: NextRequest) {
   const destacado = searchParams.get("destacado");
   if (destacado !== null && destacado !== "") where.destacado = destacado === "true";
 
-  const [productos, total] = await Promise.all([
-    prisma.producto.findMany({
-      where, orderBy, skip, take: limit,
-      select: {
-        id:          true,
-        nombre:      true,
-        slug:        true,
-        referencia:  true,
-        precio:      true,
-        precioOferta:true,
-        stock:       true,
-        activo:      true,
-        destacado:   true,
-        enOferta:    true,
-        createdAt:   true,
-        mapeoProductoPs: { select: { idPrestashop: true }, take: 1 },
-        reglaimpuesto: { select: { porcentaje: true } },
-        productoimagen: {                          // ← Imagenes con mayúscula
-          where:  { esPortada: true },
-          select: { url: true },
-          take:   1,
-        },
-        productocategoria: {                        // ← Categorias en plural
-          select: {
-            categoria: { select: { id: true, nombre: true } },
-          },
-          take: 1,
-        },
-        marca: { select: { id: true, nombre: true } },
-      },
-    }),
+  let [productos, total] = await Promise.all([
+    prisma.producto.findMany({ where, orderBy, skip, take: limit, select: SELECT_LISTA }),
     prisma.producto.count({ where }),
   ]);
+
+  // Red de seguridad: si pidiendo TODAS las palabras no sale nada ("estor infantil
+  // marino"), se repite aceptando cualquiera de ellas y se ordenan por cuántas
+  // palabras de la búsqueda lleva el nombre, para que lo más parecido salga primero.
+  let busquedaAmpliada = false;
+  if (total === 0 && tokensBusqueda.length > 1) {
+    const filtroAmplio = filtroBusqueda(tokensBusqueda, "alguna");
+    const whereAmplio: Prisma.productoWhereInput = { ...where, AND: filtroAmplio ? [filtroAmplio] : [] };
+
+    if (sortBy !== "relevance") {
+      // El cliente ha pedido un orden concreto (precio, nombre...): se respeta tal cual.
+      const [lista, cuantos] = await Promise.all([
+        prisma.producto.findMany({ where: whereAmplio, orderBy, skip, take: limit, select: SELECT_LISTA }),
+        prisma.producto.count({ where: whereAmplio }),
+      ]);
+      if (cuantos > 0) {
+        productos = lista;
+        total = cuantos;
+        busquedaAmpliada = true;
+      }
+    } else {
+      // Orden por relevancia: primero los que más palabras de la búsqueda llevan en el nombre.
+      const candidatos = await prisma.producto.findMany({
+        where: whereAmplio,
+        orderBy,
+        take: MAX_CANDIDATOS_AMPLIADA,
+        select: { id: true, nombre: true },
+      });
+
+      if (candidatos.length > 0) {
+        // sort estable: a igual puntuación se mantiene el orden por defecto
+        const ordenados = candidatos
+          .map((p) => ({ id: p.id, puntos: puntuarPorNombre(p.nombre, tokensBusqueda) }))
+          .sort((a, b) => b.puntos - a.puntos);
+
+        const idsPagina = ordenados.slice(skip, skip + limit).map((c) => c.id);
+        const fichas = await prisma.producto.findMany({
+          where: { id: { in: idsPagina } },
+          select: SELECT_LISTA,
+        });
+        const fichaPorId = new Map(fichas.map((f) => [f.id, f]));
+
+        productos = idsPagina
+          .map((id) => fichaPorId.get(id))
+          .filter((f): f is NonNullable<typeof f> => Boolean(f));
+        total = ordenados.length;
+        busquedaAmpliada = true;
+      }
+    }
+  }
 
   // Normalizar para el frontend
   const productosNormalizados = productos.map((p) => {
@@ -175,7 +231,7 @@ export async function GET(req: NextRequest) {
     };
   });
 
-  return NextResponse.json({ ok: true, productos: productosNormalizados, total, page, limit, sortBy, sortDir });
+  return NextResponse.json({ ok: true, productos: productosNormalizados, total, page, limit, sortBy, sortDir, busquedaAmpliada });
 }
 
 

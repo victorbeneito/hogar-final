@@ -22,6 +22,8 @@ function ProductosContent() {
   const [error, setError] = useState("");
   const [total, setTotal] = useState(0);
   const [limit, setLimit] = useState(12);
+  // true cuando no había productos con todas las palabras y mostramos los más parecidos
+  const [busquedaAmpliada, setBusquedaAmpliada] = useState(false);
 
   const pageCount = Math.max(1, Math.ceil(total / limit));
   const pageButtons = (() => {
@@ -59,6 +61,7 @@ function ProductosContent() {
         setProductos(lista || []);
         setTotal(Number(data.total ?? (lista || []).length));
         setLimit(Number(data.limit ?? 12));
+        setBusquedaAmpliada(Boolean(data.busquedaAmpliada));
 
       } catch (err: any) {
         console.error(err);
@@ -139,6 +142,14 @@ function ProductosContent() {
               </Link>
             )}
         </div>
+
+        {/* No había ningún producto con todas las palabras: mostramos los más parecidos */}
+        {busquedaAmpliada && productos.length > 0 && (
+          <div className="mb-6 rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 px-4 py-3 text-sm text-amber-800 dark:text-amber-200">
+            No encontramos productos que cumplan todo lo que buscabas, así que te mostramos
+            los más parecidos a <strong>&quot;{q}&quot;</strong>.
+          </div>
+        )}
 
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between mb-6">
           <SortDropdown
