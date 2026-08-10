@@ -6,6 +6,7 @@ import { addToCart } from "@/lib/cartService";
 import CartModal from "@/components/CartModal";
 import ProductosRelacionados from "@/components/ProductosRelacionados";
 import PaypalExpressButton from "@/components/PaypalExpressButton";
+import toast from "react-hot-toast";
 import { calcularPrecioVariante, ordenarValoresNaturales } from "@/lib/productVariantPricing";
 
 interface CategoriaProducto {
@@ -551,26 +552,38 @@ export default function ProductDetail({
             </button>
           </div>
 
-          {/* Compra rápida: sólo este producto, sin pasar por el carrito */}
-          {puedeComprar && (
-            <div className="mt-3">
-              <PaypalExpressButton
-                disabled={!puedeComprar}
-                items={[
-                  {
-                    id: Number(producto.id),
-                    nombre: producto.nombre,
-                    precio: producto.precio,
-                    precioFinal: precioFinalProducto,
-                    cantidad,
-                    tamanoSeleccionado: tamanoSeleccionado ?? undefined,
-                    tiradorSeleccionado: tiradorSeleccionado ?? undefined,
-                    colorSeleccionado: colorSeleccionado ?? undefined,
-                  },
-                ]}
-              />
-            </div>
-          )}
+          {/* Compra rápida: sólo este producto, sin pasar por el carrito.
+              Se muestra siempre (desactivado hasta elegir opciones) igual que
+              "Añadir al carrito": si desapareciera, parecería que no existe. */}
+          <div className="mt-3">
+            <PaypalExpressButton
+              disabled={!puedeComprar}
+              items={[
+                {
+                  id: Number(producto.id),
+                  nombre: producto.nombre,
+                  precio: producto.precio,
+                  precioFinal: precioFinalProducto,
+                  cantidad,
+                  tamanoSeleccionado: tamanoSeleccionado ?? undefined,
+                  tiradorSeleccionado: tiradorSeleccionado ?? undefined,
+                  colorSeleccionado: colorSeleccionado ?? undefined,
+                },
+              ]}
+              onBeforePay={() => {
+                if (!puedeComprar) {
+                  toast.error("Elige primero las opciones del producto");
+                  return false;
+                }
+                return true;
+              }}
+            />
+            {!puedeComprar && stockDisponible === null && (
+              <p className="mt-1 text-center text-[11px] text-gray-400">
+                Elige las opciones para poder pagar con PayPal
+              </p>
+            )}
+          </div>
 
           {/* Widget REVI - Opiniones */}
           {producto.prestashopProductId && (
