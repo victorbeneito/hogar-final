@@ -744,7 +744,7 @@ export async function POST(req: Request) {
     console.log("   - Total:", result.totalFinal);
     console.log("   - Estado Pago:", result.estadoPago);
 
-    const appUrl = process.env.APP_URL || "https://www.elhogardetsuenos.com";
+    const appUrl = process.env.APP_URL || "https://www.elhogardetusuenos.com";
 
     // Emails diferidos: todos los métodos esperan confirmación del usuario excepto ninguno directo.
     // tarjeta/paypal: webhook/capture confirma. transferencia/bizum/contrareembolso: usuario confirma en pantalla.

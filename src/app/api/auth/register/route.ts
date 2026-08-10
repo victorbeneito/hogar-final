@@ -96,7 +96,7 @@ export async function POST(req: Request) {
       variables: {
         nombre: nuevoCliente.nombre,
         email: nuevoCliente.email,
-        loginUrl: `${process.env.APP_URL || "https://www.elhogardetsuenos.com"}/auth`,
+        loginUrl: `${process.env.APP_URL || "https://www.elhogardetusuenos.com"}/auth`,
       },
     }).catch((err) => console.error("❌ Email bienvenida:", err?.message));
 

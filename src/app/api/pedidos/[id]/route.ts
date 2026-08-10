@@ -529,7 +529,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
 
     // Emails automáticos al cambiar el estado del pedido
     if (pedidoAnterior && body.estado && pedidoAnterior.estado !== body.estado && pedidoAnterior.email) {
-      const appUrl = process.env.APP_URL || "https://www.elhogardetsuenos.com";
+      const appUrl = process.env.APP_URL || "https://www.elhogardetusuenos.com";
       const nombre = pedidoAnterior.nombre || "Cliente";
       const numeroPedido = pedidoAnterior.numeroPedido;
 

@@ -5,6 +5,15 @@ import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { getCart, clearCart, type CartItem } from "@/lib/cartService";
+import { BarreraPaypal, paypalConfigurado } from "@/components/PaypalProvider";
+
+type PaypalExpressButtonProps = {
+  /** Qué se compra. Si no se pasa, se usa el carrito completo. */
+  items?: CartItem[];
+  disabled?: boolean;
+  /** Devuelve false para abortar (p. ej. faltan opciones del producto). */
+  onBeforePay?: () => boolean;
+};
 
 /**
  * Checkout express: pagar desde el carrito (o desde la ficha de producto) sin
@@ -14,17 +23,19 @@ import { getCart, clearCart, type CartItem } from "@/lib/cartService";
  * El botón "Finalizar compra" de siempre sigue estando: esto es una vía rápida
  * alternativa, no un reemplazo.
  */
-export default function PaypalExpressButton({
-  items,
-  disabled,
-  onBeforePay,
-}: {
-  /** Qué se compra. Si no se pasa, se usa el carrito completo. */
-  items?: CartItem[];
-  disabled?: boolean;
-  /** Devuelve false para abortar (p. ej. faltan opciones del producto). */
-  onBeforePay?: () => boolean;
-}) {
+export default function PaypalExpressButton(props: PaypalExpressButtonProps) {
+  // Sin PayPalScriptProvider (el build salió sin NEXT_PUBLIC_PAYPAL_CLIENT_ID),
+  // usePayPalScriptReducer lanza nada más montar: mejor no montarlo siquiera.
+  if (!paypalConfigurado()) return null;
+
+  return (
+    <BarreraPaypal>
+      <BotonExpress {...props} />
+    </BarreraPaypal>
+  );
+}
+
+function BotonExpress({ items, disabled, onBeforePay }: PaypalExpressButtonProps) {
   const router = useRouter();
   const [{ isPending, isRejected }] = usePayPalScriptReducer();
   const [procesando, setProcesando] = useState(false);

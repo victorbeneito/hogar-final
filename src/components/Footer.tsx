@@ -89,7 +89,7 @@ export default function Footer() {
             España<br />
             Valencia<br />
             Llámenos: 961 154 226 - 684 004 525<br />
-            Envíenos un correo electrónico: <a href="mailto:info@elhogardetsuenos.com" className="text-primary dark:text-gray-700 font-semibold">info@elhogardetsuenos.com</a>
+            Envíenos un correo electrónico: <a href="mailto:info@elhogardetusuenos.com" className="text-primary dark:text-gray-700 font-semibold">info@elhogardetusuenos.com</a>
           </address>
         </div>
       </div>
