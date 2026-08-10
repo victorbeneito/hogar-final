@@ -1,28 +1,28 @@
 'use client';
 
 import { PayPalScriptProvider } from "@paypal/react-paypal-js";
-import { Component, type ReactNode } from "react";
+import { Component, createContext, useContext, useEffect, useState, type ReactNode } from "react";
 
 /**
- * ¿Hay PayPal en este build? Ojo: NEXT_PUBLIC_* se incrusta al compilar, así que
- * si la variable no estaba puesta al hacer el build, aquí es undefined aunque
- * exista en el servidor.
+ * ¿Estamos dentro de un PayPalScriptProvider?
  *
- * Lo usan el provider y los botones: si divergieran, los botones llamarían a
- * usePayPalScriptReducer sin provider y ese hook LANZA, tumbando la página.
+ * Sólo vale `true` en el subárbol que el provider envuelve, así que un botón
+ * que lo consulte antes de llamar a `usePayPalScriptReducer` nunca lo llamará
+ * sin provider — ese hook LANZA durante el render y tumbaría la página entera.
  */
-export function paypalConfigurado(): boolean {
-  const clientId = process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID;
-  return Boolean(clientId && !clientId.startsWith("PEGA_"));
+const PaypalDisponibleContext = createContext(false);
+
+export function usePaypalDisponible(): boolean {
+  return useContext(PaypalDisponibleContext);
 }
 
 /**
  * Barrera de seguridad alrededor de PayPal.
  *
- * Cuando el SDK de PayPal no carga (un adblocker o una VPN bloquean
- * paypal.com/sdk/js, credenciales mal puestas, etc.) la librería lanza el error
- * DURANTE EL RENDER. Sin esta barrera ese error sube hasta Next y deja la página
- * en blanco con "Application error: a client-side exception has occurred".
+ * Cuando el SDK no carga (un adblocker o una VPN bloquean paypal.com/sdk/js,
+ * credenciales mal puestas, etc.) la librería lanza DURANTE EL RENDER. Sin esta
+ * barrera ese error sube hasta Next y deja la página en blanco con
+ * "Application error: a client-side exception has occurred".
  *
  * Con ella el fallo se queda dentro: desaparece el botón de PayPal y el cliente
  * sigue comprando por las demás formas de pago.
@@ -43,23 +43,43 @@ export class BarreraPaypal extends Component<{ children: ReactNode }, { fallo: b
   }
 }
 
-export function PaypalProvider({ children }: { children: ReactNode }) {
-  const clientId = process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID;
+const esValido = (id: string | undefined | null) => Boolean(id) && !String(id).startsWith("PEGA_");
 
-  if (!paypalConfigurado()) {
-    return <>{children}</>;
-  }
+export function PaypalProvider({ children }: { children: ReactNode }) {
+  // Camino rápido: si la variable estaba puesta al compilar, sin petición.
+  const deBuild = process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID;
+  const [clientId, setClientId] = useState<string | null>(esValido(deBuild) ? (deBuild as string) : null);
+
+  useEffect(() => {
+    if (clientId) return;
+    // NEXT_PUBLIC_* se congela al compilar y en Plesk el build no ve las
+    // variables de entorno, así que lo pedimos al servidor en caliente.
+    let vivo = true;
+    fetch("/api/paypal/config", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((d) => {
+        if (vivo && esValido(d?.clientId)) setClientId(d.clientId);
+      })
+      .catch((error) => console.error("PayPal: no se pudo obtener el client-id:", error));
+    return () => {
+      vivo = false;
+    };
+  }, [clientId]);
+
+  // Sin client-id no montamos el provider: el contexto queda en false y los
+  // botones simplemente no se dibujan. El resto de la tienda no se entera.
+  if (!clientId) return <>{children}</>;
 
   return (
     <PayPalScriptProvider
       options={{
-        clientId: clientId as string,
+        clientId,
         currency: "EUR",
         intent: "capture",
         components: "buttons",
       }}
     >
-      {children}
+      <PaypalDisponibleContext.Provider value={true}>{children}</PaypalDisponibleContext.Provider>
     </PayPalScriptProvider>
   );
 }

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { getCart, clearCart, type CartItem } from "@/lib/cartService";
-import { BarreraPaypal, paypalConfigurado } from "@/components/PaypalProvider";
+import { BarreraPaypal, usePaypalDisponible } from "@/components/PaypalProvider";
 
 type PaypalExpressButtonProps = {
   /** Qué se compra. Si no se pasa, se usa el carrito completo. */
@@ -24,9 +24,10 @@ type PaypalExpressButtonProps = {
  * alternativa, no un reemplazo.
  */
 export default function PaypalExpressButton(props: PaypalExpressButtonProps) {
-  // Sin PayPalScriptProvider (el build salió sin NEXT_PUBLIC_PAYPAL_CLIENT_ID),
-  // usePayPalScriptReducer lanza nada más montar: mejor no montarlo siquiera.
-  if (!paypalConfigurado()) return null;
+  // Fuera del PayPalScriptProvider, usePayPalScriptReducer lanza nada más
+  // montar: si no hay provider, mejor no montar el botón siquiera.
+  const disponible = usePaypalDisponible();
+  if (!disponible) return null;
 
   return (
     <BarreraPaypal>

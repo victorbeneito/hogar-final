@@ -3,7 +3,7 @@
 import { PayPalButtons, usePayPalScriptReducer } from "@paypal/react-paypal-js";
 import toast from "react-hot-toast";
 import type { OnApproveData, CreateOrderData } from "@paypal/checkout-server-sdk";
-import { BarreraPaypal, paypalConfigurado } from "@/components/PaypalProvider";
+import { BarreraPaypal, usePaypalDisponible } from "@/components/PaypalProvider";
 
 interface PaypalCheckoutProps {
   /** El importe no se pasa: lo resuelve el servidor a partir del pedido. */
@@ -15,7 +15,8 @@ interface PaypalCheckoutProps {
 
 export function PaypalCheckout(props: PaypalCheckoutProps) {
   // Sin PayPalScriptProvider, usePayPalScriptReducer lanza y tumba el checkout.
-  if (!paypalConfigurado()) return null;
+  const disponible = usePaypalDisponible();
+  if (!disponible) return null;
 
   return (
     <BarreraPaypal>
