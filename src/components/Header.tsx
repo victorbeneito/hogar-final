@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import BannerContacto from "./BannerContacto";
 
 export default function Header() {
 
@@ -37,14 +38,8 @@ export default function Header() {
           {/* Usamos 'hidden md:flex' para que desaparezcan en pantallas pequeñas */}
           <div className="hidden md:flex flex-1 items-center justify-around lg:justify-end gap-6 lg:gap-12">
 
-            {/* Banner Dudas */}
-            <div className="flex-shrink-0 transform hover:scale-105 transition-transform duration-300">
-              <img
-                src="/img/banner-dudas.jpg"
-                alt="Banner Dudas y Consultas"
-                className="h-24 lg:h-28 w-auto rounded-lg shadow-sm object-contain"
-              />
-            </div>
+            {/* Banner Dudas (mini-banners clicables: fijo, móvil y email) */}
+            <BannerContacto />
 
             {/* REVI: Widget de sello/badge de valoraciones */}
             <div className="flex-shrink-0">
