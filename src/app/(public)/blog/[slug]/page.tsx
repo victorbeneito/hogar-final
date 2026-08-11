@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { quitarMarcaDelTitulo } from "@/lib/seo";
+import { CANONICAL_BASE_URL } from "@/lib/urls";
 import { Calendar, User, Eye, Tag, ArrowLeft, Home } from "lucide-react";
 
 type Props = {
@@ -51,9 +52,17 @@ export default async function ArticuloPage({ params }: Props) {
 
   if (!articulo) notFound();
 
+  // Sólo el contador. NO se toca `updatedAt`: antes se escribía aquí, así que cada
+  // visita —incluidas las de Googlebot— marcaba el artículo como recién modificado.
+  // Ese campo alimenta el `lastModified` de los artículos en sitemap.ts, de modo que
+  // el sitemap le decía a Google "esto acaba de cambiar" continuamente sin que hubiera
+  // cambiado nada. Cuando esa señal es falsa, Google deja de fiarse de ella.
+  //
+  // El modelo no lleva `@updatedAt`, así que Prisma no lo actualiza por su cuenta:
+  // ahora sólo cambia al editar el artículo, que es lo que significa.
   await prisma.articulo.update({
     where: { slug },
-    data: { vistas: { increment: 1 }, updatedAt: new Date() },
+    data: { vistas: { increment: 1 } },
   });
 
   const relacionados = await prisma.articulo.findMany({
@@ -71,8 +80,50 @@ export default async function ArticuloPage({ params }: Props) {
 
   const etiquetas = articulo.etiquetas?.split(",").map((t) => t.trim()).filter(Boolean) ?? [];
 
+  const urlArticulo = `${CANONICAL_BASE_URL}/blog/${articulo.slug}`;
+  const imagenAbsoluta = articulo.imagenPortada
+    ? articulo.imagenPortada.startsWith("http")
+      ? articulo.imagenPortada
+      : `${CANONICAL_BASE_URL}${articulo.imagenPortada}`
+    : undefined;
+
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "BlogPosting",
+        headline: articulo.titulo,
+        // mainEntityOfPage marca cuál es la página "dueña" del artículo, para que Google
+        // no lo confunda con las tarjetas del mismo artículo que salen en /blog.
+        mainEntityOfPage: { "@type": "WebPage", "@id": urlArticulo },
+        url: urlArticulo,
+        datePublished: articulo.fechaPublicacion.toISOString(),
+        dateModified: articulo.updatedAt.toISOString(),
+        author: { "@type": "Person", name: articulo.autor },
+        publisher: { "@id": `${CANONICAL_BASE_URL}/#organizacion` },
+        ...(articulo.extracto && { description: articulo.extracto }),
+        ...(imagenAbsoluta && { image: imagenAbsoluta }),
+        ...(etiquetas.length > 0 && { keywords: etiquetas.join(", ") }),
+      },
+      {
+        "@type": "BreadcrumbList",
+        itemListElement: [
+          { "@type": "ListItem", position: 1, name: "Inicio", item: CANONICAL_BASE_URL },
+          { "@type": "ListItem", position: 2, name: "Blog", item: `${CANONICAL_BASE_URL}/blog` },
+          { "@type": "ListItem", position: 3, name: articulo.titulo, item: urlArticulo },
+        ],
+      },
+    ],
+  };
+
   return (
     <main className="min-h-screen bg-gray-50 dark:bg-gray-950">
+      {/* Datos estructurados. `publisher` referencia por @id el Organization que
+          define el layout raíz, en lugar de repetir aquí los datos de la tienda. */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
       {/* Breadcrumb */}
       <div className="bg-white dark:bg-gray-900 border-b border-gray-100 dark:border-gray-800">
         <div className="max-w-4xl mx-auto px-4 py-3">

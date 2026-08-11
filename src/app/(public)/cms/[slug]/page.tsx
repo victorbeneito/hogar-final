@@ -2,7 +2,8 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { getCmsPageDefinition, normalizeCmsSettings } from "@/lib/cmsConfig";
-import { quitarMarcaDelTitulo } from "@/lib/seo";
+import { faqPageJsonLd, quitarMarcaDelTitulo } from "@/lib/seo";
+import { CANONICAL_BASE_URL } from "@/lib/urls";
 
 export const dynamic = "force-dynamic";
 
@@ -51,8 +52,22 @@ export default async function CmsPublicPage({ params }: PageProps) {
     return notFound();
   }
 
+  // Sólo la página de preguntas frecuentes emite FAQPage, y sólo si el análisis del
+  // contenido encuentra pares pregunta/respuesta reales. Ver faqPageJsonLd().
+  const faqJsonLd =
+    definition.slug === "preguntas-frecuentes"
+      ? faqPageJsonLd(page.contentHtml, `${CANONICAL_BASE_URL}/cms/${definition.slug}`)
+      : null;
+
   return (
     <div className="mx-auto w-full max-w-5xl px-4 py-8 md:py-12 space-y-6">
+      {faqJsonLd && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
+        />
+      )}
+
       <nav className="text-sm text-gray-500 dark:text-gray-400">
         <Link href="/" className="hover:underline">Inicio</Link>
         <span className="mx-2">/</span>

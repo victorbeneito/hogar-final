@@ -171,6 +171,91 @@ $h = (Invoke-WebRequest 'https://elhogardetusuenos.com/' -UseBasicParsing).Conte
 "fichas enlazadas  : " + ([regex]::Matches($h,'href="/productos/[^"]+"')).Count   # debe ser > 0
 ```
 
+### 1.5 Datos estructurados (JSON-LD)
+
+Antes sólo había `Product` en las fichas y `CollectionPage` + `BreadcrumbList` en las categorías.
+La portada no tenía **ninguna** etiqueta. Se añadieron cuatro.
+
+| Marcado | Dónde | Para qué |
+|---|---|---|
+| `Organization` | layout raíz (todas las páginas) | Quién está detrás de la tienda. Lo leen Google y los asistentes de IA |
+| `FAQPage` | `/cms/preguntas-frecuentes` | Habilita el desplegable de preguntas en los resultados |
+| `BlogPosting` + `BreadcrumbList` | `/blog/[slug]` | Autoría y fechas del artículo |
+| `BreadcrumbList` | ficha de producto | La ruta Inicio › Productos › Categoría › Producto |
+
+**`Organization` no lleva la dirección postal, y es deliberado.** La que hay en la configuración de
+facturas es el domicilio fiscal del titular. Imprimirlo en una factura que va a un cliente concreto es
+una cosa; publicarlo en datos estructurados que lee todo internet es otra distinta. Si algún día hay
+una dirección comercial pública, se añade un bloque `address` en `organizationJsonLd()` y el tipo puede
+pasar a `LocalBusiness`.
+
+Tampoco lleva `sameAs` (perfiles en redes): no hay ninguna URL de redes en el código ni en la
+configuración, e inventarlas sería peor que omitirlas. Cuando se tengan, se añaden a
+`REDES_SOCIALES` en [`src/lib/seo.ts`](../src/lib/seo.ts) y aparecen solas.
+
+`BlogPosting` referencia el `publisher` por `@id` (`…/#organizacion`) en lugar de repetir los datos de
+la tienda, así que si cambian se cambian en un sitio.
+
+**El `FAQPage` analiza el contenido, que es editable desde el panel.** Por eso el analizador es
+defensivo y tiene dos estrategias:
+
+- **A — encabezados:** `<h3>pregunta</h3>` y lo que sigue hasta el próximo `<h3>`. Es el formato actual
+  de la página en producción.
+- **B — negritas:** párrafos cuyo texto va entero en negrita son la pregunta, y los siguientes la
+  respuesta. Es el formato que traía el contenido importado de PrestaShop
+  (`<p><span><b>¿Pregunta?</b></span></p>`), que aún vive en algunas bases de datos.
+
+Sólo se aceptan encabezados que contengan `?` o `¿`: la página mezcla preguntas reales con títulos
+como "PRODUCTOS", y marcar eso como pregunta sería marcado falso. Si no se encuentra ningún par, **no
+se emite marcado**: un `FAQPage` vacío o que no se corresponde con lo que ve el usuario es peor que no
+tener ninguno.
+
+Verificado contra el contenido real: 12 preguntas con el formato de producción, 14 con el formato
+antiguo, y `null` en los siete casos límite probados (vacío, sin encabezados, encabezado sin
+interrogante, encabezado sin respuesta, negrita suelta en mitad de una frase…).
+
+### 1.6 Cada visita al blog marcaba el artículo como recién modificado
+
+**Síntoma:** `blog/[slug]/page.tsx` incrementaba el contador de visitas **y de paso escribía
+`updatedAt: new Date()`**. Ese campo alimenta el `lastModified` de los artículos en
+[`sitemap.ts`](../src/app/sitemap.ts), así que el sitemap le decía a Google "esto acaba de cambiar"
+cada vez que alguien —incluido el propio Googlebot— abría el artículo.
+
+**Por qué importa:** cuando esa señal es sistemáticamente falsa, Google deja de fiarse de ella y la
+ignora para todo el sitio. Se pierde la capacidad de avisar de un cambio real.
+
+**Qué se hizo:** el contador ya sólo incrementa `vistas`. El modelo `articulo` **no** lleva
+`@updatedAt`, así que Prisma no lo toca por su cuenta: ahora sólo cambia al editar el artículo, que es
+lo que el campo significa. Comprobado con tres visitas seguidas: `vistas` pasó de 1 a 4 y `updatedAt`
+no se movió.
+
+### 1.7 Catorce fichas devolvían 404 y estaban en el sitemap
+
+Apareció al verificar el marcado de una ficha cualquiera.
+
+**Síntoma:** `https://elhogardetusuenos.com/productos/7000` → **404**. Y `7000` sale del propio
+sitemap y de los enlaces del listado.
+
+**Causa:** la ficha decidía si el segmento de la URL era un id o un slug por su aspecto:
+
+```ts
+const byId = Number.isInteger(Number(id)) && Number(id) > 0;
+where: byId ? { id: idNumero } : { slug: id }
+```
+
+Hay productos cuyo **slug es un número** (`"7000"`, `"6950"`, `"8000"`…). Para ellos se buscaba el
+producto con id 7000, que no existe, y salía 404. En producción son **14 fichas**: 14 URLs muertas
+anunciadas a Google en el sitemap y 14 productos que ningún cliente podía comprar.
+
+**Qué se hizo:** se busca **siempre por slug primero** —que es la forma canónica de las URLs— y sólo se
+cae al id si no hay coincidencia. `slug` es `@unique`, así que es una sola consulta en el caso normal.
+Es determinista incluso si algún día un slug numérico coincidiera con el id de otro producto
+(hoy no ocurre en ninguno: comprobado, 0 casos).
+
+El mismo patrón estaba en
+[`/api/productos/[id]/relacionados`](../src/app/api/productos/[id]/relacionados/route.ts) y se corrigió
+igual. `quick-view` **no** está afectado: recibe siempre el id numérico desde `ProductCard`.
+
 ---
 
 ## Parte 2 — Seguridad: tres endpoints de escritura sin autenticación
@@ -216,6 +301,16 @@ podía depender de él.
 
 Se dejó un comentario en cabecera de los ficheros supervivientes explicando por qué se fueron, para
 que nadie los "recupere" del historial pensando que faltan.
+
+### Y un cuarto: la configuración de facturas exponía el NIF y la dirección
+
+`GET /api/facturas/configuracion` **no comprobaba credenciales** (el `POST` sí). Devolvía el bloque
+`seller` completo, que en producción contiene el **NIF y la dirección postal del titular**. Cualquiera
+podía leerlos con una petición sin autenticar; se comprobó desde fuera y respondía.
+
+Corregido añadiendo `canEdit()` al `GET`. Sólo lo consume el panel
+(`/admin/facturas/configuracion`), así que no rompe nada: la generación de facturas no pasa por esa
+ruta, lee la configuración directamente de la base de datos en el servidor.
 
 **Verificar:**
 
@@ -401,10 +496,20 @@ Referido a [`2026-08-plan-seo-siguiente-fase.md`](2026-08-plan-seo-siguiente-fas
 | 3 — Marca duplicada en títulos | ✅ **Cerrado** |
 | 5 — `availability` real del producto | ✅ **Cerrado** |
 | 1 — SSR de home y `/productos` | ✅ **Cerrado** |
-| 4 — JSON-LD que falta (`Organization`, `FAQPage`, `BlogPosting`, migas en ficha) | ⬜ |
-| 6 — Enlaces internos del blog al catálogo | ⬜ |
+| 4 — JSON-LD que falta (`Organization`, `FAQPage`, `BlogPosting`, migas en ficha) | ✅ **Cerrado** |
+| 6 — Enlaces internos del blog al catálogo | ⬜ (redacción, no código) |
 | 7 — `next/image` en `ProductCard` | ⬜ |
 | 8 — Flecos (dominio con ñ, sitemaps legacy) | ⬜ |
+
+## Decisiones pendientes del titular
+
+1. **Correo y web en la configuración de facturas.** En producción, `facturas_configuracion` guarda
+   `info@elhogardetussuenos.com` y `elhogardetussuenos.com`, **con doble "s"**: un dominio que no
+   existe, sin DNS ni MX. Las facturas que se emiten hoy imprimen una dirección que no recibe correo y
+   una web que no carga. Se arregla a mano en `/admin/facturas/configuracion`; no es un cambio de
+   código. El bueno es `elhogardetusuenos.com`.
+2. **¿Publicar la dirección postal** en el `Organization`? Hoy no se publica (ver 1.5).
+3. **URLs de redes sociales** para `sameAs`, si existen perfiles.
 
 ---
 

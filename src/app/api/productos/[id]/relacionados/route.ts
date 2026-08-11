@@ -101,9 +101,13 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     const idNumero = Number(idString);
     const esId = Number.isInteger(idNumero) && idNumero > 0;
 
-    // Producto de referencia (acepta id o slug, igual que la ficha pública)
+    // Producto de referencia (acepta id o slug, igual que la ficha pública).
+    // El OR es necesario porque hay productos cuyo slug ES un número ("7000"):
+    // decidir por el aspecto del segmento hacía que se buscara un id inexistente.
+    // No hay ningún caso en la base de datos en que el slug numérico de un producto
+    // coincida con el id de otro, así que el OR no puede devolver el equivocado.
     const base = await prisma.producto.findFirst({
-      where: esId ? { id: idNumero } : { slug: idString },
+      where: { OR: [{ slug: idString }, ...(esId ? [{ id: idNumero }] : [])] },
       select: {
         id: true,
         nombre: true,

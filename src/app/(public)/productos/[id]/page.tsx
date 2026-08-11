@@ -2,7 +2,7 @@ import { cache } from "react";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import ProductDetail from "./ProductDetail";
-import { prisma } from "@/lib/prisma";
+import { prisma, type Prisma } from "@/lib/prisma";
 import {
   createDefaultTransportConfig,
   getFreeShippingThreshold,
@@ -31,12 +31,19 @@ type PageProps = {
 // React.cache() deduplicates the DB call so generateMetadata and ProductoPage
 // share a single query per request instead of hitting the DB twice.
 const getProducto = cache(async (id: string) => {
-  const idNumero = Number(id);
-  const byId = Number.isInteger(idNumero) && idNumero > 0;
-
-  return prisma.producto.findFirst({
-    where: byId ? { id: idNumero } : { slug: id },
-    select: {
+  // El segmento de la URL puede ser un slug o un id. Antes se decidía así:
+  //
+  //   where: Number.isInteger(Number(id)) ? { id: Number(id) } : { slug: id }
+  //
+  // …y eso rompía todos los productos cuyo slug es un número, como "7000": se
+  // buscaba el producto con id 7000, que no existe, y la ficha devolvía 404. Eran
+  // 14 fichas en producción, todas ellas anunciadas en el sitemap, es decir, 14 URLs
+  // muertas que Google rastreaba y 14 productos que nadie podía comprar.
+  //
+  // Ahora se busca SIEMPRE por slug primero, que es la forma canónica de las URLs, y
+  // sólo se cae al id si no hay ninguna coincidencia. Es determinista incluso si algún
+  // día un slug numérico coincide con el id de otro producto (hoy no ocurre en ninguno).
+  const select = {
       id: true,
       nombre: true,
       slug: true,
@@ -83,8 +90,18 @@ const getProducto = cache(async (id: string) => {
       marca: {
         select: { id: true, nombre: true, logo_url: true, imagen: true },
       },
-    },
-  });
+  } satisfies Prisma.productoSelect;
+
+  // slug es @unique, así que findUnique sirve. Una sola consulta en el caso normal.
+  const porSlug = await prisma.producto.findUnique({ where: { slug: id }, select });
+  if (porSlug) return porSlug;
+
+  const idNumero = Number(id);
+  if (Number.isInteger(idNumero) && idNumero > 0) {
+    return prisma.producto.findUnique({ where: { id: idNumero }, select });
+  }
+
+  return null;
 });
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
@@ -216,25 +233,51 @@ export default async function ProductoPage({ params }: PageProps) {
   const precioValidoHasta = new Date();
   precioValidoHasta.setFullYear(precioValidoHasta.getFullYear() + 1);
 
+  // Miga de pan: Inicio › Productos › [categoría] › [producto]. La categoría sólo entra
+  // si el producto tiene una asignada; si no, se salta el escalón y se renumeran las
+  // posiciones, porque schema.org exige que sean consecutivas empezando en 1.
+  const categoriaProducto = productoRaw.productocategoria?.[0]?.categoria ?? null;
+  const migas = [
+    { nombre: "Inicio", url: BASE_URL },
+    { nombre: "Productos", url: `${BASE_URL}/productos` },
+    ...(categoriaProducto
+      ? [{ nombre: categoriaProducto.nombre, url: `${BASE_URL}/categorias/${categoriaProducto.id}` }]
+      : []),
+    { nombre: productoRaw.nombre, url: productoUrl },
+  ];
+
   const jsonLd = {
     "@context": "https://schema.org",
-    "@type": "Product",
-    "name": productoRaw.nombre,
-    "url": productoUrl,
-    ...(productoRaw.productoimagen[0]?.url && { "image": productoRaw.productoimagen[0].url }),
-    ...(productoRaw.descripcion && { "description": productoRaw.descripcion }),
-    ...(productoRaw.referencia && { "sku": productoRaw.referencia }),
-    ...(productoRaw.marca && { "brand": { "@type": "Brand", "name": productoRaw.marca.nombre } }),
-    "offers": {
-      "@type": "Offer",
-      "url": productoUrl,
-      "priceCurrency": "EUR",
-      "price": (ofertaConIva ?? precioConIva).toFixed(2),
-      "priceValidUntil": precioValidoHasta.toISOString().split("T")[0],
-      "availability": disponibilidad,
-      "itemCondition": "https://schema.org/NewCondition",
-      "seller": { "@type": "Organization", "name": SITE_NAME },
-    },
+    "@graph": [
+      {
+        "@type": "Product",
+        "name": productoRaw.nombre,
+        "url": productoUrl,
+        ...(productoRaw.productoimagen[0]?.url && { "image": productoRaw.productoimagen[0].url }),
+        ...(productoRaw.descripcion && { "description": productoRaw.descripcion }),
+        ...(productoRaw.referencia && { "sku": productoRaw.referencia }),
+        ...(productoRaw.marca && { "brand": { "@type": "Brand", "name": productoRaw.marca.nombre } }),
+        "offers": {
+          "@type": "Offer",
+          "url": productoUrl,
+          "priceCurrency": "EUR",
+          "price": (ofertaConIva ?? precioConIva).toFixed(2),
+          "priceValidUntil": precioValidoHasta.toISOString().split("T")[0],
+          "availability": disponibilidad,
+          "itemCondition": "https://schema.org/NewCondition",
+          "seller": { "@type": "Organization", "name": SITE_NAME },
+        },
+      },
+      {
+        "@type": "BreadcrumbList",
+        "itemListElement": migas.map((m, i) => ({
+          "@type": "ListItem",
+          "position": i + 1,
+          "name": m.nombre,
+          "item": m.url,
+        })),
+      },
+    ],
   };
 
   return (

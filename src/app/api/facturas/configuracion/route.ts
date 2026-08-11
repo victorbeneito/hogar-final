@@ -7,7 +7,16 @@ export const dynamic = "force-dynamic";
 
 const CONFIG_KEY = "facturas_configuracion";
 
-export async function GET() {
+// El bloque `seller` lleva el NIF y la dirección postal del titular: datos personales.
+// Este GET estaba abierto y cualquiera podía leerlos con una petición sin autenticar.
+// Sólo lo consume el panel (/admin/facturas/configuracion), así que exigir rol no
+// rompe nada. La generación de facturas no pasa por aquí: lee la configuración
+// directamente de la BD en el servidor.
+export async function GET(req: NextRequest) {
+  if (!canEdit(req)) {
+    return NextResponse.json({ ok: false, error: "Sin permiso para consultar la configuración de facturas" }, { status: 403 });
+  }
+
   const configuracion = await prisma.configuracion.findUnique({ where: { clave: CONFIG_KEY } });
   const config = normalizeInvoiceSettings(configuracion?.valor ? JSON.parse(configuracion.valor) : DEFAULT_INVOICE_SETTINGS);
 

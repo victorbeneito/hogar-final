@@ -8,6 +8,7 @@ import Script from "next/script";
 import { PaypalProvider } from "@/components/PaypalProvider";
 import TrafficTracker from "@/components/TrafficTracker";
 import { CANONICAL_BASE_URL } from "@/lib/urls";
+import { organizationJsonLd } from "@/lib/seo";
 
 export const dynamic = "force-dynamic";
 
@@ -51,6 +52,12 @@ export default function RootLayout({
   return (
     <html lang="es" suppressHydrationWarning>
       <body suppressHydrationWarning className="bg-fondo dark:bg-darkBg text-secondary dark:text-darkNavText transition-colors duration-300 flex flex-col min-h-screen">
+        {/* Identidad de la tienda para buscadores y asistentes de IA. Va en el layout
+            raíz para que esté en todas las páginas. */}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationJsonLd(CANONICAL_BASE_URL)) }}
+        />
         <PaypalProvider>
           <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
             <AuthProvider>
