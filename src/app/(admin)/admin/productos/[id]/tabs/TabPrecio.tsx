@@ -182,7 +182,11 @@ export default function TabPrecio({ data, onChange, reglasImpuesto }: Props) {
       {/* ── Stock ── */}
       <section>
         <h3 className="text-base font-semibold text-gray-800 mb-4 pb-2 border-b">Stock</h3>
-        {data.tieneVariantes ? (
+        {/* Se mira el array de combinaciones, no el flag `tieneVariantes`: ese campo
+            está sin mantener (a false en productos que sí tienen variantes) y hacía
+            que aquí saliera la casilla de stock del producto, que para esos productos
+            no se usa para nada. El array es siempre el dato real. */}
+        {(data.variantes?.length ?? 0) > 0 ? (
           <p className="text-sm text-blue-800 bg-blue-50 border border-blue-200 rounded px-3 py-2">
             ℹ️ Este producto tiene combinaciones. El stock se gestiona individualmente en la pestaña <strong>Combinaciones</strong>.
           </p>

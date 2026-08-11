@@ -7,6 +7,7 @@ import { sendTemplateEmail, sendRawEmail, buildAdminOrderEmail, loadEmailSetting
 import { canEdit } from "@/lib/adminAuth";
 import { calcularTotalesPedido, ErrorCalculoPedido, type TotalesPedido } from "@/lib/checkoutPricing";
 import { getBaseUrl } from "@/lib/urls";
+import { idsProductosSinControlDeStock } from "@/lib/stock";
 
 async function getEstadoInicialPorMetodo(metodoPago: string, tx: any): Promise<{ nombre: string; color: string; clave: string }> {
   const metodo = (metodoPago || "").toLowerCase().trim();
@@ -702,6 +703,53 @@ export async function POST(req: Request) {
             pedidoproducto: true,
           },
         });
+
+      // ── Descontar existencias ──────────────────────────────────────────────
+      // Va DENTRO de la transacción del pedido a propósito: o se crea el pedido y
+      // se descuenta el stock, o no ocurre ninguna de las dos cosas. Y como el
+      // pedido se crea una sola vez, no hace falta protección extra contra
+      // reintentos de la pasarela: éstos confirman un pedido ya existente, no
+      // vuelven a pasar por aquí.
+      //
+      // Se descuenta al CREAR el pedido, antes de que se complete el pago, para
+      // que dos clientes no puedan comprar la misma unidad mientras uno está en
+      // la pasarela. La contrapartida es que un pago abandonado retiene stock
+      // hasta que se cancele el pedido (ver nota de reposición más abajo).
+      //
+      // updateMany y no update: si una línea apunta a un producto o variante que
+      // ya no existe, update lanzaría P2025 y tumbaría TODA la transacción, es
+      // decir, el cliente no podría comprar por un id obsoleto. updateMany no
+      // encuentra nada y sigue, que es justo el comportamiento que queremos.
+      //
+      // Los estores digitales quedan fuera: se fabrican bajo pedido y su stock es
+      // un número decorativo. Ver src/lib/stock.ts.
+      const idsDeLineas = [
+        ...new Set(
+          productosParaInsertar
+            .map((l: any) => l.productoIdRef)
+            .filter((id: any): id is number => typeof id === "number")
+        ),
+      ];
+      const sinControlDeStock = await idsProductosSinControlDeStock(tx, idsDeLineas);
+
+      for (const linea of productosParaInsertar) {
+        const cantidad = Number(linea.cantidad) || 0;
+        if (cantidad <= 0) continue;
+        if (linea.productoIdRef && sinControlDeStock.has(linea.productoIdRef)) continue;
+
+        if (linea.varianteIdRef) {
+          // Producto con combinaciones: las existencias viven en la variante.
+          await tx.variante.updateMany({
+            where: { id: linea.varianteIdRef },
+            data: { stock: { decrement: cantidad } },
+          });
+        } else if (linea.productoIdRef) {
+          await tx.producto.updateMany({
+            where: { id: linea.productoIdRef },
+            data: { stock: { decrement: cantidad } },
+          });
+        }
+      }
 
       return pedido;
     });
