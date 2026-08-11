@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { getCmsPageDefinition, normalizeCmsSettings } from "@/lib/cmsConfig";
+import { quitarMarcaDelTitulo } from "@/lib/seo";
 
 export const dynamic = "force-dynamic";
 
@@ -23,7 +24,11 @@ export async function generateMetadata({ params }: PageProps) {
   const page = settings.pages[definition.slug];
 
   return {
-    title: page.metaTitle || page.title,
+    // El metaTitle guardado en /admin/cms suele traer ya "| El Hogar de tus Sueños",
+    // y la plantilla del layout raíz lo añade otra vez. Se quita aquí porque el valor
+    // de la BD manda sobre los defaults de cmsConfig.ts: limpiar sólo el fichero no
+    // arreglaría las páginas que ya tienen un metaTitle guardado.
+    title: quitarMarcaDelTitulo(page.metaTitle || page.title),
     description: page.metaDescription || page.excerpt,
   };
 }

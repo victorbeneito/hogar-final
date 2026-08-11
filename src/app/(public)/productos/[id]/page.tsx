@@ -9,6 +9,7 @@ import {
   normalizeShippingConfig,
 } from "@/lib/transportes";
 import { CANONICAL_BASE_URL } from "@/lib/urls";
+import { SITE_NAME } from "@/lib/seo";
 
 const TRANSPORTES_CONFIG_KEY = "transportes_configuracion";
 
@@ -185,6 +186,29 @@ export default async function ProductoPage({ params }: PageProps) {
     ? `${BASE_URL}/productos/${productoRaw.slug}`
     : `${BASE_URL}/productos/${productoRaw.id}`;
 
+  // Disponibilidad real. Antes estaba fijo en "InStock" para todo, incluidos los
+  // agotados: si Google detecta que el dato estructurado no coincide con lo que
+  // muestra la página, puede retirar los resultados enriquecidos de TODA la tienda
+  // (y con ellos el precio en los resultados, que es lo que más se nota).
+  //
+  // En los productos con variantes el campo `stock` del producto no se usa: las
+  // existencias viven en cada variante, así que hay que sumarlas.
+  const stockDisponible = productoRaw.tieneVariantes
+    ? productoRaw.variante.reduce((suma: number, v: any) => suma + (v.stock ?? 0), 0)
+    : productoRaw.stock ?? 0;
+
+  const disponibilidad =
+    stockDisponible > 0
+      ? "https://schema.org/InStock"
+      : productoRaw.disponiblePedidos
+        ? "https://schema.org/BackOrder"   // agotado pero se admite pedido
+        : "https://schema.org/OutOfStock";
+
+  // Google avisa si falta priceValidUntil, y si la fecha ya pasó deja de mostrar el
+  // precio. Un año por delante desde el render, que es dinámico y nunca caduca.
+  const precioValidoHasta = new Date();
+  precioValidoHasta.setFullYear(precioValidoHasta.getFullYear() + 1);
+
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "Product",
@@ -199,8 +223,10 @@ export default async function ProductoPage({ params }: PageProps) {
       "url": productoUrl,
       "priceCurrency": "EUR",
       "price": (ofertaConIva ?? precioConIva).toFixed(2),
-      "availability": "https://schema.org/InStock",
-      "seller": { "@type": "Organization", "name": "El Hogar de tus Sueños" },
+      "priceValidUntil": precioValidoHasta.toISOString().split("T")[0],
+      "availability": disponibilidad,
+      "itemCondition": "https://schema.org/NewCondition",
+      "seller": { "@type": "Organization", "name": SITE_NAME },
     },
   };
 

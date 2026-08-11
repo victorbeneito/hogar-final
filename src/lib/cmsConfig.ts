@@ -42,7 +42,7 @@ export const CMS_PAGE_DEFINITIONS: CmsPageDefinition[] = [
     description: "Texto legal principal con la identificación de la web y condiciones de uso.",
     defaultTitle: "Aviso legal",
     defaultExcerpt: "Información legal y titularidad del sitio web.",
-    defaultMetaTitle: "Aviso legal | El Hogar de tus Sueños",
+    defaultMetaTitle: "Aviso legal",
     defaultMetaDescription: "Consulta el aviso legal de El Hogar de tus Sueños.",
     defaultContentHtml:
       "<p>Completa aquí el contenido del aviso legal. Puedes pegar el HTML que ya tengas preparado.</p>",
@@ -54,7 +54,7 @@ export const CMS_PAGE_DEFINITIONS: CmsPageDefinition[] = [
     description: "Condiciones generales de compra, uso de la tienda y contratación.",
     defaultTitle: "Términos y condiciones",
     defaultExcerpt: "Condiciones generales de contratación y compra.",
-    defaultMetaTitle: "Términos y condiciones | El Hogar de tus Sueños",
+    defaultMetaTitle: "Términos y condiciones",
     defaultMetaDescription: "Consulta los términos y condiciones de compra.",
     defaultContentHtml:
       "<p>Completa aquí los términos y condiciones de la tienda. Puedes pegar el texto HTML final en esta zona.</p>",
@@ -66,7 +66,7 @@ export const CMS_PAGE_DEFINITIONS: CmsPageDefinition[] = [
     description: "Página de dudas frecuentes para ayudar antes y después de la compra.",
     defaultTitle: "Preguntas frecuentes",
     defaultExcerpt: "Respuestas a las dudas más habituales.",
-    defaultMetaTitle: "Preguntas frecuentes | El Hogar de tus Sueños",
+    defaultMetaTitle: "Preguntas frecuentes",
     defaultMetaDescription: "Resolvemos las preguntas más frecuentes de la tienda.",
     defaultContentHtml: `<h2>Preguntas frecuentes</h2>
 <h3 id="cambios-devoluciones">¿Y si no me gusta ¿hay posibilidad de realizar un cambio o devolverlo?</h3>
@@ -85,7 +85,7 @@ export const CMS_PAGE_DEFINITIONS: CmsPageDefinition[] = [
     description: "Información sobre el uso de cookies y preferencias del navegador.",
     defaultTitle: "Política de Cookies",
     defaultExcerpt: "Detalles sobre cookies técnicas y de preferencias.",
-    defaultMetaTitle: "Política de Cookies | El Hogar de tus Sueños",
+    defaultMetaTitle: "Política de Cookies",
     defaultMetaDescription: "Consulta la política de cookies de la tienda.",
     defaultContentHtml:
       "<p>Completa aquí el contenido de la política de cookies. Puedes reutilizar el texto legal que tengas preparado.</p>",
@@ -97,7 +97,7 @@ export const CMS_PAGE_DEFINITIONS: CmsPageDefinition[] = [
     description: "Tratamiento de datos personales, finalidades y derechos del usuario.",
     defaultTitle: "Política de privacidad",
     defaultExcerpt: "Cómo tratamos y protegemos tus datos.",
-    defaultMetaTitle: "Política de privacidad | El Hogar de tus Sueños",
+    defaultMetaTitle: "Política de privacidad",
     defaultMetaDescription: "Consulta la política de privacidad de la tienda.",
     defaultContentHtml:
       "<p>Completa aquí la política de privacidad. Este contenido puede pegarse directamente en HTML.</p>",
@@ -109,7 +109,7 @@ export const CMS_PAGE_DEFINITIONS: CmsPageDefinition[] = [
     description: "Modelo o instrucciones para ejercer el derecho de desistimiento.",
     defaultTitle: "Formulario de desistimiento",
     defaultExcerpt: "Información para tramitar desistimientos y devoluciones.",
-    defaultMetaTitle: "Formulario de desistimiento | El Hogar de tus Sueños",
+    defaultMetaTitle: "Formulario de desistimiento",
     defaultMetaDescription: "Consulta el formulario de desistimiento de la tienda.",
     defaultContentHtml:
       "<p>Completa aquí el formulario o las instrucciones de desistimiento.</p>",
@@ -121,7 +121,7 @@ export const CMS_PAGE_DEFINITIONS: CmsPageDefinition[] = [
     description: "Página sobre la empresa, historia, valores y equipo.",
     defaultTitle: "Quiénes somos",
     defaultExcerpt: "Conoce la historia y valores de El Hogar de tus Sueños.",
-    defaultMetaTitle: "Quiénes somos | El Hogar de tus Sueños",
+    defaultMetaTitle: "Quiénes somos",
     defaultMetaDescription: "Descubre quiénes somos y nuestra historia.",
     defaultContentHtml:
       "<p>Completa aquí la información sobre la empresa, historia, misión y valores.</p>",
@@ -133,7 +133,7 @@ export const CMS_PAGE_DEFINITIONS: CmsPageDefinition[] = [
     description: "Página de contacto con teléfonos, correo y horarios.",
     defaultTitle: "Contacto con nosotros",
     defaultExcerpt: "Datos de contacto y atención al cliente.",
-    defaultMetaTitle: "Contacto con nosotros | El Hogar de tus Sueños",
+    defaultMetaTitle: "Contacto con nosotros",
     defaultMetaDescription: "Consulta los datos de contacto de la tienda.",
     defaultContentHtml:
       "<p>Completa aquí la página de contacto. Puedes incluir teléfonos, email, dirección y horarios.</p>",

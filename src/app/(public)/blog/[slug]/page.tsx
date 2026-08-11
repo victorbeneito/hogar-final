@@ -2,6 +2,7 @@ import { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { quitarMarcaDelTitulo } from "@/lib/seo";
 import { Calendar, User, Eye, Tag, ArrowLeft, Home } from "lucide-react";
 
 type Props = {
@@ -23,7 +24,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const url = `/blog/${slug}`;
 
   return {
-    title: `${title} | El blog de tu Hogar`,
+    // Sin sufijo propio: la plantilla del layout raíz ya añade "| El Hogar de tus Sueños".
+    // Con el "| El blog de tu Hogar" que había aquí salían 94 caracteres y Google
+    // cortaba el titular real dejando sólo las dos marcas.
+    title: quitarMarcaDelTitulo(title),
     description,
     alternates: { canonical: url },
     openGraph: {
