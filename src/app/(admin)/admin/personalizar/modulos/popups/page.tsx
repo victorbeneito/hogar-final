@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import toast from "react-hot-toast";
 import {
+  AlertTriangle,
   ArrowLeft,
   Code2,
   Copy,
@@ -40,7 +41,14 @@ export default function PopupsModulePage() {
   const [modoHtml, setModoHtml] = useState(false);
   const [previsualizar, setPrevisualizar] = useState(false);
   const [subiendo, setSubiendo] = useState(false);
+  /** Copia de lo último que se guardó, para detectar cambios pendientes. */
+  const [guardado, setGuardado] = useState<string>("");
   const inputArchivo = useRef<HTMLInputElement | null>(null);
+
+  const hayCambios = useMemo(
+    () => guardado !== "" && JSON.stringify(popupsConfig) !== guardado,
+    [popupsConfig, guardado]
+  );
 
   useEffect(() => {
     let activo = true;
@@ -54,6 +62,7 @@ export default function PopupsModulePage() {
         const propia = normalizarConfig(global.popups);
         setConfigGlobal(global);
         setPopupsConfig(propia);
+        setGuardado(JSON.stringify(propia));
         setSeleccionado(propia.popups[0]?.id ?? null);
       } catch (error: any) {
         toast.error(error.message || "No se ha podido cargar el módulo");
@@ -67,6 +76,17 @@ export default function PopupsModulePage() {
       activo = false;
     };
   }, []);
+
+  // Evita perder la configuración por cerrar la pestaña sin guardar.
+  useEffect(() => {
+    if (!hayCambios) return;
+    const avisar = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", avisar);
+    return () => window.removeEventListener("beforeunload", avisar);
+  }, [hayCambios]);
 
   const popupActual = useMemo(
     () => popupsConfig.popups.find((p) => p.id === seleccionado) ?? null,
@@ -93,6 +113,7 @@ export default function PopupsModulePage() {
       const data = await res.json();
       if (!res.ok || !data.ok) throw new Error(data.error || "No se ha podido guardar");
       setConfigGlobal(data.config ?? siguiente);
+      setGuardado(JSON.stringify(configAGuardar));
       toast.success("Pop-ups guardados");
     } catch (error: any) {
       toast.error(error.message || "Error guardando el módulo");
@@ -202,12 +223,32 @@ export default function PopupsModulePage() {
           <button
             onClick={() => guardar()}
             disabled={saving}
-            className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white inline-flex items-center gap-2 disabled:opacity-60"
+            className={`rounded-lg px-4 py-2 text-sm font-semibold text-white inline-flex items-center gap-2 disabled:opacity-60 ${
+              hayCambios ? "bg-red-600 animate-pulse" : "bg-primary"
+            }`}
           >
-            <Save className="w-4 h-4" /> {saving ? "Guardando..." : "Guardar"}
+            <Save className="w-4 h-4" />
+            {saving ? "Guardando..." : hayCambios ? "Guardar cambios" : "Guardar"}
           </button>
         </div>
       </div>
+
+      {hayCambios && (
+        <div className="mb-4 flex items-center gap-3 rounded-2xl border border-red-300 bg-red-50 dark:border-red-700 dark:bg-red-900/20 px-4 py-3 text-sm text-red-800 dark:text-red-200">
+          <AlertTriangle className="w-5 h-5 shrink-0" />
+          <span className="flex-1">
+            <strong>Tienes cambios sin guardar.</strong> Hasta que pulses «Guardar cambios» no se aplican en la
+            tienda.
+          </span>
+          <button
+            onClick={() => guardar()}
+            disabled={saving}
+            className="shrink-0 rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-60"
+          >
+            {saving ? "Guardando..." : "Guardar ahora"}
+          </button>
+        </div>
+      )}
 
       {!popupsConfig.activa && (
         <div className="mb-6 rounded-2xl border border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-900/20 px-4 py-3 text-sm text-amber-800 dark:text-amber-200">
@@ -251,8 +292,12 @@ export default function PopupsModulePage() {
                         {popup.activo ? "Activo" : "Inactivo"}
                       </span>
                     </div>
-                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400 truncate">
-                      {popup.paginas.length ? popup.paginas.join(", ") : "Sin páginas asignadas"}
+                    <p
+                      className={`mt-1 text-xs truncate ${
+                        popup.paginas.length ? "text-gray-500 dark:text-gray-400" : "text-red-600 font-semibold"
+                      }`}
+                    >
+                      {popup.paginas.length ? describirPaginas(popup.paginas) : "⚠ Sin páginas: no se mostrará"}
                     </p>
                   </button>
                 </li>
@@ -376,6 +421,12 @@ export default function PopupsModulePage() {
                 Marca todas las que quieras. Puedes añadir rutas sueltas abajo; el asterisco vale como comodín
                 (por ejemplo <code>/productos/*</code>).
               </p>
+
+              {popupActual.paginas.length === 0 && (
+                <div className="mb-4 rounded-2xl border border-red-300 bg-red-50 dark:border-red-700 dark:bg-red-900/20 px-4 py-3 text-sm text-red-800 dark:text-red-200">
+                  No has marcado ninguna página: este pop-up no aparecerá en ningún sitio.
+                </div>
+              )}
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {PAGINAS_PRESET.map((preset) => (
@@ -544,6 +595,13 @@ export default function PopupsModulePage() {
       )}
     </div>
   );
+}
+
+/** Convierte los patrones de ruta en texto entendible: "/productos/*" → "Fichas de producto". */
+function describirPaginas(paginas: string[]) {
+  return paginas
+    .map((patron) => PAGINAS_PRESET.find((p) => p.patron === patron)?.etiqueta ?? patron)
+    .join(", ");
 }
 
 function CampoNumero({
