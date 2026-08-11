@@ -191,14 +191,21 @@ export default async function ProductoPage({ params }: PageProps) {
   // muestra la página, puede retirar los resultados enriquecidos de TODA la tienda
   // (y con ellos el precio en los resultados, que es lo que más se nota).
   //
-  // En los productos con variantes el campo `stock` del producto no se usa: las
-  // existencias viven en cada variante, así que hay que sumarlas.
-  const stockDisponible = productoRaw.tieneVariantes
-    ? productoRaw.variante.reduce((suma: number, v: any) => suma + (v.stock ?? 0), 0)
-    : productoRaw.stock ?? 0;
+  // Las existencias pueden estar en el producto o en sus variantes, y NO se puede
+  // usar el flag `tieneVariantes` para decidir cuál mirar: hoy hay 477 productos
+  // con filas en `variante` y el flag a false en todos ellos. Está sin mantener.
+  //
+  // Por eso se miran las dos fuentes y basta con que una tenga existencias. Ante la
+  // duda conviene equivocarse hacia "disponible": marcar agotado un producto que sí
+  // se vende cuesta ventas, mientras que lo contrario sólo cuesta un aviso de Google.
+  const stockVariantes = productoRaw.variante.reduce(
+    (suma: number, v: any) => suma + (v.stock ?? 0),
+    0
+  );
+  const hayExistencias = (productoRaw.stock ?? 0) > 0 || stockVariantes > 0;
 
   const disponibilidad =
-    stockDisponible > 0
+    hayExistencias
       ? "https://schema.org/InStock"
       : productoRaw.disponiblePedidos
         ? "https://schema.org/BackOrder"   // agotado pero se admite pedido
