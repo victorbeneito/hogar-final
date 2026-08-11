@@ -6,6 +6,7 @@ import bcrypt from "bcryptjs";
 import { sendTemplateEmail, sendRawEmail, buildAdminOrderEmail, loadEmailSettings } from "@/lib/emailService";
 import { canEdit } from "@/lib/adminAuth";
 import { calcularTotalesPedido, ErrorCalculoPedido, type TotalesPedido } from "@/lib/checkoutPricing";
+import { getBaseUrl } from "@/lib/urls";
 
 async function getEstadoInicialPorMetodo(metodoPago: string, tx: any): Promise<{ nombre: string; color: string; clave: string }> {
   const metodo = (metodoPago || "").toLowerCase().trim();
@@ -744,7 +745,7 @@ export async function POST(req: Request) {
     console.log("   - Total:", result.totalFinal);
     console.log("   - Estado Pago:", result.estadoPago);
 
-    const appUrl = process.env.APP_URL || "https://www.elhogardetusuenos.com";
+    const appUrl = getBaseUrl();
 
     // Emails diferidos: todos los métodos esperan confirmación del usuario excepto ninguno directo.
     // tarjeta/paypal: webhook/capture confirma. transferencia/bizum/contrareembolso: usuario confirma en pantalla.

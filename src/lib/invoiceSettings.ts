@@ -65,8 +65,11 @@ export const DEFAULT_INVOICE_SETTINGS: InvoiceSettingsConfig = {
     provincia: "",
     pais: "España",
     telefono: "961 154 226 - 684 004 525",
-    email: "info@elhogardetussuenos.com",
-    web: "www.elhogardetussuenos.com",
+    // Ojo con la doble "s": aquí ponía "elhogardetussuenos.com", un dominio que no
+    // existe (sin DNS ni MX), así que la web impresa en la factura no cargaba y los
+    // correos que enviaran los clientes a esa dirección se perdían por el camino.
+    email: "info@elhogardetusuenos.com",
+    web: "elhogardetusuenos.com",
     logoPath: "/img/logo-hogar.jpg",
   },
   template: {

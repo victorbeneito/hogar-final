@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import jwt from "jsonwebtoken";
+import { buildUrl } from "@/lib/urls";
 
 interface GoogleTokenResponse {
   access_token: string;
@@ -29,13 +30,13 @@ export async function GET(req: NextRequest) {
 
     if (error) {
       return NextResponse.redirect(
-        `${process.env.NEXT_PUBLIC_BASE_URL}/auth?error=${error}`
+        buildUrl(`/auth?error=${error}`)
       );
     }
 
     if (!code) {
       return NextResponse.redirect(
-        `${process.env.NEXT_PUBLIC_BASE_URL}/auth?error=missing_code`
+        buildUrl("/auth?error=missing_code")
       );
     }
 
@@ -47,7 +48,8 @@ export async function GET(req: NextRequest) {
         code,
         client_id: process.env.GOOGLE_CLIENT_ID!,
         client_secret: process.env.GOOGLE_CLIENT_SECRET!,
-        redirect_uri: `${process.env.APP_URL || process.env.NEXT_PUBLIC_BASE_URL}/api/auth/google/callback`,
+        // Tiene que ser idéntica a la que envió api/auth/google/route.ts al iniciar el flujo.
+        redirect_uri: buildUrl("/api/auth/google/callback"),
         grant_type: "authorization_code",
       }).toString(),
     });
@@ -56,7 +58,7 @@ export async function GET(req: NextRequest) {
       const error = await tokenResponse.text();
       console.error("❌ Error intercambiando code por token:", error);
       return NextResponse.redirect(
-        `${process.env.NEXT_PUBLIC_BASE_URL}/auth?error=token_exchange_failed`
+        buildUrl("/auth?error=token_exchange_failed")
       );
     }
 
@@ -73,7 +75,7 @@ export async function GET(req: NextRequest) {
     if (!userResponse.ok) {
       console.error("❌ Error obteniendo perfil de Google");
       return NextResponse.redirect(
-        `${process.env.NEXT_PUBLIC_BASE_URL}/auth?error=profile_fetch_failed`
+        buildUrl("/auth?error=profile_fetch_failed")
       );
     }
 
@@ -172,12 +174,12 @@ export async function GET(req: NextRequest) {
 
     // 6. Redirigir a página de éxito
     return NextResponse.redirect(
-      `${process.env.NEXT_PUBLIC_BASE_URL}/auth/google/success?token=${encodeURIComponent(token)}&cliente=${clienteBase64}`
+      buildUrl(`/auth/google/success?token=${encodeURIComponent(token)}&cliente=${clienteBase64}`)
     );
   } catch (error: any) {
     console.error("❌ Error en Google OAuth callback:", error);
     return NextResponse.redirect(
-      `${process.env.NEXT_PUBLIC_BASE_URL}/auth?error=callback_error`
+      buildUrl("/auth?error=callback_error")
     );
   }
 }

@@ -5,6 +5,7 @@ import Link from "next/link";
 import toast from "react-hot-toast";
 import { ArrowLeft, RefreshCw, Save, Upload, Trash2, ChevronLeft, ChevronRight, Eye, EyeOff, Check, AlertCircle, Clock } from "lucide-react";
 import { getDefaultModulesConfig, getModuleDefinition, type ModuleDefinition } from "@/lib/moduleRegistry";
+import { CANONICAL_BASE_URL } from "@/lib/urls";
 
 type Tab = "cuenta" | "invitaciones" | "resenas" | "sincronizacion" | "mapeos";
 
@@ -576,7 +577,7 @@ export default function ReviModulePage() {
                   Ejecuta este comando cada 24h para sincronizar automáticamente:
                 </p>
                 <code className="block text-xs bg-gray-900 text-gray-100 p-3 rounded overflow-x-auto whitespace-nowrap">
-                  curl -X POST {process.env.NEXT_PUBLIC_APP_URL}/api/admin/revi/sincronizacion
+                  curl -X POST {CANONICAL_BASE_URL}/api/admin/revi/sincronizacion
                 </code>
               </div>
             </div>

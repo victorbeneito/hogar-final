@@ -4,6 +4,7 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { sendTemplateEmail, sendRawEmail, buildAdminOrderEmail, loadEmailSettings } from "@/lib/emailService";
+import { getBaseUrl } from "@/lib/urls";
 
 export async function POST(req: NextRequest) {
   try {
@@ -75,7 +76,7 @@ export async function POST(req: NextRequest) {
         }
 
         if (pedido) {
-          const appUrl = process.env.APP_URL || "https://www.elhogardetusuenos.com";
+          const appUrl = getBaseUrl();
 
           if (pedido.email) {
             sendTemplateEmail({
@@ -165,7 +166,7 @@ export async function POST(req: NextRequest) {
                 nombre: pedidoFallido.nombre || "Cliente",
                 numeroPedido: pedidoFallido.numeroPedido,
                 total: `${Number(pedidoFallido.totalFinal).toFixed(2)} €`,
-                pedidoUrl: await buildPedidoUrl(process.env.APP_URL || "https://www.elhogardetusuenos.com", pedidoFallido),
+                pedidoUrl: await buildPedidoUrl(getBaseUrl(), pedidoFallido),
               },
             }).catch((err: any) => console.error("❌ Email cliente PayPal fallido:", err?.message));
           }

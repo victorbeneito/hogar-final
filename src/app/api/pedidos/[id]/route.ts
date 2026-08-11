@@ -4,6 +4,7 @@ import { sendTemplateEmail } from "@/lib/emailService";
 import { sendReviOrder, REVI_SYNC_CUTOFF_DATE } from "@/lib/reviService";
 import { createFactura } from "@/lib/invoiceGenerator";
 import { canEdit } from "@/lib/adminAuth";
+import { getBaseUrl } from "@/lib/urls";
 
 export const dynamic = "force-dynamic";
 
@@ -529,7 +530,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
 
     // Emails automáticos al cambiar el estado del pedido
     if (pedidoAnterior && body.estado && pedidoAnterior.estado !== body.estado && pedidoAnterior.email) {
-      const appUrl = process.env.APP_URL || "https://www.elhogardetusuenos.com";
+      const appUrl = getBaseUrl();
       const nombre = pedidoAnterior.nombre || "Cliente";
       const numeroPedido = pedidoAnterior.numeroPedido;
 

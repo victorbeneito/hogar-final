@@ -6,6 +6,7 @@ import {
   resolverEnvioExpressPorDefecto,
   ErrorCalculoPedido,
 } from "@/lib/checkoutPricing";
+import { getBaseUrl } from "@/lib/urls";
 
 /**
  * Checkout express: crea la orden de PayPal directamente desde el carrito, sin
@@ -34,7 +35,7 @@ export async function POST(req: NextRequest) {
     const envio = await resolverEnvioExpressPorDefecto(subtotal);
     const total = redondear(subtotal + envio.coste);
 
-    const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
+    const BASE_URL = getBaseUrl();
 
     const { body } = await ordersController.createOrder({
       body: {

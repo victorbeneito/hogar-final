@@ -8,6 +8,7 @@ import {
   getFreeShippingThreshold,
   normalizeShippingConfig,
 } from "@/lib/transportes";
+import { CANONICAL_BASE_URL } from "@/lib/urls";
 
 const TRANSPORTES_CONFIG_KEY = "transportes_configuracion";
 
@@ -93,11 +94,10 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
   const title = producto.metaTitulo || producto.nombre;
   const description = producto.metaDescripcion || producto.resumen || "";
-  const url = producto.slug
-    ? `https://elhogardetusuenos.com/productos/${producto.slug}`
-    : `https://elhogardetusuenos.com/productos/${producto.id}`;
+  const url = `${CANONICAL_BASE_URL}/productos/${producto.slug || producto.id}`;
   const imageRaw = producto.productoimagen[0]?.url;
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://elhogardetusuenos.com";
+  // El og:image debe ser absoluto y del dominio público, nunca de localhost.
+  const baseUrl = CANONICAL_BASE_URL;
   const image = imageRaw
     ? imageRaw.startsWith("http") ? imageRaw : `${baseUrl}${imageRaw}`
     : undefined;
@@ -180,7 +180,7 @@ export default async function ProductoPage({ params }: PageProps) {
     disponiblePedidos: productoRaw.disponiblePedidos ?? true,
   };
 
-  const BASE_URL = "https://elhogardetusuenos.com";
+  const BASE_URL = CANONICAL_BASE_URL;
   const productoUrl = productoRaw.slug
     ? `${BASE_URL}/productos/${productoRaw.slug}`
     : `${BASE_URL}/productos/${productoRaw.id}`;

@@ -7,6 +7,7 @@ import {
   type EmailTemplateSlug,
 } from "@/lib/emailConfig";
 import { getEmailTransportConfig, isEmailTransportReady, sendOutboundEmail, type EmailSendResult } from "@/lib/emailTransport";
+import { getBaseUrl } from "@/lib/urls";
 
 export type EmailVariables = Record<string, string | number | boolean | null | undefined>;
 
@@ -81,7 +82,7 @@ export async function sendTemplateEmail(input: SendTemplateEmailInput): Promise<
     brandName: config.brandName,
     supportEmail: config.supportEmail,
     replyToEmail: config.replyToEmail,
-    appUrl: process.env.APP_URL || "https://www.elhogardetusuenos.com",
+    appUrl: getBaseUrl(),
   };
 
   const subject = renderEmailContent(template.subject, variables);

@@ -2,6 +2,7 @@ import { ordersController } from "@/lib/paypal-client";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getBaseUrl } from "@/lib/urls";
 
 export async function POST(req: NextRequest) {
   try {
@@ -36,7 +37,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "El importe del pedido no es válido" }, { status: 400 });
     }
 
-    const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
+    const BASE_URL = getBaseUrl();
 
     const { body } = await ordersController.createOrder({
       body: {

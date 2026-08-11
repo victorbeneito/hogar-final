@@ -7,6 +7,7 @@ import {
   direccionDesdePaypal,
   ErrorCalculoPedido,
 } from "@/lib/checkoutPricing";
+import { getBaseUrl } from "@/lib/urls";
 
 /**
  * Se llama en `onApprove`, DESPUÉS de que el comprador apruebe el pago pero
@@ -77,7 +78,7 @@ export async function POST(req: NextRequest) {
 
     // 3. Crear el pedido con el flujo normal (invitado)
     const BASE_URL =
-      process.env.NEXT_PUBLIC_BASE_URL || process.env.APP_URL || "http://localhost:3000";
+      getBaseUrl();
 
     const resPedido = await fetch(`${BASE_URL}/api/pedidos`, {
       method: "POST",

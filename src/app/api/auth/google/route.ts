@@ -1,8 +1,11 @@
 import { NextResponse } from "next/server";
+import { buildUrl } from "@/lib/urls";
 
 export async function GET() {
   const clientId = process.env.GOOGLE_CLIENT_ID;
-  const redirectUri = `${process.env.APP_URL || process.env.NEXT_PUBLIC_BASE_URL}/api/auth/google/callback`;
+  // Debe coincidir carácter a carácter con una de las URIs de redirección dadas de alta
+  // en Google Cloud Console, y con la de callback/route.ts.
+  const redirectUri = buildUrl("/api/auth/google/callback");
 
   if (!clientId) {
     return NextResponse.json(

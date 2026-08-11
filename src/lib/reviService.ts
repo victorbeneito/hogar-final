@@ -1,4 +1,5 @@
 import { prisma } from './prisma';
+import { buildUrl } from './urls';
 
 // Pedidos anteriores a esta fecha proceden del archivo histórico de Prestashop
 // y no deben contarse ni sincronizarse como pendientes de invitación en Revi.
@@ -101,7 +102,9 @@ async function buildOrderProducts(pedidoData: any): Promise<ReviOrderProductInpu
     products.push({
       id_product: prestashopId || product.referencia || String(product.id),
       name: product.nombre,
-      url: `${process.env.NEXT_PUBLIC_APP_URL}/productos/${product.id}`
+      // Ojo: aquí había `process.env.NEXT_PUBLIC_APP_URL`, una variable que no existe
+      // en ningún .env, así que a Revi le llegaba la URL literal "undefined/productos/N".
+      url: buildUrl(`/productos/${product.id}`)
     });
   }
 

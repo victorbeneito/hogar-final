@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createRedsysAPI, SANDBOX_URLS, PRODUCTION_URLS } from "redsys-easy";
 import { prisma } from "@/lib/prisma";
 import { normalizePaymentConfig } from "@/lib/paymentSettings";
+import { getBaseUrl } from "@/lib/urls";
 
 export const dynamic = "force-dynamic";
 
@@ -60,10 +61,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const baseUrl =
-      process.env.NEXT_PUBLIC_BASE_URL ||
-      process.env.APP_URL ||
-      "http://localhost:3000";
+    // Alimenta DS_MERCHANT_MERCHANTURL, el webhook servidor-a-servidor de Redsys.
+    // Debe ser el dominio canónico sin www: ese POST no sigue redirecciones, así que
+    // un 301 por el medio significa cobro hecho y pedido sin confirmar.
+    const baseUrl = getBaseUrl();
 
     const { createRedirectForm } = createRedsysAPI({
       secretKey,

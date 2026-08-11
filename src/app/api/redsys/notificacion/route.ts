@@ -4,6 +4,7 @@ import { createRedsysAPI, SANDBOX_URLS, PRODUCTION_URLS } from "redsys-easy";
 import { prisma } from "@/lib/prisma";
 import { normalizePaymentConfig } from "@/lib/paymentSettings";
 import { sendTemplateEmail, sendRawEmail, buildAdminOrderEmail, loadEmailSettings } from "@/lib/emailService";
+import { getBaseUrl } from "@/lib/urls";
 
 export const dynamic = "force-dynamic";
 
@@ -190,7 +191,7 @@ export async function POST(req: NextRequest) {
       }
 
       // Enviar emails ahora que el pago está confirmado
-      const appUrl = process.env.APP_URL || "https://www.elhogardetusuenos.com";
+      const appUrl = getBaseUrl();
 
       if (pedido.email) {
         sendTemplateEmail({
@@ -273,7 +274,7 @@ export async function POST(req: NextRequest) {
             nombre: pedido.nombre || "Cliente",
             numeroPedido: pedido.numeroPedido,
             total: `${Number(pedido.totalFinal).toFixed(2)} €`,
-            pedidoUrl: await buildPedidoUrl(process.env.APP_URL || "https://www.elhogardetusuenos.com", pedido),
+            pedidoUrl: await buildPedidoUrl(getBaseUrl(), pedido),
           },
         }).catch((err: any) => console.error("❌ Email cliente Redsys fallido:", err?.message));
       }

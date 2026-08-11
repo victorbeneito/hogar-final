@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { buildPedidoUrl } from "@/lib/pedidoUrl";
 import { prisma } from "@/lib/prisma";
 import { sendTemplateEmail, sendRawEmail, buildAdminOrderEmail, loadEmailSettings } from "@/lib/emailService";
+import { getBaseUrl } from "@/lib/urls";
 
 export const dynamic = "force-dynamic";
 
@@ -55,7 +56,7 @@ export async function POST(req: NextRequest) {
       console.warn("⚠️ No se pudo insertar historial:", err?.message);
     }
 
-    const appUrl = process.env.APP_URL || "https://www.elhogardetusuenos.com";
+    const appUrl = getBaseUrl();
 
     if (pedidoActualizado.email) {
       sendTemplateEmail({

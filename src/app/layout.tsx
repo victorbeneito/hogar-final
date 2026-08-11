@@ -7,11 +7,12 @@ import { Toaster } from "react-hot-toast";
 import Script from "next/script";
 import { PaypalProvider } from "@/components/PaypalProvider";
 import TrafficTracker from "@/components/TrafficTracker";
+import { CANONICAL_BASE_URL } from "@/lib/urls";
 
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://elhogardetusuenos.com"),
+  metadataBase: new URL(CANONICAL_BASE_URL),
   verification: {
     google: "iqM5CjKYJULfQc5VPeGUCYGI1ziG7_F_0LYDk3Bh0dQ",
   },
@@ -27,7 +28,7 @@ export const metadata: Metadata = {
     siteName: "El Hogar de tus Sueños",
     locale: "es_ES",
     type: "website",
-    url: "https://elhogardetusuenos.com",
+    url: CANONICAL_BASE_URL,
   },
   robots: {
     index: true,

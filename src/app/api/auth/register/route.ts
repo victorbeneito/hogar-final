@@ -4,6 +4,7 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { normalizeClientNif } from "@/lib/clientNif";
 import { sendTemplateEmail } from "@/lib/emailService";
+import { buildUrl } from "@/lib/urls";
 
 export async function POST(req: Request) {
   try {
@@ -96,7 +97,7 @@ export async function POST(req: Request) {
       variables: {
         nombre: nuevoCliente.nombre,
         email: nuevoCliente.email,
-        loginUrl: `${process.env.APP_URL || "https://www.elhogardetusuenos.com"}/auth`,
+        loginUrl: buildUrl("/auth"),
       },
     }).catch((err) => console.error("❌ Email bienvenida:", err?.message));
 
