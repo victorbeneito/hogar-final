@@ -1,8 +1,4 @@
-"use client";
-
-export const dynamic = "force-dynamic";
-
-import React, { useState, useEffect } from "react";
+import React from "react";
 import Banner from "@/components/Banner";
 import ProductGrid from "@/components/ProductGrid";
 import BannersSection from "@/components/BannersSection";
@@ -10,60 +6,58 @@ import BannerPrincipal from "@/components/BannerPrincipal";
 import SeoText from "@/components/SeoText";
 import SubscribeForm from "@/components/SubscribeForm";
 import ReviWidget from "@/components/ReviWidget";
-import clienteAxios from "@/lib/axiosClient";
+import { prisma } from "@/lib/prisma";
+import { buscarProductos } from "@/lib/productosLista";
 
-type Categoria = {
-  id: number;
-  nombre: string;
-};
+export const dynamic = "force-dynamic";
 
-type Producto = {
-  id: number;
-  nombre: string;
-  precio: number;
-  imagenes: string[];
-  stock: number;
-};
+/**
+ * Portada.
+ *
+ * Era un componente cliente que pedía categorías y destacados con useEffect + axios.
+ * El resultado era que Google recibía la página vacía: literalmente "No hay productos
+ * para mostrar" y CERO enlaces a fichas de producto desde la página con más autoridad
+ * del sitio. Ahora los datos se consultan en el servidor y viajan ya en el HTML.
+ *
+ * No hace falta un componente cliente intermedio: los siete hijos ya son "use client"
+ * por su cuenta, y el estado de búsqueda que había aquí estaba muerto (sus setters no
+ * se llamaban desde ninguna parte, así que ProductGrid siempre mostraba los destacados).
+ */
 
-type CategoriasResponse = {
-  ok: boolean;
-  categorias: Categoria[];
-};
+// Si una consulta falla, la portada se pinta sin esa sección en lugar de devolver un
+// 500. Antes el fetch del navegador fallaba en silencio y el efecto era el mismo; lo
+// que no queremos es que un fallo de BD tumbe la home entera. El motivo queda en el log.
+async function seguro<T>(etiqueta: string, consulta: () => Promise<T>, porDefecto: T): Promise<T> {
+  try {
+    return await consulta();
+  } catch (error) {
+    console.error(`❌ Portada: falló la consulta de ${etiqueta}:`, error);
+    return porDefecto;
+  }
+}
 
-type ProductosResponse = {
-  ok: boolean;
-  productos: Producto[];
-};
-
-export default function HomePage() {
-  const [categories, setCategories] = useState<Categoria[]>([]);
-  const [productosDestacados, setProductosDestacados] = useState<Producto[]>([]);
-  const [productosFiltrados, setProductosFiltrados] = useState<Producto[]>([]);
-  const [busquedaActiva, setBusquedaActiva] = useState(false);
-
-  useEffect(() => {
-    const cargarCategorias = async () => {
-      try {
-        const { data } = await clienteAxios.get<CategoriasResponse>("/categorias");
-        if (data.ok) setCategories(data.categorias || []);
-      } catch (error) {
-        console.error("Error cargando categorías:", error);
-      }
-    };
-    cargarCategorias();
-  }, []);
-
-  useEffect(() => {
-    const cargarDestacados = async () => {
-      try {
-        const { data } = await clienteAxios.get<ProductosResponse>("/productos?destacado=true&limit=12&sortBy=id&sortDir=desc");
-        if (data.ok) setProductosDestacados(data.productos);
-      } catch (error) {
-        console.error("Error fetching productos:", error);
-      }
-    };
-    cargarDestacados();
-  }, []);
+export default async function HomePage() {
+  const [categories, destacados] = await Promise.all([
+    seguro(
+      "categorías",
+      () =>
+        prisma.categoria.findMany({
+          orderBy: { orden: "asc" },
+          include: { other_categoria: { orderBy: { orden: "asc" } } },
+        }),
+      [] as any[]
+    ),
+    seguro(
+      "productos destacados",
+      async () => {
+        const { productos } = await buscarProductos(
+          new URLSearchParams({ destacado: "true", limit: "12", sortBy: "id", sortDir: "desc" })
+        );
+        return productos;
+      },
+      [] as any[]
+    ),
+  ]);
 
   return (
     <div className="bg-fondo dark:bg-darkBg w-full min-h-screen flex flex-col gap-y-8 md:gap-y-12 lg:gap-y-20 pb-12">
@@ -81,11 +75,7 @@ export default function HomePage() {
 
       <section className="w-full">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <ProductGrid
-            productosDestacados={productosDestacados}
-            productosFiltrados={productosFiltrados}
-            busquedaActiva={busquedaActiva}
-          />
+          <ProductGrid productosDestacados={destacados} busquedaActiva={false} />
         </div>
       </section>
 
