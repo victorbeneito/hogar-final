@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { getCart, clearCart, type CartItem } from "@/lib/cartService";
-import { BarreraPaypal, usePaypalDisponible } from "@/components/PaypalProvider";
+import { BarreraPaypal, PaypalProvider, usePaypalDisponible } from "@/components/PaypalProvider";
 
 type PaypalExpressButtonProps = {
   /** Qué se compra. Si no se pasa, se usa el carrito completo. */
@@ -23,9 +23,32 @@ type PaypalExpressButtonProps = {
  * El botón "Finalizar compra" de siempre sigue estando: esto es una vía rápida
  * alternativa, no un reemplazo.
  */
+/**
+ * El botón **trae su propio `PaypalProvider`**, y esto es deliberado.
+ *
+ * Antes el provider envolvía el layout raíz, así que el SDK de PayPal (100 KiB) se
+ * descargaba en TODAS las páginas: la portada, el blog, el catálogo… sitios donde no
+ * hay ningún botón de PayPal. Además pedía `/api/paypal/config` en cada carga.
+ *
+ * Poniéndolo aquí, el SDK sólo entra donde de verdad hay un botón. Y al ir pegado al
+ * componente en vez de a una lista de rutas, no se puede desincronizar: cualquier
+ * página nueva que use este botón se lo lleva puesto sin tener que acordarse de nada.
+ *
+ * Montar dos botones en la misma página no duplica la descarga: `@paypal/paypal-js`
+ * busca si ya existe un `<script>` con los mismos atributos y lo reutiliza.
+ */
 export default function PaypalExpressButton(props: PaypalExpressButtonProps) {
+  return (
+    <PaypalProvider>
+      <ExpressSiHayPaypal {...props} />
+    </PaypalProvider>
+  );
+}
+
+function ExpressSiHayPaypal(props: PaypalExpressButtonProps) {
   // Fuera del PayPalScriptProvider, usePayPalScriptReducer lanza nada más
-  // montar: si no hay provider, mejor no montar el botón siquiera.
+  // montar: si no hay provider, mejor no montar el botón siquiera. Pasa cuando no
+  // hay client-id configurado: `PaypalProvider` deja el contexto en false.
   const disponible = usePaypalDisponible();
   if (!disponible) return null;
 

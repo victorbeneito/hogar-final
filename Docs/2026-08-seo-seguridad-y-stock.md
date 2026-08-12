@@ -594,6 +594,13 @@ mueven las fotos a otro alojamiento o a un CDN, esa función deja de valer y hay
 en cada plantilla. Y si se importa un lote nuevo, conviene comprobar en qué formato llegan las URLs
 antes de dar por hecho que están bien.
 
+### 10 ter. No devuelvas `PaypalProvider` al layout raíz
+
+Si algún día hace falta PayPal en una página nueva, **no** se vuelve a poner el provider arriba: se usa
+`PaypalExpressButton` o `PaypalCheckout`, que ya lo traen. Ponerlo en el layout devolvería los 100 KiB a
+todas las páginas. Y ojo: el checkout normal **no** usa el SDK, redirige por servidor — si alguien ve
+que `/checkout/pago` no carga PayPal, es lo correcto, no un fallo.
+
 ### 11. No pongas `if (!mounted) return null` en un componente de layout
 
 Es el atajo típico para evitar el desajuste de hidratación con next-themes, pero deja el componente
@@ -737,13 +744,55 @@ panel:
 Los 24 desactivados, por si algún día se reactivan: 524, 526, 529, 546, 549, 553, 554, 569, 570, 572,
 585, 586, 587, 588, 589, 591, 594, 600, 602, 603, 604, 614, 626, 658.
 
+### 5.5 El SDK de PayPal se descargaba en toda la tienda
+
+`<PaypalProvider>` envolvía el layout raíz, así que `PayPalScriptProvider` se montaba en **todas** las
+páginas y arrastraba el SDK de PayPal — **100 KiB** — a la portada, al blog y al catálogo. Encima, cada
+carga de página pedía `/api/paypal/config` para conseguir el client-id.
+
+**Dónde se usa PayPal de verdad.** Sólo hay dos componentes que consuman el SDK, y se montan en tres
+sitios:
+
+| Página | Componente |
+|---|---|
+| `/productos/[id]` | `PaypalExpressButton` (comprar ahora) |
+| `/carrito` | `PaypalExpressButton` |
+| `/test-paypal` | `PaypalCheckout` |
+
+**El checkout normal no necesita el SDK.** `/checkout/pago` llama a `/api/paypal/crear-orden` por
+servidor y **redirige** el navegador a PayPal; el botón de la librería no interviene. `PasarelaPaypal` no
+importa `@paypal/react-paypal-js`. Conviene tenerlo claro antes de tocar nada por aquí.
+
+**El arreglo.** Cada botón trae ahora su propio `PaypalProvider`
+([`PaypalExpressButton.tsx`](../src/components/PaypalExpressButton.tsx),
+[`PaypalCheckout.tsx`](../src/components/PaypalCheckout.tsx)) y se quitó del
+[`layout.tsx`](../src/app/layout.tsx).
+
+Se hizo así, y **no** con una lista de rutas que necesiten PayPal, porque una lista se desincroniza: el
+día que alguien ponga el botón en una página nueva, no aparecería y el fallo sería silencioso. Pegado al
+componente, no puede pasar.
+
+Montar dos botones en la misma página no duplica la descarga: `@paypal/paypal-js` busca si ya existe un
+`<script>` con los mismos atributos y lo reutiliza.
+
+**Verificado** sobre el build de producción, comprobando qué páginas cargan el chunk del SDK:
+
+| Página | Antes | Después |
+|---|---|---|
+| `/` portada | SDK | — |
+| `/blog` | SDK | — |
+| `/productos` listado | SDK | — |
+| `/checkout/pago` | SDK | — |
+| `/productos/[id]` ficha | SDK | SDK |
+| `/carrito` | SDK | SDK |
+
 ### Lo que queda, y de quién es
 
 | Hallazgo | Dónde se arregla |
 |---|---|
 | **606 KiB de Google Tag Manager en cuatro etiquetas**, una de ellas `UA-57384028-1` — Universal Analytics, que Google apagó en julio de 2023 y no recoge nada | Panel de GTM, **no es código** |
 | GA4 se carga **dos veces**: por el contenedor GTM y por el `<Script>` de `layout.tsx`. Si el contenedor también tiene la etiqueta GA4, las visitas se cuentan por duplicado | Comprobar en GTM antes de tocar el código |
-| El SDK de **PayPal (100 KiB) se carga en todas las páginas**, incluida la portada, porque `PaypalProvider` envuelve el layout raíz | `src/app/layout.tsx` — pendiente |
+| ~~El SDK de **PayPal** se carga en todas las páginas~~ | ✅ Resuelto, ver 5.5 |
 | ~~Imágenes de producto que dan **404**~~ | ✅ Resuelto, ver 5.4 |
 | Sin cabecera `Cache-Control` en `/img/…` | Directiva de Apache en Plesk, **no es código** |
 

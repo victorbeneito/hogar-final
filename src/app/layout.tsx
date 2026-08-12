@@ -6,7 +6,6 @@ import { AuthProvider } from "@/context/AuthContext";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { Toaster } from "react-hot-toast";
 import Script from "next/script";
-import { PaypalProvider } from "@/components/PaypalProvider";
 import TrafficTracker from "@/components/TrafficTracker";
 import { CANONICAL_BASE_URL } from "@/lib/urls";
 import { organizationJsonLd } from "@/lib/seo";
@@ -89,17 +88,21 @@ export default function RootLayout({
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationJsonLd(CANONICAL_BASE_URL)) }}
         />
-        <PaypalProvider>
-          <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-            <AuthProvider>
-              <ClienteAuthProvider>
-                <TrafficTracker />
-                {children}
-                <Toaster position="top-center" />
-              </ClienteAuthProvider>
-            </AuthProvider>
-          </ThemeProvider>
-        </PaypalProvider>
+        {/* Aquí había un <PaypalProvider> envolviéndolo todo. Se quitó: hacía que el
+            SDK de PayPal (100 KiB) se descargara en TODAS las páginas —portada, blog,
+            catálogo— y que cada carga pidiera además `/api/paypal/config`, cuando sólo
+            hay botones de PayPal en la ficha de producto, el carrito y /test-paypal.
+            Ahora cada botón trae su propio provider; ver src/components/PaypalExpressButton.tsx.
+            El checkout normal no lo necesita: redirige a PayPal por servidor. */}
+        <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+          <AuthProvider>
+            <ClienteAuthProvider>
+              <TrafficTracker />
+              {children}
+              <Toaster position="top-center" />
+            </ClienteAuthProvider>
+          </AuthProvider>
+        </ThemeProvider>
 
         {/* Google Tag Manager */}
         <Script id="gtm" strategy="afterInteractive">

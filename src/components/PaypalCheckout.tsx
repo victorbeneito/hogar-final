@@ -3,7 +3,7 @@
 import { PayPalButtons, usePayPalScriptReducer } from "@paypal/react-paypal-js";
 import toast from "react-hot-toast";
 import type { OnApproveData, CreateOrderData } from "@paypal/checkout-server-sdk";
-import { BarreraPaypal, usePaypalDisponible } from "@/components/PaypalProvider";
+import { BarreraPaypal, PaypalProvider, usePaypalDisponible } from "@/components/PaypalProvider";
 
 interface PaypalCheckoutProps {
   /** El importe no se pasa: lo resuelve el servidor a partir del pedido. */
@@ -13,7 +13,20 @@ interface PaypalCheckoutProps {
   onError?: (error: any) => void;
 }
 
+/**
+ * Igual que `PaypalExpressButton`: trae su propio `PaypalProvider` para que el SDK
+ * de PayPal no se descargue en páginas donde no hay botón. Ver el comentario largo
+ * de aquel fichero.
+ */
 export function PaypalCheckout(props: PaypalCheckoutProps) {
+  return (
+    <PaypalProvider>
+      <CheckoutSiHayPaypal {...props} />
+    </PaypalProvider>
+  );
+}
+
+function CheckoutSiHayPaypal(props: PaypalCheckoutProps) {
   // Sin PayPalScriptProvider, usePayPalScriptReducer lanza y tumba el checkout.
   const disponible = usePaypalDisponible();
   if (!disponible) return null;
