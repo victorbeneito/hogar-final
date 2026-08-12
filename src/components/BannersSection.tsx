@@ -1,6 +1,18 @@
 "use client";
 
+import Image from "next/image";
 import { useRouter } from "next/navigation";
+
+// Estos banners van en la mitad inferior de la portada: NO llevan `priority`, se
+// cargan cuando el visitante se acerca a ellos. Los de arriba (BannerPrincipal) sí
+// lo llevan; marcar todos como prioritarios equivale a no priorizar ninguno.
+//
+// El `sizes` de los tres pequeños refleja su rejilla: 1 columna en móvil y 3 desde
+// `sm` (640px), dentro de un contenedor de 1280px.
+const SIZES_BANNER_PEQUENO = "(max-width: 639px) 100vw, 420px";
+
+// Los dos anchos ocupan todo el ancho del contenedor.
+const SIZES_BANNER_ANCHO = "(max-width: 1279px) 100vw, 1280px";
 
 type Categoria = {
   id: number;
@@ -41,11 +53,18 @@ export default function BannersSection({ categories = [] }: Props) {
         className="mb-10 cursor-pointer group"
         title="Ver medidas personalizadas"
       >
-        <img
-          src="/img/banner-medidas.jpg"
-          alt="Banner medidas personalizadas"
-          className="w-full h-[250px] object-cover rounded-lg shadow-md transition-transform group-hover:scale-105"
-        />
+        {/* Alto fijo y recorte: `fill` dentro de un contenedor posicionado con esa
+            altura. Con width/height el navegador respetaría la proporción del
+            fichero (2362x472) y no la caja de 250 px que queremos. */}
+        <div className="relative w-full h-[250px] overflow-hidden rounded-lg shadow-md">
+          <Image
+            src="/img/banner-medidas.jpg"
+            alt="Estores y cortinas fabricados a medida para tu ventana"
+            fill
+            sizes={SIZES_BANNER_ANCHO}
+            className="object-cover transition-transform group-hover:scale-105"
+          />
+        </div>
       </div>
 
       {/* Tres banners pequeños clicables */}
@@ -55,9 +74,12 @@ export default function BannersSection({ categories = [] }: Props) {
   className="cursor-pointer w-full rounded-lg shadow"
   title="Ver productos de Fundas de Sofá"
 >
-  <img
+  <Image
     src="/img/banner-fundas-sofa.jpg"
-    alt="Banner Fundas de sofá"
+    alt="Fundas de sofá elásticas y ajustables"
+    width={1024}
+    height={890}
+    sizes={SIZES_BANNER_PEQUENO}
     className="w-full h-auto object-contain rounded-lg shadow"
   />
 </div>
@@ -67,9 +89,14 @@ export default function BannersSection({ categories = [] }: Props) {
   className="cursor-pointer w-full rounded-lg shadow"
   title="Ver productos de Cojines"
 >
-  <img
+  {/* El fichero original son 2208x1920 y 508 KB, el más pesado de la portada,
+      para mostrarse en una columna de ~420 px. next/image lo reescala. */}
+  <Image
     src="/img/banner-cojines.jpg"
-    alt="Banner Cojines"
+    alt="Cojines decorativos y fundas de cojín para salón"
+    width={2208}
+    height={1920}
+    sizes={SIZES_BANNER_PEQUENO}
     className="w-full h-auto object-contain rounded-lg shadow"
   />
 </div>
@@ -79,9 +106,12 @@ export default function BannersSection({ categories = [] }: Props) {
   className="cursor-pointer w-full rounded-lg shadow"
   title="Ver productos de Ropa de Cama"
 >
-  <img
+  <Image
     src="/img/banner-ropa-cama.jpg"
-    alt="Banner Ropa de cama"
+    alt="Ropa de cama: fundas nórdicas, sábanas y edredones"
+    width={1024}
+    height={905}
+    sizes={SIZES_BANNER_PEQUENO}
     className="w-full h-auto object-contain rounded-lg shadow"
   />
 </div>
@@ -89,11 +119,13 @@ export default function BannersSection({ categories = [] }: Props) {
       </div>
 
       {/* Banner final */}
-      <div>
-        <img
+      <div className="relative w-full h-[300px] overflow-hidden rounded-lg shadow-lg">
+        <Image
           src="/img/banner-envios.jpg"
-          alt="Banner final"
-          className="w-full h-[300px] object-cover rounded-lg shadow-lg"
+          alt="Envíos a toda España"
+          fill
+          sizes={SIZES_BANNER_ANCHO}
+          className="object-cover"
         />
       </div>
     </section>

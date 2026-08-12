@@ -318,6 +318,47 @@ luego la cachea en `.next/cache/images`. Tras un despliegue limpio, las primeras
 irán algo más lentas mientras se llena esa caché. Es normal y se pasa solo. Requiere `sharp`, que ya
 está presente en `node_modules`.
 
+### 1.9 Los banners de la portada pesaban más que todo el catálogo junto
+
+Al medir la portada **después** de optimizar las tarjetas, seguía pesando 2,47 MB. El desglose señaló
+al culpable: de los 1,65 MB de imágenes, sólo 309 KB eran las tarjetas ya optimizadas. **1,3 MB eran
+los banners**, que seguían con `<img>` directo porque el paso 7 sólo tocó `ProductCard`.
+
+`banner-cojines.jpg` son **2208×1920 px y 508 KB** para mostrarse en una columna de ~420 px. El logo
+oscuro de la cabecera, 1215×469 y 40 KB para verse a 112 px de alto — y ése sale en **todas** las
+páginas del sitio, no sólo en la portada.
+
+**Qué se hizo:** `next/image` en [`BannerPrincipal.tsx`](../src/components/BannerPrincipal.tsx),
+[`BannersSection.tsx`](../src/components/BannersSection.tsx) y [`Header.tsx`](../src/components/Header.tsx).
+
+- Los dos banners de arriba y el logo llevan `priority`: están en la mitad superior y compiten por el
+  LCP. Los de abajo **no**, para que carguen al acercarse. Marcarlos todos habría equivalido a no
+  priorizar ninguno.
+- Los de alto fijo (`h-[250px]`, `h-[300px]`) usan `fill` dentro de un contenedor posicionado: con
+  `width`/`height` el navegador respetaría la proporción del fichero y no la caja que queremos.
+- Los de alto automático llevan `width`/`height` con las medidas reales del fichero. No fijan el
+  tamaño en pantalla —de eso siguen encargándose las clases— pero le dan la proporción al navegador
+  por adelantado, así que reserva el hueco y la página no salta al cargar (eso es el CLS).
+- Se reescribieron los `alt`, que decían "Banner Cojines" o "Logotipo Oscuro". Ahora describen el
+  producto ("Cojines decorativos y fundas de cojín para salón"), que es lo que lee Google.
+
+**Ahorro medido**, fichero a fichero:
+
+| Fichero | Antes | Después | |
+|---|---:|---:|---:|
+| `banner-cojines.jpg` | 508.629 B | 39.598 B | −92 % |
+| `banner-medidas.jpg` | 252.120 B | 10.288 B | −96 % |
+| `banner-estores-lisos.jpg` | 228.798 B | 21.774 B | −90 % |
+| `banner-estores-digitales.jpg` | 93.315 B | 40.326 B | −57 % |
+| `banner-fundas-sofa.jpg` | 76.486 B | 25.028 B | −67 % |
+| `banner-ropa-cama.jpg` | 72.773 B | 24.490 B | −66 % |
+| `banner-envios.jpg` | 50.876 B | 6.890 B | −86 % |
+| `logo-hogar-dark.jpg` | 40.824 B | 188 B | −100 % |
+| `logo-hogar-claro.jpg` | 7.041 B | 2.596 B | −63 % |
+| **TOTAL** | **1.330.862 B** | **171.178 B** | **−87 %** |
+
+Tras esto, la portada no tiene **ninguna** imagen sin optimizar.
+
 ---
 
 ## Parte 2 — Seguridad: tres endpoints de escritura sin autenticación

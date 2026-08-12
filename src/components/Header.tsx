@@ -1,8 +1,14 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import BannerContacto from "./BannerContacto";
+
+// El logo se muestra con altura fija (64 / 96 / 112 px según pantalla) y anchura
+// automática. Con proporción ~2,6:1 eso son unos 170 px de ancho en móvil y 290 en
+// escritorio. Lleva `priority` porque está en la cabecera de todas las páginas.
+const SIZES_LOGO = "(max-width: 767px) 170px, 290px";
 
 export default function Header() {
 
@@ -20,16 +26,26 @@ export default function Header() {
           
           {/* --- 1. LOGOTIPO (Izquierda en PC, Centrado en Móvil) --- */}
           <Link href="/" className="flex-shrink-0 hover:opacity-90 transition-opacity">
-            {/* Logo Claro */}
-            <img
+            {/* Logo Claro. width/height son las medidas del fichero: dan la
+                proporción, el tamaño en pantalla lo fija la clase `h-…`. */}
+            <Image
               src="/img/logo-hogar-claro.jpg"
-              alt="Logotipo Claro"
+              alt="El Hogar de tus Sueños"
+              width={284}
+              height={109}
+              sizes={SIZES_LOGO}
+              priority
               className="h-16 md:h-24 lg:h-28 w-auto object-contain block dark:hidden"
             />
-            {/* Logo Oscuro */}
-            <img
+            {/* Logo Oscuro. El fichero son 1215x469 y 40 KB para mostrarse a 112 px
+                de alto como mucho: next/image lo reescala. */}
+            <Image
               src="/img/logo-hogar-dark.jpg"
-              alt="Logotipo Oscuro"
+              alt="El Hogar de tus Sueños"
+              width={1215}
+              height={469}
+              sizes={SIZES_LOGO}
+              priority
               className="h-16 md:h-24 lg:h-28 w-auto object-contain hidden dark:block"
             />
           </Link>
