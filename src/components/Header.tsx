@@ -38,14 +38,19 @@ export default function Header() {
               className="h-16 md:h-24 lg:h-28 w-auto object-contain block dark:hidden"
             />
             {/* Logo Oscuro. El fichero son 1215x469 y 40 KB para mostrarse a 112 px
-                de alto como mucho: next/image lo reescala. */}
+                de alto como mucho: next/image lo reescala.
+
+                Ya NO lleva `priority`. Los dos logos están siempre en el DOM y sólo
+                uno se ve, según el tema; con `priority` en ambos, el navegador
+                precargaba los dos y a la mayoría de visitantes —que van en claro— le
+                sobraba uno. Peor aún: esa descarga competía con el banner que es el
+                elemento LCP de la portada. */}
             <Image
               src="/img/logo-hogar-dark.jpg"
               alt="El Hogar de tus Sueños"
               width={1215}
               height={469}
               sizes={SIZES_LOGO}
-              priority
               className="h-16 md:h-24 lg:h-28 w-auto object-contain hidden dark:block"
             />
           </Link>

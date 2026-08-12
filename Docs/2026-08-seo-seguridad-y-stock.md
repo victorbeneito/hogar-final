@@ -601,6 +601,19 @@ Si algún día hace falta PayPal en una página nueva, **no** se vuelve a poner 
 todas las páginas. Y ojo: el checkout normal **no** usa el SDK, redirige por servidor — si alguien ve
 que `/checkout/pago` no carga PayPal, es lo correcto, no un fallo.
 
+### 10 quater. `priority` en `next/image`: como mucho una imagen por página
+
+Es la trampa más fácil de repetir, y ya cayó una vez. `priority` no significa "esta imagen es
+importante": significa "precárgala antes que nada". Si se marcan varias, **compiten entre sí** y el
+resultado es peor que no marcar ninguna.
+
+La regla: **`priority` sólo en el elemento LCP**, y con `fetchPriority="high"` puesto a mano —`priority`
+por sí solo no lo añade. Antes de ponerlo en una imagen nueva, hay que mirar en PageSpeed cuál es el
+elemento LCP de esa página; no darlo por supuesto.
+
+Y ojo con el móvil: una rejilla `md:grid-cols-3` es de **una** columna en el teléfono, así que lo que
+allí parece "la primera fila visible" está en realidad muy por debajo del pliegue.
+
 ### 11. No pongas `if (!mounted) return null` en un componente de layout
 
 Es el atajo típico para evitar el desajuste de hidratación con next-themes, pero deja el componente
@@ -785,6 +798,67 @@ Montar dos botones en la misma página no duplica la descarga: `@paypal/paypal-j
 | `/checkout/pago` | SDK | — |
 | `/productos/[id]` ficha | SDK | SDK |
 | `/carrito` | SDK | SDK |
+
+### 5.6 La portada precargaba siete imágenes y ninguna con prioridad
+
+Medición del 2026-08-12 a las 16:48, ya con todo lo anterior desplegado. La nota de móvil **bajó de 71 a
+62**, y conviene mirar por qué antes de sacar conclusiones, porque las métricas cuentan lo contrario:
+
+| Métrica | Prueba 2 | Prueba 3 |
+|---|---|---|
+| **CLS** | 0,13 | **0** |
+| **TBT** | 340 ms | **50 ms** |
+| Bloqueo de renderizado | 1.760 ms | **150 ms** |
+| Tiempos de caché | 115 KiB | **35 KiB** |
+| FCP | 2,7 s | 3,6 s |
+| **LCP** | 3,5 s | **12,2 s** |
+
+O sea: la fuente, el navbar y PayPal hicieron exactamente lo que se esperaba —CLS a cero, bloqueo de
+renderizado a la décima parte, PayPal desaparecido de la lista de terceros— y **el LCP se disparó**.
+Como el LCP pesa un 25 % de la nota, arrastró el total.
+
+**La causa.** PageSpeed señaló el banner `banner-estores-digitales.jpg` como elemento LCP, y falló una
+comprobación concreta: *"Se debe aplicar `fetchpriority=high` a la solicitud de precarga"*. Al mirar el
+HTML de producción salieron dos cosas:
+
+1. **Se precargaban SIETE imágenes**: los 2 banners, los 2 logos y 3 tarjetas de producto. Todas con la
+   misma prioridad. Con la red limitada que simula PageSpeed se estorban entre ellas y la que de verdad
+   importa llega la última.
+2. **Ninguna llevaba `fetchpriority`.** `priority` de `next/image` **no lo añade** en esta versión:
+   comprobado, la etiqueta salía sólo con `decoding="async"`.
+
+**De dónde salían las siete:**
+
+| Origen | Por qué sobraba |
+|---|---|
+| `ProductGrid.tsx`, `prioridad={i < 3}` | El comentario razonaba "la primera fila son 3 tarjetas". Cierto en escritorio; en **móvil la rejilla es de una columna** y quedan bajo cabecera, menú, titular y dos banners |
+| `Header.tsx`, logo oscuro | Los dos logos están siempre en el DOM y sólo se ve uno según el tema. A quien va en claro le sobraba entero |
+| `BannerPrincipal.tsx`, segundo banner | En móvil está debajo del primero, fuera de pantalla |
+
+**El arreglo:** precargar **sólo el LCP** (más el logo claro, que es lo primero que se ve y pesa poco), y
+ponerle `fetchPriority="high"` explícito. Verificado sobre el build: **de 7 preloads a 2**, y el banner
+sale con `fetchPriority="high"` tanto en el `<img>` como en el `<link rel="preload">`.
+
+> **Nota sobre el ruido de estas mediciones.** El dato de campo (usuarios reales, 28 días) no se movió en
+> ninguna de las tres pruebas: LCP 1,8 s, INP 152 ms, CLS 0,09, **Superada**. Los números de laboratorio
+> son una simulación con 4G limitado y varían bastante entre ejecuciones. Sirven para *encontrar* fallos
+> concretos como éste; no para juzgar la tienda por la nota de una sola medición.
+
+### 5.7 Lo que queda en accesibilidad: el contraste del azul de marca
+
+Accesibilidad sigue en 89. Los dos fallos de nombres accesibles (5.3) sí se arreglaron —"Navegación
+agéntica" pasó de 0/2 a 1/2—, pero queda el **contraste**:
+
+`text-primary` es `#6BAEC9`. Sobre blanco da **2,46:1**, y la norma WCAG AA pide **4,5:1** para texto
+normal (3:1 para texto grande). Falla en los dos casos. Afecta a enlaces del pie, "Ver opciones", el
+correo de contacto, "Política de cookies" y varios títulos.
+
+**No se ha tocado**: cambiar `primary` altera botones, enlaces y titulares de toda la tienda, y es una
+decisión de imagen de marca, no técnica. Dos caminos posibles cuando se decida:
+
+1. Oscurecer `primary` hasta cumplir. Cambia el aspecto de todo el sitio.
+2. Añadir un color aparte —`primaryTexto`— más oscuro, y usarlo **sólo donde el azul hace de texto**,
+   dejando `primary` como está para fondos y botones. Más trabajo, pero no cambia la imagen.
 
 ### Lo que queda, y de quién es
 

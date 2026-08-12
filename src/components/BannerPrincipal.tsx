@@ -4,9 +4,13 @@ import React from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 
-// Estos dos banners están en la mitad superior de la portada, así que llevan
-// `priority`: son de los primeros elementos grandes que ve el visitante y suelen
-// disputarle el LCP a las tarjetas de producto.
+// PageSpeed identificó el primer banner como el elemento LCP de la portada, así que
+// es EL ÚNICO de toda la página que debe precargarse con prioridad alta.
+//
+// El segundo banner ya NO lleva `priority`. En móvil la rejilla es de una columna, o
+// sea que queda debajo del primero y fuera de la pantalla inicial: precargarlo sólo
+// servía para robarle ancho de banda al que sí importa. En escritorio se ve al lado y
+// entra una fracción de segundo después, que allí sobra (va a 93 puntos).
 //
 // width/height son las dimensiones reales del fichero (1024x617). No fijan el tamaño
 // en pantalla —de eso se encarga `w-full h-auto`— pero le dan al navegador la
@@ -54,6 +58,10 @@ export default function BannerPrincipal({ categories = [] }: Props) {
         onClick={() => irCategoriaPorNombre("Estores Digitales")}
         title="Ver productos de Estores Digitales"
       >
+        {/* `fetchPriority="high"` va explícito porque `priority` a secas NO lo pone:
+            comprobado en el HTML de producción el 2026-08-12, la etiqueta salía sólo
+            con `decoding="async"`. Sin él, el navegador precarga esta imagen con la
+            misma prioridad que las demás y PageSpeed lo marca como fallo. */}
         <Image
           src="/img/banner-estores-digitales.jpg"
           alt="Estores digitales a medida para salón, dormitorio y cocina"
@@ -61,6 +69,7 @@ export default function BannerPrincipal({ categories = [] }: Props) {
           height={ALTO_BANNER}
           sizes={SIZES_BANNER}
           priority
+          fetchPriority="high"
           className="w-full h-auto object-contain"
         />
       </div>
@@ -77,7 +86,6 @@ export default function BannerPrincipal({ categories = [] }: Props) {
           width={ANCHO_BANNER}
           height={ALTO_BANNER}
           sizes={SIZES_BANNER}
-          priority
           className="w-full h-auto object-contain"
         />
       </div>
