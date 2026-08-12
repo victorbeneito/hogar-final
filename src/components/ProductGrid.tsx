@@ -45,13 +45,22 @@ export default function ProductGrid({
         {busquedaActiva ? "Resultados de la búsqueda" : "Productos Destacados"}
       </h2>
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-        {/* Esta rejilla es de 3 columnas como máximo, así que la fila visible al
-            cargar son 3 tarjetas. Su imagen se precarga por el LCP de la portada. */}
-        {productosAmostrar.map((producto, i) => (
+        {/* Aquí ponía `prioridad={i < 3}`, razonando que la primera fila son tres
+            tarjetas. Eso vale en escritorio, pero en móvil la rejilla es de UNA
+            columna y estas tarjetas quedan debajo de la cabecera, el menú, el titular
+            y los dos banners: nunca se ven al cargar.
+
+            El resultado era que la portada precargaba SIETE imágenes a la vez (2
+            banners + 2 logos + 3 productos), todas con la misma prioridad. Con la red
+            limitada que simula PageSpeed se estorban entre ellas y el banner que es el
+            LCP llega tarde: 12,2 s en la medición del 2026-08-12.
+
+            Sin `prioridad`, estas imágenes se cargan cuando el visitante se acerca a
+            ellas, que es lo correcto para algo que está fuera de pantalla. */}
+        {productosAmostrar.map((producto) => (
           <ProductCard
-            key={producto.id || producto.id}
+            key={producto.id}
             producto={producto as any}
-            prioridad={i < 3}
             sizes={SIZES_TARJETA_PORTADA}
           />
         ))}
