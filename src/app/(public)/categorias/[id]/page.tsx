@@ -229,8 +229,9 @@ export default async function CategoryPage({ params, searchParams }: PageProps) 
         {productosConIva.length > 0 ? (
           <>
             <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-              {productosConIva.map((producto) => (
-                <ProductCard key={producto.id} producto={producto} />
+              {/* Primera fila en pantalla ancha: imagen precargada (LCP). */}
+              {productosConIva.map((producto, i) => (
+                <ProductCard key={producto.id} producto={producto} prioridad={i < 4} />
               ))}
             </div>
 

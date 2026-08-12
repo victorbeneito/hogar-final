@@ -2,13 +2,31 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import ProductQuickViewModal from "@/components/ProductQuickViewModal";
+import { SIZES_TARJETA_CATALOGO, urlImagenProducto } from "@/lib/imagenes";
 
 interface ProductCardProps {
   producto: any;
+  /**
+   * Marca la imagen como prioritaria: se precarga y no espera al scroll. Sólo debe
+   * activarse en las tarjetas visibles al abrir la página (la primera fila), que es
+   * donde suele estar el LCP. Si se marcan todas, no prioriza ninguna y se descarga
+   * el catálogo entero de golpe.
+   */
+  prioridad?: boolean;
+  /**
+   * `sizes` de next/image. Por defecto el de la rejilla del catálogo; la portada usa
+   * una rejilla distinta (3 columnas) y pasa el suyo.
+   */
+  sizes?: string;
 }
 
-export default function ProductCard({ producto }: ProductCardProps) {
+export default function ProductCard({
+  producto,
+  prioridad = false,
+  sizes = SIZES_TARJETA_CATALOGO,
+}: ProductCardProps) {
   const [quickViewOpen, setQuickViewOpen] = useState(false);
   const hoverTimerRef = useRef<number | null>(null);
   const closeTimerRef = useRef<number | null>(null);
@@ -21,11 +39,11 @@ export default function ProductCard({ producto }: ProductCardProps) {
   const precioActual = tieneOferta ? precioOferta : precioBase;
   const descuentoPct = tieneOferta && precioBase > 0 ? Math.round((1 - precioActual / precioBase) * 100) : 0;
 
-  const urlImagen =
+  const urlImagen = urlImagenProducto(
     producto.imagenPortada ||
-    producto.imagenes?.[0] ||
-    producto.productoimagen?.[0]?.url ||
-    "/img/no-image.jpg";
+      producto.imagenes?.[0] ||
+      producto.productoimagen?.[0]?.url
+  );
 
   const clearTimer = (ref: React.MutableRefObject<number | null>) => {
     if (ref.current !== null) {
@@ -97,13 +115,20 @@ export default function ProductCard({ producto }: ProductCardProps) {
 
         <Link href={`/productos/${producto.slug ?? producto.id}`} className="w-full">
           <div className="w-full">
-            <img
-              src={urlImagen}
-              alt={producto.nombre}
-              className={`w-full h-72 object-contain rounded-md transition-transform duration-300 group-hover:scale-[1.02] ${
-                tieneOferta ? "mt-10 mb-3" : "mb-3"
-              }`}
-            />
+            {/* `fill` necesita un contenedor posicionado. Se conservan las mismas
+                medidas y márgenes que tenía el <img> para que no cambie el diseño. */}
+            <div
+              className={`relative w-full h-72 ${tieneOferta ? "mt-10 mb-3" : "mb-3"}`}
+            >
+              <Image
+                src={urlImagen}
+                alt={producto.nombre}
+                fill
+                sizes={sizes}
+                priority={prioridad}
+                className="object-contain rounded-md transition-transform duration-300 group-hover:scale-[1.02]"
+              />
+            </div>
 
             <div className="p-2 text-center">
               <h3 className="text-md font-semibold text-center mb-1 line-clamp-2 min-h-[3rem]">

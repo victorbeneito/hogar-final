@@ -256,6 +256,68 @@ El mismo patrón estaba en
 [`/api/productos/[id]/relacionados`](../src/app/api/productos/[id]/relacionados/route.ts) y se corrigió
 igual. `quick-view` **no** está afectado: recibe siempre el id numérico desde `ProductCard`.
 
+### 1.8 Imágenes de producto: `next/image` (paso 7)
+
+**El diagnóstico inicial era incompleto.** El plan decía "las imágenes no usan `next/image`", pero al
+medir apareció algo más grave: el catálogo viene de tres migraciones distintas y tiene **tres formatos
+de imagen conviviendo**, cada uno con su problema. Medido sobre los 693 productos publicados:
+
+| Formato | Nº | Tamaño real | Problema |
+|---|---:|---|---|
+| `/img/p/…-home_default.jpg` (relativa) | 490 | 250×250, 17 KB | se mostraba **ampliada** en un hueco de 288 px |
+| `http://elhogardetusuenos.com/…` | 101 | 1000×1000, **195 KB** | 301 http→https en **cada** imagen |
+| `https://lh3.googleusercontent.com/d/…` | 99 | ~175 KB | Google Drive, **dominio no declarado** |
+| sin imagen | 2 | — | van al *placeholder* |
+
+**El dominio no declarado era un riesgo de rotura, no un detalle.** `next/image` **lanza un error y no
+renderiza** si la imagen viene de un host que no esté en `remotePatterns`. Activarlo sin añadir
+`lh3.googleusercontent.com` habría roto 99 fichas. Por eso, antes de tocar el componente, se
+enumeraron todos los dominios del catálogo entero.
+
+**Qué se hizo:**
+
+1. **`lh3.googleusercontent.com` añadido a `remotePatterns`** en [`next.config.mjs`](../next.config.mjs).
+2. **Nuevo módulo [`src/lib/imagenes.ts`](../src/lib/imagenes.ts)** con `urlImagenProducto()`, que
+   normaliza los tres formatos:
+   - `http://` → `https://` **sólo en el dominio propio**. Ahorra el 301 y satisface `remotePatterns`,
+     que sólo admite https. No se toca el `http` de otros hosts: si alguno no sirviera por https,
+     romperíamos su imagen sin ganar nada.
+   - `-home_default.jpg` → `-large_default.jpg` **sólo en rutas `/img/p/`**. PrestaShop genera seis
+     tamaños y la tienda usaba el de 250 px estirado a 288. Con el de 800 px, `next/image` reescala
+     **hacia abajo**, que es nítido, en lugar de estirar.
+   - Vacío o nulo → `/img/no-image.jpg`.
+3. **`<img>` → `next/image`** en [`ProductCard.tsx`](../src/components/ProductCard.tsx), con `fill`
+   dentro de un contenedor posicionado que conserva las medidas y márgenes originales.
+4. **`priority` en la primera fila**: nueva prop `prioridad`, activada en las 4 primeras tarjetas del
+   catálogo y las 3 primeras de la portada. Ahí suele estar el LCP. Si se marcaran todas no se
+   priorizaría ninguna y se descargaría el catálogo entero de golpe.
+5. **`sizes` distinto por rejilla**: el catálogo es de 4 columnas y la portada de 3, así que hay dos
+   constantes. Un `sizes` que miente hace que se sirva un tamaño equivocado: pasarse desperdicia
+   bytes y quedarse corto se ve borroso.
+
+> **Antes de dar por buena la subida a `large_default` se comprobaron las 488 imágenes de ese formato,
+> una a una: 0 fallos.** Una muestra no bastaba, porque si faltara una sola versión grande se vería
+> una imagen rota en la tarjeta.
+
+**Ahorro medido** (ancho 384 px, el que sirve la tarjeta, con el optimizador real):
+
+| Imagen | Antes | Después | |
+|---|---:|---:|---|
+| Miniatura PrestaShop | 17.276 B | **12.420 B** | −28 % **y además nítida**, porque sale del original de 800 px |
+| Estor digital (1000×1000) | 194.701 B | **21.662 B** | **−89 %** |
+
+En una página de listado con 12 tarjetas de las pesadas, eso baja de unos **2,3 MB a unos 260 KB**.
+
+**Verificado** en un servidor de producción local: las 12 tarjetas emiten `srcSet` con varios anchos,
+`sizes` correcto, la primera **sin** `loading="lazy"` (es prioritaria) y la última **con** él. El
+normalizador se probó con los nueve casos posibles, incluidos los que **no** debe tocar
+(`home_default` fuera de `/img/p/`, y `http://` de otro dominio).
+
+**Aviso de despliegue:** la optimización la hace el servidor la primera vez que se pide cada tamaño, y
+luego la cachea en `.next/cache/images`. Tras un despliegue limpio, las primeras visitas al catálogo
+irán algo más lentas mientras se llena esa caché. Es normal y se pasa solo. Requiere `sharp`, que ya
+está presente en `node_modules`.
+
 ---
 
 ## Parte 2 — Seguridad: tres endpoints de escritura sin autenticación
@@ -461,7 +523,13 @@ Filtros, orden, búsqueda y normalización de precios viven en
 portada la comparten. Si se modifica una copia suelta, los tres caminos empiezan a dar resultados
 distintos sin que nadie se entere.
 
-### 8. `registrarBusqueda` sólo en la API
+### 8. Antes de añadir un origen de imágenes nuevo, decláralo en `next.config.mjs`
+
+`next/image` **lanza un error y no renderiza** si el host no está en `remotePatterns`. Hoy están
+declarados `elhogardetusuenos.com` (https), `cdn.shopworld.cloud` y `lh3.googleusercontent.com`. Si se
+importa un lote de productos con imágenes de otro sitio, esas fichas dejan de verse.
+
+### 9. `registrarBusqueda` sólo en la API
 
 `buscarProductos()` acepta esa opción y por defecto va a `false`. Si se activara en el render de
 servidor, cada recarga de `/productos` insertaría una fila en `busqueda_log` con un término que nadie
@@ -476,6 +544,8 @@ ha tecleado.
 | [`src/lib/seo.ts`](../src/lib/seo.ts) | `SITE_NAME` y `quitarMarcaDelTitulo()` |
 | [`src/lib/stock.ts`](../src/lib/stock.ts) | Qué categorías NO descuentan existencias |
 | [`src/lib/productosLista.ts`](../src/lib/productosLista.ts) | **Consulta única del listado**: la comparten API, `/productos` y la portada |
+| [`src/lib/imagenes.ts`](../src/lib/imagenes.ts) | Normaliza los tres formatos de URL de imagen y define los `sizes` de cada rejilla |
+| [`next.config.mjs`](../next.config.mjs) | `remotePatterns`: dominios de imagen permitidos |
 | [`src/app/(public)/page.tsx`](../src/app/(public)/page.tsx) | Portada, Server Component |
 | [`src/app/(public)/productos/page.tsx`](../src/app/(public)/productos/page.tsx) | Listado, Server Component |
 | [`src/app/(public)/productos/layout.tsx`](../src/app/(public)/productos/layout.tsx) | Metadatos del listado |
@@ -497,8 +567,8 @@ Referido a [`2026-08-plan-seo-siguiente-fase.md`](2026-08-plan-seo-siguiente-fas
 | 5 — `availability` real del producto | ✅ **Cerrado** |
 | 1 — SSR de home y `/productos` | ✅ **Cerrado** |
 | 4 — JSON-LD que falta (`Organization`, `FAQPage`, `BlogPosting`, migas en ficha) | ✅ **Cerrado** |
+| 7 — `next/image` en `ProductCard` | ✅ **Cerrado** |
 | 6 — Enlaces internos del blog al catálogo | ⬜ (redacción, no código) |
-| 7 — `next/image` en `ProductCard` | ⬜ |
 | 8 — Flecos (dominio con ñ, sitemaps legacy) | ⬜ |
 
 ## Decisiones pendientes del titular

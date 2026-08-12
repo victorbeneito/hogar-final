@@ -141,8 +141,10 @@ export default async function ProductosPage({ searchParams }: PageProps) {
           // Lista de productos
           <>
             <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-              {productos.map((p) => (
-                <ProductCard key={p.id} producto={p} />
+              {/* Las 4 primeras son la fila visible al abrir en pantalla ancha: su
+                  imagen se precarga porque ahí suele estar el LCP. */}
+              {productos.map((p, i) => (
+                <ProductCard key={p.id} producto={p} prioridad={i < 4} />
               ))}
             </div>
 

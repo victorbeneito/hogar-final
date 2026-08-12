@@ -2,6 +2,7 @@
 
 import React from "react";
 import ProductCard from "./ProductCard";
+import { SIZES_TARJETA_PORTADA } from "@/lib/imagenes";
 
 type Producto = {
   id: number;
@@ -44,10 +45,14 @@ export default function ProductGrid({
         {busquedaActiva ? "Resultados de la búsqueda" : "Productos Destacados"}
       </h2>
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-        {productosAmostrar.map((producto) => (
+        {/* Esta rejilla es de 3 columnas como máximo, así que la fila visible al
+            cargar son 3 tarjetas. Su imagen se precarga por el LCP de la portada. */}
+        {productosAmostrar.map((producto, i) => (
           <ProductCard
             key={producto.id || producto.id}
             producto={producto as any}
+            prioridad={i < 3}
+            sizes={SIZES_TARJETA_PORTADA}
           />
         ))}
       </div>

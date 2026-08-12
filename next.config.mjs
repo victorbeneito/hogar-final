@@ -35,6 +35,14 @@ const nextConfig = {
         port: "",
         pathname: "/**",
       },
+      // 99 fichas tienen la imagen alojada en Google Drive. Sin esta entrada,
+      // next/image lanza un error y esas tarjetas dejan de renderizarse.
+      {
+        protocol: "https",
+        hostname: "lh3.googleusercontent.com",
+        port: "",
+        pathname: "/**",
+      },
     ],
   },
 };
