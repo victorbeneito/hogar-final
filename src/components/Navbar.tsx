@@ -143,9 +143,19 @@ export default function Navbar() {
     router.push("/");
   };
 
-  if (!mounted) return null;
-
-  
+  // OJO: aquí había un `if (!mounted) return null;` que ocultaba la barra ENTERA
+  // hasta que el navegador terminaba de hidratar. Hacía tres daños:
+  //
+  //   1. El menú, el buscador y las categorías no salían en el HTML del servidor.
+  //   2. Al aparecer de golpe empujaba hacia abajo todo lo de debajo, y eso lo
+  //      medía PageSpeed como cambio de diseño (parte de los 0,130 de CLS).
+  //   3. Durante ese rato la tienda se veía sin navegación.
+  //
+  // Sólo hacía falta por una cosa: `theme` viene de next-themes y en el servidor
+  // aún no se sabe si el visitante tiene el modo oscuro. Pero `theme` se usa en un
+  // único sitio, el icono del botón de tema. El resto de la barra se pinta con las
+  // clases `dark:` de Tailwind, que dependen de la clase del <html> y no del JS.
+  // Así que el guard vive ahora dentro de ese botón, y no aquí.
 
   // 👇 CONDICIÓN MÁGICA: Si estamos en admin, no renderizamos nada
   if (pathname && pathname.startsWith("/admin")) {
@@ -160,11 +170,16 @@ export default function Navbar() {
         {/* --- IZQUIERDA: Hamburguesa (Móvil) + Logo/Inicio --- */}
         <div className="flex items-center gap-4">
             {/* Botón Hamburguesa (Solo Móvil) */}
+            {/* `aria-label` porque dentro sólo hay un icono. Un lector de pantalla no
+                sabe leer un dibujo: sin esto anuncia "botón" a secas y quien navega
+                a ciegas no puede abrir el menú. `aria-hidden` en el icono evita que
+                además intente deletrear el glifo. */}
             <button
                 onClick={() => setIsMobileMenuOpen(true)}
+                aria-label="Abrir el menú de navegación"
                 className="lg:hidden text-2xl hover:text-primary focus:outline-none"
             >
-                <FaBars />
+                <FaBars aria-hidden="true" />
             </button>
 
             {/* Logo / Inicio */}
@@ -268,11 +283,27 @@ export default function Navbar() {
             {/* Selector de idioma */}
             <GoogleTranslate />
 
-            {/* Carrito */}
-            <Link href="/carrito" className="relative text-2xl hover:text-primary transition-colors">
-                <FaShoppingCart />
+            {/* Carrito.
+                Mismo caso que la hamburguesa: el enlace sólo contenía un icono y,
+                cuando el carrito está vacío, ni siquiera el número. Un lector de
+                pantalla lo anunciaba como "enlace" sin decir a dónde lleva.
+                El texto incluye el número de artículos para que se oiga el estado
+                sin tener que entrar. */}
+            <Link
+                href="/carrito"
+                aria-label={
+                    cartCount > 0
+                        ? `Carrito de la compra, ${cartCount} ${cartCount === 1 ? "artículo" : "artículos"}`
+                        : "Carrito de la compra, vacío"
+                }
+                className="relative text-2xl hover:text-primary transition-colors"
+            >
+                <FaShoppingCart aria-hidden="true" />
                 {cartCount > 0 && (
-                <span className="absolute -top-2 -right-2 bg-primary text-white text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center animate-bounce-short">
+                <span
+                    aria-hidden="true"
+                    className="absolute -top-2 -right-2 bg-primary text-white text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center animate-bounce-short"
+                >
                     {cartCount}
                 </span>
                 )}
@@ -300,9 +331,16 @@ export default function Navbar() {
             <button
                 onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
                 className="bg-gray-200 dark:bg-gray-700 text-yellow-500 dark:text-blue-300 rounded-full p-2 transition-transform hover:scale-110"
-                aria-label="Alternar tema"
+                aria-label="Alternar entre modo claro y modo oscuro"
             >
-                {theme === "dark" ? <FaMoon /> : <FaSun />}
+                {/* Éste es el único trozo de la barra que depende de `theme`, y por
+                    tanto el único que el servidor no puede acertar: no sabe qué tema
+                    tiene guardado el visitante. Hasta que hidrata se pinta un hueco
+                    del mismo tamaño (1em x 1em, lo que ocupa el icono), de modo que
+                    al aparecer no mueve nada de su alrededor. */}
+                {mounted
+                    ? (theme === "dark" ? <FaMoon aria-hidden="true" /> : <FaSun aria-hidden="true" />)
+                    : <span className="block w-[1em] h-[1em]" aria-hidden="true" />}
             </button>
         </div>
 

@@ -1,5 +1,6 @@
 import "./globals.css";
 import type { Metadata } from "next";
+import { Poppins } from "next/font/google";
 import { ClienteAuthProvider } from "@/context/ClienteAuthContext";
 import { AuthProvider } from "@/context/AuthContext";
 import { ThemeProvider } from "@/components/ThemeProvider";
@@ -11,6 +12,36 @@ import { CANONICAL_BASE_URL } from "@/lib/urls";
 import { organizationJsonLd } from "@/lib/seo";
 
 export const dynamic = "force-dynamic";
+
+/**
+ * Poppins, la fuente de toda la tienda.
+ *
+ * Antes se pedía a Google con un `@import` en la primera línea de globals.css.
+ * Cargarla aquí con `next/font/google` cambia tres cosas, y las tres las medía
+ * PageSpeed como problemas:
+ *
+ *  - **Se sirve desde elhogardetusuenos.com.** El fichero se descarga en tiempo de
+ *    compilación y se guarda junto al resto de estáticos, así que desaparecen las
+ *    conexiones a fonts.googleapis.com y fonts.gstatic.com. Eran las que bloqueaban
+ *    el renderizado (1.760 ms) y salían en el informe como recurso externo.
+ *  - **Se precarga.** Next añade el `<link rel="preload">` del .woff2 en el <head>,
+ *    de modo que la fuente empieza a bajar a la vez que el CSS y no después.
+ *  - **No da salto.** Next calcula una fuente de reserva (`adjustFontFallback`, que
+ *    va activada por defecto) con el alto de línea y el ancho de letra ajustados a
+ *    los de Poppins. Mientras llega la definitiva el texto ocupa ya el mismo hueco,
+ *    así que no hay recolocación: eso eran 0,059 de los 0,130 de CLS.
+ *
+ * Los pesos son los cinco que ya se pedían antes. Añadir más engorda la descarga;
+ * quitar alguno que se use en el CSS haría que el navegador lo simulara estirando
+ * las letras. Si algún día se usa un peso nuevo (por ejemplo `font-black`), hay que
+ * añadirlo a esta lista o se verá mal.
+ */
+const poppins = Poppins({
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700"],
+  display: "swap",
+  variable: "--fuente-poppins",
+});
 
 export const metadata: Metadata = {
   metadataBase: new URL(CANONICAL_BASE_URL),
@@ -50,7 +81,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="es" suppressHydrationWarning>
+    <html lang="es" suppressHydrationWarning className={poppins.variable}>
       <body suppressHydrationWarning className="bg-fondo dark:bg-darkBg text-secondary dark:text-darkNavText transition-colors duration-300 flex flex-col min-h-screen">
         {/* Identidad de la tienda para buscadores y asistentes de IA. Va en el layout
             raíz para que esté en todas las páginas. */}

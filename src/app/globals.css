@@ -1,4 +1,19 @@
-@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
+/* La fuente Poppins ya NO se pide aquí.
+ *
+ * Antes había un `@import url('https://fonts.googleapis.com/…')` en esta primera
+ * línea. Es la peor forma posible de cargar una fuente, por dos motivos:
+ *
+ *  1. Un `@import` dentro de un CSS encadena tres descargas en serie: el navegador
+ *     baja globals.css, ahí descubre el @import, baja el CSS de Google, y sólo
+ *     entonces descubre el .woff2 y lo baja. Nada se pinta mientras tanto.
+ *     PageSpeed lo medía como 1.760 ms de renderizado bloqueado.
+ *  2. Al llegar la fuente tarde, el texto ya pintado con la fuente de sistema se
+ *     recomponía y la página daba un salto: 0,059 de los 0,130 de CLS.
+ *
+ * Ahora se carga con `next/font/google` en src/app/layout.tsx, que la sirve desde
+ * nuestro propio dominio, la precarga y calcula una fuente de reserva con las
+ * métricas ajustadas para que no haya salto. Ver el comentario de ese fichero.
+ */
 
 @tailwind base;
 @tailwind components;
@@ -29,7 +44,11 @@ html,
 body {
   max-width: 100vw;
   overflow-x: hidden;
-  font-family: 'Poppins', sans-serif;
+  /* `--fuente-poppins` la define next/font en el <html> (layout.tsx). Incluye ya
+     la fuente de reserva con métricas ajustadas, por eso no hace falta añadir
+     'Poppins' a mano: si se pusiera, se usaría la copia del sistema de quien la
+     tenga instalada y se vería distinto en cada ordenador. */
+  font-family: var(--fuente-poppins), sans-serif;
   
   /* ❌ BORRADO: background-color: var(--background); */
   /* ❌ BORRADO: color: var(--secondary); */

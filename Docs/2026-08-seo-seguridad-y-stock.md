@@ -576,6 +576,115 @@ importa un lote de productos con imágenes de otro sitio, esas fichas dejan de v
 servidor, cada recarga de `/productos` insertaría una fila en `busqueda_log` con un término que nadie
 ha tecleado.
 
+### 10. No vuelvas a pedir fuentes con `@import` en el CSS
+
+Si hace falta otra tipografía, se añade con `next/font` en `src/app/layout.tsx`, **nunca** con un
+`@import url('https://fonts.googleapis.com/…')` ni con un `<link>` a Google. Un `@import` encadena las
+descargas en serie y bloquea el pintado: eran 1.760 ms. Y sin las métricas de reserva que calcula
+`next/font`, la página vuelve a dar el salto al cambiar de fuente.
+
+Si se usa un peso que no esté en la lista de `weight` del `layout.tsx`, el navegador lo simula
+estirando las letras y se ve mal. Hay que añadirlo ahí.
+
+### 11. No pongas `if (!mounted) return null` en un componente de layout
+
+Es el atajo típico para evitar el desajuste de hidratación con next-themes, pero deja el componente
+**fuera del HTML del servidor** y provoca un salto cuando aparece. Sólo hay que envolver así el trozo
+concreto que depende de `theme` o de `localStorage`, y dejarle un hueco del tamaño final. Con Tailwind,
+las clases `dark:` **no necesitan** ese guard: dependen de la clase del `<html>`, que next-themes fija
+con un script inline antes del primer pintado.
+
+---
+
+## Parte 5 — Velocidad: la fuente y la barra de navegación
+
+Medido en producción el 2026-08-12 con PageSpeed Insights, ya desplegado todo lo anterior y **con el
+pop-up de vacaciones quitado** para no contaminar la medición.
+
+### De dónde partíamos
+
+| | Antes (11 ago) | Después de imágenes (12 ago) |
+|---|---|---|
+| Rendimiento móvil | 38 | **71** |
+| Rendimiento escritorio | ~70 | **93** |
+| LCP de laboratorio (móvil) | 18,8 s | **3,5 s** |
+| Entrega de imágenes | 1.129 KiB | **35 KiB** |
+| Tiempos de caché | 1.558 KiB | **115 KiB**, y ya todo de terceros |
+
+Lo de la caché se arregló solo, y conviene entender por qué porque es contraintuitivo: los ficheros de
+`public/` los sirve **Apache saltándose Next**, y salen sin ninguna cabecera `Cache-Control`. Al pasar
+las imágenes por `next/image`, el navegador dejó de pedir `/img/p/…` y pasó a pedir `/_next/image?…`,
+que sí lleva cabecera. **No se tocó la configuración de Apache.** Si algún día se vuelve a poner un
+`<img>` suelto apuntando a `/img/…`, ese fichero volverá a servirse sin caché.
+
+### 5.1 La fuente Poppins se pedía con un `@import` a Google
+
+La primera línea de `src/app/globals.css` era:
+
+```css
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
+```
+
+Es la peor forma posible de cargar una fuente. Un `@import` dentro de un CSS encadena las descargas
+**en serie**: el navegador baja `globals.css`, ahí descubre el `@import`, baja el CSS de Google, y sólo
+entonces descubre el `.woff2` y lo baja — de dos dominios ajenos, con su DNS y su TLS cada uno. Nada se
+pinta mientras tanto. PageSpeed lo medía como **1.760 ms de renderizado bloqueado**.
+
+Y hacía un segundo daño: al llegar la fuente tarde, el texto ya pintado con la fuente de sistema se
+recomponía. En el desglose del CLS aparecían las dos `.woff2` de `fonts.gstatic.com` como causantes,
+con **0,059 de los 0,130** totales.
+
+Ahora se carga con `next/font/google` en [`src/app/layout.tsx`](../src/app/layout.tsx):
+
+- el `.woff2` se descarga **al compilar** y se sirve desde `elhogardetusuenos.com`, así que desaparecen
+  las conexiones a `fonts.googleapis.com` y `fonts.gstatic.com` (verificado: 0 referencias en el HTML);
+- Next calcula una **fuente de reserva con las métricas ajustadas** (`adjustFontFallback`, activado por
+  defecto), de modo que el texto provisional ocupa ya el mismo hueco y no hay recolocación.
+
+`tailwind.config.js` apuntaba `font-poppins` a `"Poppins"` a secas, que sólo funcionaba porque el
+`@import` la había cargado. Ahora apunta a `var(--fuente-poppins)`.
+
+### 5.2 La barra de navegación no salía en el HTML
+
+[`src/components/Navbar.tsx`](../src/components/Navbar.tsx) tenía un `if (!mounted) return null;` que
+ocultaba **la barra entera** hasta que el navegador terminaba de hidratar. Tres daños:
+
+1. El menú, el buscador y el carrito **no estaban en el HTML del servidor**.
+2. Al aparecer de golpe empujaban hacia abajo todo lo de debajo → más CLS. En el informe, el bloque
+   `Bienvenido a El Hogar de tus Sueños` figuraba con 0,059 de desplazamiento.
+3. Durante ese rato la tienda se veía sin navegación.
+
+El guard existía por una sola razón: `theme` viene de next-themes y en el servidor no se sabe qué tema
+tiene guardado el visitante. Pero **`theme` se usa en un único sitio**, el icono del botón de modo
+oscuro. Todo lo demás se pinta con las clases `dark:` de Tailwind, que dependen de la clase del `<html>`
+—que next-themes fija con un script inline antes del primer pintado— y no del JS de React.
+
+Así que el guard vive ahora dentro de ese botón, con un hueco de 1em×1em mientras tanto para que al
+aparecer el icono no mueva nada. Verificado: el HTML del servidor pasó de 62.408 a 69.335 bytes y el
+enlace del carrito ya aparece.
+
+### 5.3 Accesibilidad: dos elementos sin nombre
+
+PageSpeed los señalaba con nombre y apellidos, ambos en el Navbar:
+
+| Elemento | Problema | Arreglo |
+|---|---|---|
+| `<button class="lg:hidden text-2xl…">` (hamburguesa) | Sólo contiene un icono → un lector de pantalla anuncia "botón" y nada más | `aria-label="Abrir el menú de navegación"` |
+| `<a href="/carrito">` | Igual, y con el carrito vacío ni siquiera tiene el número | `aria-label` dinámico con el número de artículos |
+
+En los dos casos el icono lleva además `aria-hidden="true"`, para que el lector no intente deletrear el
+glifo. Es obligación legal en España (EN 301 549), no sólo una recomendación de Google.
+
+### Lo que queda, y de quién es
+
+| Hallazgo | Dónde se arregla |
+|---|---|
+| **606 KiB de Google Tag Manager en cuatro etiquetas**, una de ellas `UA-57384028-1` — Universal Analytics, que Google apagó en julio de 2023 y no recoge nada | Panel de GTM, **no es código** |
+| GA4 se carga **dos veces**: por el contenedor GTM y por el `<Script>` de `layout.tsx`. Si el contenedor también tiene la etiqueta GA4, las visitas se cuentan por duplicado | Comprobar en GTM antes de tocar el código |
+| El SDK de **PayPal (100 KiB) se carga en todas las páginas**, incluida la portada, porque `PaypalProvider` envuelve el layout raíz | `src/app/layout.tsx` — pendiente |
+| Imágenes de producto que dan **404**: rutas tipo `/29108-medium_default/…-traslúcido.jpg`, con acentos | Pendiente de verificar en la BD |
+| Sin cabecera `Cache-Control` en `/img/…` | Directiva de Apache en Plesk, **no es código** |
+
 ---
 
 ## Referencia rápida de ficheros
@@ -594,6 +703,9 @@ ha tecleado.
 | [`src/app/api/productos/route.ts`](../src/app/api/productos/route.ts) | Listado público, **sólo lectura** |
 | [`src/lib/cmsConfig.ts`](../src/lib/cmsConfig.ts) | Páginas CMS. Ojo: la BD pisa a los `default*` |
 | [`src/app/(admin)/admin/productos/[id]/tabs/TabPrecio.tsx`](../src/app/(admin)/admin/productos/[id]/tabs/TabPrecio.tsx) | Casilla de stock según haya combinaciones |
+| [`src/app/layout.tsx`](../src/app/layout.tsx) | Carga de la fuente Poppins (`next/font`) y scripts de terceros |
+| [`src/app/globals.css`](../src/app/globals.css) | `font-family` de `body`; **ya no** pide fuentes a Google |
+| [`src/components/Navbar.tsx`](../src/components/Navbar.tsx) | Barra de navegación; el guard de `mounted` va **dentro** del botón de tema |
 
 ---
 

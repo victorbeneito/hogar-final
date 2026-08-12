@@ -28,7 +28,11 @@ module.exports = {
         fondoCasilla: "#f2fbff"
       },
       fontFamily: {
-        poppins: ["Poppins", "sans-serif"],
+        // La clase `font-poppins` apunta a la variable que define next/font en el
+        // <html> (src/app/layout.tsx). Antes ponía "Poppins" a secas, que sólo
+        // funcionaba si el navegador ya la tenía cargada por el @import de
+        // globals.css; ese @import ya no existe.
+        poppins: ["var(--fuente-poppins)", "sans-serif"],
         orienta: ["Orienta", "sans-serif"],
       },
       boxShadow: {
