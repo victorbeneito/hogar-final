@@ -586,6 +586,14 @@ descargas en serie y bloquea el pintado: eran 1.760 ms. Y sin las métricas de r
 Si se usa un peso que no esté en la lista de `weight` del `layout.tsx`, el navegador lo simula
 estirando las letras y se ve mal. Hay que añadirlo ahí.
 
+### 10 bis. La reescritura de imágenes es una regla de PrestaShop, no una general
+
+`rutaFisicaPrestashop()` en [`src/lib/imagenes.ts`](../src/lib/imagenes.ts) reparte las cifras del
+identificador en carpetas (`4438` → `/img/p/4/4/3/8/`) porque así las guarda PrestaShop. Si algún día se
+mueven las fotos a otro alojamiento o a un CDN, esa función deja de valer y hay que cambiarla **ahí**, no
+en cada plantilla. Y si se importa un lote nuevo, conviene comprobar en qué formato llegan las URLs
+antes de dar por hecho que están bien.
+
 ### 11. No pongas `if (!mounted) return null` en un componente de layout
 
 Es el atajo típico para evitar el desajuste de hidratación con next-themes, pero deja el componente
@@ -675,6 +683,60 @@ PageSpeed los señalaba con nombre y apellidos, ambos en el Navbar:
 En los dos casos el icono lleva además `aria-hidden="true"`, para que el lector no intente deletrear el
 glifo. Es obligación legal en España (EN 301 549), no sólo una recomendación de Google.
 
+### 5.4 603 fichas de producto se veían sin foto
+
+Lo destapó la consola del informe de PageSpeed: una tanda de 404 en imágenes de producto.
+
+**La causa.** La tabla `productoimagen` guarda la URL con el formato de catálogo de PrestaShop:
+
+```
+https://elhogardetusuenos.com/4438/estor-enrollable-lira-blindecor.jpg
+```
+
+Esa dirección **la resolvía PrestaShop**, no un fichero real. Al migrar la tienda a Next dejó de
+existir quien la resolviera, y desde entonces devuelve 404. Comprobadas las **627** filas que tienen ese
+formato (de 630 totales) el 2026-08-12: **fallaban todas**. También en `-large_default/` y
+`-home_default/`, así que no era cuestión del tamaño.
+
+**Lo importante: los ficheros sí están.** PrestaShop reparte cada cifra del identificador en un nivel de
+directorio, así que la foto 4438 vive realmente en:
+
+```
+/img/p/4/4/3/8/4438-large_default.jpg     → HTTP 200
+```
+
+**El arreglo** va en [`src/lib/imagenes.ts`](../src/lib/imagenes.ts), dentro de `urlImagenProducto()`,
+que ya era el único sitio donde se normalizan las URLs de imagen. Se reescribe al vuelo. Verificado
+contra las 630 filas reales, una a una contra el servidor de producción:
+
+| | Antes | Después |
+|---|---|---|
+| Imágenes que se ven | 3 | **603** |
+| Imágenes rotas | 627 | 27 |
+
+Se hizo **en código y no en la base de datos** a propósito: no toca los datos, es reversible, y las filas
+que se importen mañana con el mismo formato malo quedan cubiertas igual.
+
+**Se devuelve una ruta relativa** (`/img/p/…`), no la URL completa: así `next/image` la lee de `public/`
+sin salir a la red, en vez de pedírsela a nuestro propio dominio dando la vuelta por fuera.
+
+#### Las 27 que siguen sin foto
+
+**24 son productos desactivados**, que no están a la venta: no los ve nadie. Las otras **3 sí están
+activas** y tienen un fallo distinto — la URL viene sin el número de imagen, con doble barra
+(`.com//funda-sofa-elastica-malta.jpg`). Sin ese número no se puede reconstruir la ruta, así que ahora
+devuelven `IMAGEN_POR_DEFECTO` en lugar de un enlace roto. **Hay que subirles la foto a mano** desde el
+panel:
+
+| ID | Referencia | Producto |
+|---|---|---|
+| 514 | `Cambio-28-38` | Cambio tamaño tubo de 28" a 38" |
+| 522 | `7004` | Funda Sofá Elástica Rustica Martina Home |
+| 523 | `7005` | Funda Sofá Elástica Tibet Martina Home |
+
+Los 24 desactivados, por si algún día se reactivan: 524, 526, 529, 546, 549, 553, 554, 569, 570, 572,
+585, 586, 587, 588, 589, 591, 594, 600, 602, 603, 604, 614, 626, 658.
+
 ### Lo que queda, y de quién es
 
 | Hallazgo | Dónde se arregla |
@@ -682,7 +744,7 @@ glifo. Es obligación legal en España (EN 301 549), no sólo una recomendación
 | **606 KiB de Google Tag Manager en cuatro etiquetas**, una de ellas `UA-57384028-1` — Universal Analytics, que Google apagó en julio de 2023 y no recoge nada | Panel de GTM, **no es código** |
 | GA4 se carga **dos veces**: por el contenedor GTM y por el `<Script>` de `layout.tsx`. Si el contenedor también tiene la etiqueta GA4, las visitas se cuentan por duplicado | Comprobar en GTM antes de tocar el código |
 | El SDK de **PayPal (100 KiB) se carga en todas las páginas**, incluida la portada, porque `PaypalProvider` envuelve el layout raíz | `src/app/layout.tsx` — pendiente |
-| Imágenes de producto que dan **404**: rutas tipo `/29108-medium_default/…-traslúcido.jpg`, con acentos | Pendiente de verificar en la BD |
+| ~~Imágenes de producto que dan **404**~~ | ✅ Resuelto, ver 5.4 |
 | Sin cabecera `Cache-Control` en `/img/…` | Directiva de Apache en Plesk, **no es código** |
 
 ---

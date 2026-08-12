@@ -19,6 +19,21 @@ const DOMINIO_TIENDA = "elhogardetusuenos.com";
 export const IMAGEN_POR_DEFECTO = "/img/no-image.jpg";
 
 /**
+ * Reconstruye la ruta física de una imagen de PrestaShop a partir de su número.
+ *
+ * PrestaShop no guarda las fotos en una carpeta plana: reparte cada cifra del
+ * identificador en un nivel de directorio. La imagen 4438 vive en
+ * `/img/p/4/4/3/8/4438-large_default.jpg`, y la 46481 en
+ * `/img/p/4/6/4/8/1/46481-large_default.jpg`.
+ *
+ * Es un detalle de PrestaShop, no una convención general: si algún día se migran
+ * las fotos a otro sitio, esta función deja de valer y hay que cambiarla aquí.
+ */
+function rutaFisicaPrestashop(numeroImagen: string): string {
+  return `/img/p/${numeroImagen.split("").join("/")}/${numeroImagen}-large_default.jpg`;
+}
+
+/**
  * Devuelve la mejor URL disponible para mostrar la imagen de un producto.
  *
  * Hace dos cosas:
@@ -41,6 +56,39 @@ export function urlImagenProducto(url: string | null | undefined): string {
   if (!limpia) return IMAGEN_POR_DEFECTO;
 
   let resultado = limpia;
+
+  // URL "bonita" de PrestaShop → ruta física real.
+  //
+  // 627 de las 630 filas de `productoimagen` guardan la URL con este formato:
+  //
+  //     https://elhogardetusuenos.com/4438/estor-enrollable-lira-blindecor.jpg
+  //
+  // Esa dirección **da 404**. Comprobadas las 627 el 2026-08-12: fallaban todas, y
+  // también en `-large_default/` y `-home_default/`. Era una URL de catálogo de
+  // PrestaShop que dejó de resolverse al migrar la tienda a Next, así que esos
+  // productos se estaban mostrando sin foto.
+  //
+  // El fichero sí existe, en la ruta física: de las 627, **603 aparecen** al
+  // reescribirlas así. Las 24 restantes no están en el servidor y caen en la imagen
+  // por defecto; hay que volver a subirlas a mano (lista en la documentación).
+  //
+  // Se deja relativa a propósito: `next/image` la sirve desde `public/`, sin salir a
+  // la red, que es más rápido que pedírsela a nuestro propio dominio por fuera.
+  const urlBonitaPrestashop = resultado.match(
+    new RegExp(`^https?://${DOMINIO_TIENDA.replace(/\./g, "\\.")}/(\\d+)/[^/]+\\.jpe?g$`, "i")
+  );
+  if (urlBonitaPrestashop) {
+    return rutaFisicaPrestashop(urlBonitaPrestashop[1]);
+  }
+
+  // Variante rota de lo anterior: la misma URL pero **sin el número de imagen**, con
+  // doble barra: `https://elhogardetusuenos.com//funda-sofa-elastica-malta.jpg`.
+  // Hay 3 así (productos 514, 522 y 523). Sin ese número no se puede reconstruir la
+  // ruta física, así que no hay nada que rescatar: se devuelve la imagen por defecto
+  // en lugar de un enlace que da 404 y deja el hueco roto en la ficha.
+  if (new RegExp(`^https?://${DOMINIO_TIENDA.replace(/\./g, "\\.")}//`, "i").test(resultado)) {
+    return IMAGEN_POR_DEFECTO;
+  }
 
   // http → https, sólo en el dominio propio. No se toca el de otros hosts: si alguno
   // no sirviera por https, romperíamos su imagen sin ganar nada.
