@@ -8,7 +8,6 @@ import { getCart } from "@/lib/cartService";
 import { FaShoppingCart, FaSearch, FaBars, FaTimes, FaUser, FaMoon, FaSun } from "react-icons/fa";
 import { useDebounce } from "use-debounce";
 import { useTheme } from "next-themes";
-import GoogleTranslate from "@/components/GoogleTranslate";
 
 
 type Categoria = {
@@ -293,8 +292,16 @@ export default function Navbar() {
                 <FaSearch />
             </button>
 
-            {/* Selector de idioma */}
-            <GoogleTranslate />
+            {/* Aquí estaba el selector de idioma (<GoogleTranslate />). Retirado el
+                2026-08-17 por decisión del titular: prácticamente toda la clientela
+                compra en castellano, y quien necesite otro idioma tiene el traductor
+                del propio navegador.
+
+                Lo que costaba, medido en PageSpeed: 100 KiB de descarga, 77 ms de hilo
+                principal, y un `<select>` oculto con 249 opciones de idioma que
+                engordaba el DOM (1.132 elementos en la portada) y salía señalado en el
+                informe. El componente sigue en el historial de git por si algún día
+                hace falta. */}
 
             {/* Carrito.
                 Mismo caso que la hamburguesa: el enlace sólo contenía un icono y,

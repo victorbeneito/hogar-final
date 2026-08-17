@@ -924,6 +924,104 @@ cumplir. Si algún día se quiere cerrar del todo, esos tres pasan a gris o al a
 compilado quedan 42 apariciones del azul viejo, todas de ahí. No es urgente —el admin sólo lo ve el
 titular— pero mientras siga así, tienda y panel irán de azules distintos.
 
+## Parte 6 — Medición del 2026-08-17 y lo que enseñó
+
+**Escritorio 93 → 99** (LCP 0,7 s, TBT 30 ms, todo verde). **Móvil 62 → 54.** Misma página, mismo
+código, mismos terceros: la diferencia es que el test de móvil emula un *Moto G Power* con 4G lenta y la
+CPU estrangulada.
+
+Y el dato de campo sigue sin moverse en cuatro pruebas y cinco días: **LCP 1,8 s · INP 149 ms ·
+CLS 0,1 · Superada.**
+
+### 6.1 El preload sí funcionó. El problema nunca fue la descarga
+
+El desglose del LCP móvil lo deja claro:
+
+| Subparte | Duración |
+|---|---|
+| Time to First Byte | 180 ms |
+| Retraso de carga del recurso | 220 ms |
+| Descarga del recurso | 200 ms |
+| **Retraso de renderizado** | **≈ 11.500 ms** |
+
+La imagen del banner **está disponible en 600 ms**. Los 11,5 s restantes son espera hasta que se pinta.
+
+**Conclusión que hay que recordar antes de volver a tocar imágenes: optimizar la entrega de imágenes ya
+no mueve el LCP de esta portada.** El apartado "Mejorar la entrega de imágenes" bajó a 35 KiB, o sea
+nada. Lo que retrasa el pintado es el JavaScript de terceros:
+
+```
+Google Tag Manager    605 KiB    560 ms
+Google Translate      100 KiB     77 ms
+Revi                  112 KiB     48 ms
+```
+
+Y el DOM: **1.132 elementos** en la portada, con el `<select>` del traductor aportando **249 hijos** y
+Revi anidando hasta 23 niveles.
+
+### 6.2 Por qué la accesibilidad no subió con el cambio de color
+
+Se esperaba que 5.8 subiera la nota de 89. No la movió, y el informe explica por qué: de los tres fallos
+de contraste que quedaban, **dos eran nuestros pero el cambio de token no les llegaba**.
+
+| Qué | Antes | Después | Dónde |
+|---|---|---|---|
+| Cinta «¡EN OFERTA!» | 2,18:1 | **3,25:1** | `ProductCard.tsx` (×2), `ProductosRelacionados.tsx` |
+| Precio tachado | 2,54:1 | **4,83:1** | `ProductCard.tsx`, `ProductDetail.tsx`, `ProductQuickViewModal.tsx` |
+| «¿Necesitas ayuda?» | — | sin tocar | `#ehts-teaser`, **widget de chat de terceros** |
+
+La cinta llevaba un naranja claro escrito a mano como valor arbitrario en lugar de `bg-accent`, así que
+la corrección de la paleta pasó de largo. Los precios tachados iban en `text-gray-400` (#9CA3AF), que
+sobre blanco da 2,54:1; ahora `text-gray-500` (#6B7280), 4,83:1.
+
+El tercero es del widget de chat: no está en nuestro CSS y no se puede arreglar desde aquí.
+
+### 6.3 Se retiró el traductor de Google
+
+Decisión del titular: prácticamente toda la clientela compra en castellano y quien necesite otro idioma
+tiene el traductor del navegador.
+
+Se quitó `<GoogleTranslate />` de [`Navbar.tsx`](../src/components/Navbar.tsx), se borró
+`src/components/GoogleTranslate.tsx` (está en el historial de git) y se limpiaron las cuatro reglas
+`.goog-te-*` de [`globals.css`](../src/app/globals.css) — incluido un `body { top: 0 !important }`
+global que existía sólo para contrarrestar la barra que Google inyectaba.
+
+Ahorro: 100 KiB, 77 ms de hilo principal y 249 elementos de DOM.
+
+### 6.4 La Universal Analytics: mecanismo identificado
+
+Cinco días después de apagar el ajuste «Recoger eventos de Universal Analytics», `UA-57384028-1` seguía
+cargándose. Ese interruptor **no era el causante**. Descargando la configuración que Google sirve para la
+etiqueta GA4 aparece el mecanismo real:
+
+```json
+{"function":"__zone","vtp_childContainers":["list",["map","publicId","UA-57384028-1"]]}
+```
+
+Es un **contenedor hijo** asociado a la etiqueta `G-B115FWF028`. Comprobado que **no** está en el código
+del sitio ni en el contenedor `GTM-58NXXRTJ`: la asociación vive en la configuración de la etiqueta, del
+lado de Google.
+
+**Cómo comprobar si ya está resuelto**, sin abrir el navegador:
+
+```bash
+curl -s "https://www.googletagmanager.com/gtag/js?id=G-B115FWF028" | grep -c "UA-57384028-1"
+# 0 = resuelto
+```
+
+### 6.5 Trampa nueva: Tailwind rastrea también los comentarios
+
+Al documentar 6.2 se escribió el hex antiguo con su prefijo de clase dentro de un comentario JSX, y
+**Tailwind volvió a generar la clase muerta en el CSS compilado**: su rastreador busca patrones de
+nombre de clase en el texto del fichero y no distingue código de comentario. Al quitar el prefijo del
+comentario, la clase desapareció. Comprobado en las dos direcciones.
+
+Y otra del mismo rato: un `{/* comentario */}` **no cabe dentro de** `{condicion && ( … )}`, porque sería
+un segundo hijo de la expresión. Rompió la compilación en tres ficheros. El comentario va **antes** de la
+llave.
+
+---
+
 ### Lo que queda, y de quién es
 
 | Hallazgo | Dónde se arregla |

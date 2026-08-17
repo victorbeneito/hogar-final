@@ -300,8 +300,9 @@ export default function ProductQuickViewModal({ productId, open, onClose }: Prop
                 <span className="text-2xl font-bold text-primary dark:text-white">
                   {precioCalculado.precioFinal.toFixed(2)} €
                 </span>
+                {/* gray-500, no -400: ver el comentario de ProductCard.tsx. */}
                 {precioCalculado.tieneOferta && (
-                  <span className="text-sm line-through text-gray-400">
+                  <span className="text-sm line-through text-gray-500">
                     {precioCalculado.precioOriginalConExtra.toFixed(2)} €
                   </span>
                 )}

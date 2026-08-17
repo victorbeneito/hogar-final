@@ -19,11 +19,15 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Ocultar barra superior de Google Translate */
-.goog-te-banner-frame { display: none !important; }
-body { top: 0 !important; }
-.goog-logo-link { display: none !important; }
-.goog-te-gadget { font-size: 0 !important; }
+/* Aquí había cuatro reglas para tapar la interfaz de Google Translate
+   (`.goog-te-banner-frame`, `.goog-logo-link`, `.goog-te-gadget` y un
+   `body { top: 0 !important }` que contrarrestaba la barra que Google inyectaba
+   arriba). El traductor se retiró el 2026-08-17, así que no tapaban nada.
+
+   Si algún día se vuelve a poner un traductor, estas reglas están en el historial de
+   git — pero ojo con el `body { top: 0 !important }`: es una regla global con
+   `!important` puesta para arreglar un problema de un tercero, y de las que conviene
+   no dejar suelta. */
 
 /* 🎨 VARIABLES CSS (Opcional, pero Tailwind ya usa config) */
 /* Ojo: estas variables NO las usa nadie (comprobado: cero `var(--primary)` en todo

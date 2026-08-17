@@ -104,10 +104,20 @@ export default function ProductCard({
       >
         {tieneOferta && (
           <>
-            <div className="absolute top-0 left-0 right-0 bg-[#f39a66] text-white text-xs sm:text-sm font-black uppercase tracking-wide text-center py-1.5 shadow-sm">
+            {/* Esta cinta usa el token `bg-accent`. Antes llevaba el naranja claro
+                escrito a mano como valor arbitrario, así que cuando se corrigió el
+                contraste de la paleta el cambio no le llegó: se quedó en 2,18:1 con el
+                texto blanco encima y PageSpeed seguía marcándola el 17/08. Con el
+                token va a 3,25:1, lo que pide la norma para texto grande en negrita.
+
+                No se escribe aquí el hex antiguo a propósito: Tailwind rastrea el
+                texto del fichero buscando nombres de clase y no distingue los
+                comentarios, así que mencionarlo con su prefijo volvía a generar la
+                clase muerta en el CSS compilado. Comprobado. */}
+            <div className="absolute top-0 left-0 right-0 bg-accent text-white text-xs sm:text-sm font-black uppercase tracking-wide text-center py-1.5 shadow-sm">
               ¡En oferta!
             </div>
-            <div className="absolute top-10 left-0 bg-[#f39a66] text-white text-xs font-black px-3 py-1 rounded-r-md shadow-sm">
+            <div className="absolute top-10 left-0 bg-accent text-white text-xs font-black px-3 py-1 rounded-r-md shadow-sm">
               -{descuentoPct}%
             </div>
           </>
@@ -138,7 +148,11 @@ export default function ProductCard({
               {tieneOferta ? (
                 <div className="mb-0 space-y-0">
                   <p className="text-xs font-bold uppercase tracking-wide text-gray-500 dark:text-gray-300">
-                    Precio base <span className="line-through text-gray-400">{precioBase.toFixed(2)} €</span>
+                    {/* `text-gray-500` y no `-400`: el gris 400 (#9CA3AF) sobre blanco
+                        da 2,54:1 y PageSpeed lo marcaba. El 500 (#6B7280) da 4,83:1 y
+                        sigue leyéndose como precio secundario, que es lo que se busca:
+                        que se vea tachado, no que se vea borroso. */}
+                    Precio base <span className="line-through text-gray-500">{precioBase.toFixed(2)} €</span>
                   </p>
                   <p className="text-accent font-extrabold dark:text-darkNavText text-2xl">
                     {precioActual.toFixed(2)} €

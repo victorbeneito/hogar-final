@@ -328,8 +328,11 @@ export default function ProductDetail({
             <span className="text-2xl font-bold text-primary dark:text-white">
               {precioFinalProducto.toFixed(2)} €
             </span>
+            {/* El precio tachado va en gray-500, no en gray-400: ver el comentario de
+                ProductCard.tsx. (El comentario va aquí fuera y no dentro del `&&`
+                porque ahí sería un segundo hijo y rompe la expresión JSX.) */}
             {precioVariante.tieneOferta && (
-              <span className="text-sm line-through text-gray-400 dark:text-white">
+              <span className="text-sm line-through text-gray-500 dark:text-white">
                 {precioVariante.precioOriginalConExtra.toFixed(2)} €
               </span>
             )}

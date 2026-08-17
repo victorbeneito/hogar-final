@@ -239,8 +239,9 @@ function TarjetaRelacionado({ producto }: { producto: ProductoRelacionado }) {
                   focus:outline-none focus-visible:ring-2 focus-visible:ring-primary`}
     >
       <div className="relative mb-3 overflow-hidden rounded-lg bg-white">
+        {/* `bg-accent` en vez del naranja a mano, igual que en ProductCard. */}
         {tieneOferta && (
-          <span className="absolute top-2 left-2 z-10 rounded-md bg-[#f39a66] px-2 py-1 text-xs font-black text-white shadow-sm">
+          <span className="absolute top-2 left-2 z-10 rounded-md bg-accent px-2 py-1 text-xs font-black text-white shadow-sm">
             -{descuentoPct}%
           </span>
         )}
