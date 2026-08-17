@@ -102,25 +102,29 @@ export default function ProductCard({
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
       >
-        {tieneOferta && (
-          <>
-            {/* Esta cinta usa el token `bg-accent`. Antes llevaba el naranja claro
-                escrito a mano como valor arbitrario, así que cuando se corrigió el
-                contraste de la paleta el cambio no le llegó: se quedó en 2,18:1 con el
-                texto blanco encima y PageSpeed seguía marcándola el 17/08. Con el
-                token va a 3,25:1, lo que pide la norma para texto grande en negrita.
+        {/* Antes esto eran DOS elementos: la cinta «¡En oferta!» a `top-0` y una
+            etiqueta aparte con el porcentaje a `top-10`. Como la foto también empieza
+            en `mt-10`, la etiqueta y la imagen arrancaban exactamente a la misma
+            altura y el porcentaje se comía la esquina de la foto.
 
-                No se escribe aquí el hex antiguo a propósito: Tailwind rastrea el
-                texto del fichero buscando nombres de clase y no distingue los
-                comentarios, así que mencionarlo con su prefijo volvía a generar la
-                clase muerta en el CSS compilado. Comprobado. */}
-            <div className="absolute top-0 left-0 right-0 bg-accent text-white text-xs sm:text-sm font-black uppercase tracking-wide text-center py-1.5 shadow-sm">
-              ¡En oferta!
-            </div>
-            <div className="absolute top-10 left-0 bg-accent text-white text-xs font-black px-3 py-1 rounded-r-md shadow-sm">
-              -{descuentoPct}%
-            </div>
-          </>
+            Se fusionaron en una sola banda. Se eligió esto y no bajar la foto porque:
+            el porcentaje se lee mejor en la banda que en una pastilla pequeña, la
+            foto queda entera (que es lo que vende), y no se añade alto a la tarjeta.
+
+            Si algún día se prefiere separarlos otra vez, la foto tiene que empezar
+            más abajo que la etiqueta: `mt-16` en el contenedor de la imagen, nunca
+            `mt-10`, o se vuelven a solapar.
+
+            El color va por el token `bg-accent`: antes era un naranja escrito a mano
+            y por eso la corrección de contraste de la paleta no le llegaba (se quedó
+            en 2,18:1; ahora 3,25:1). No se escribe aquí el hex viejo a propósito —
+            Tailwind rastrea el texto del fichero buscando nombres de clase y no
+            distingue los comentarios, así que mencionarlo con su prefijo volvía a
+            generar la clase muerta en el CSS. Comprobado. */}
+        {tieneOferta && (
+          <div className="absolute top-0 left-0 right-0 bg-accent text-white text-xs sm:text-sm font-black uppercase tracking-wide text-center py-1.5 shadow-sm">
+            ¡En oferta! -{descuentoPct}%
+          </div>
         )}
 
         <Link href={`/productos/${producto.slug ?? producto.id}`} className="w-full">
