@@ -614,6 +614,25 @@ elemento LCP de esa página; no darlo por supuesto.
 Y ojo con el móvil: una rejilla `md:grid-cols-3` es de **una** columna en el teléfono, así que lo que
 allí parece "la primera fila visible" está en realidad muy por debajo del pliegue.
 
+### 12. Los colores de marca se tocan en `tailwind.config.js`, y hay dos excepciones
+
+Los valores buenos viven en `theme.extend.colors` de [`tailwind.config.js`](../tailwind.config.js).
+Antes de cambiar cualquiera, comprueba el contraste de **las dos direcciones**: el color como texto
+sobre fondo claro, y el blanco encima cuando hace de fondo. Casi todos los botones de la tienda son
+blanco sobre `primary`, así que un `primary` claro rompe los botones aunque los enlaces se vean bien.
+
+Y acuérdate del **hover**: si el color de hover es más claro que el normal, el texto blanco encima se
+vuelve ilegible justo al interactuar. Es el fallo que tenía `primaryHover` y no lo veía nadie.
+
+Dos sitios **no** leen esos tokens y hay que tocarlos a mano:
+
+- [`src/components/BannerContacto.tsx`](../src/components/BannerContacto.tsx) — el azul va en una
+  constante. Está en la misma cabecera que el resto, así que si no coincide se nota.
+- `src/app/(admin)/**` — 14 ficheros con el hex en clases arbitrarias.
+
+Las variables `--primary` y compañía de `globals.css` **no las usa nadie** (cero `var(--primary)` en
+todo `src/`); se mantienen sincronizadas sólo para no despistar a quien las lea.
+
 ### 11. No pongas `if (!mounted) return null` en un componente de layout
 
 Es el atajo típico para evitar el desajuste de hidratación con next-themes, pero deja el componente
@@ -859,6 +878,51 @@ decisión de imagen de marca, no técnica. Dos caminos posibles cuando se decida
 1. Oscurecer `primary` hasta cumplir. Cambia el aspecto de todo el sitio.
 2. Añadir un color aparte —`primaryTexto`— más oscuro, y usarlo **sólo donde el azul hace de texto**,
    dejando `primary` como está para fondos y botones. Más trabajo, pero no cambia la imagen.
+
+### 5.8 La paleta no tenía contraste suficiente
+
+Se abordó lo que quedaba de 5.7. Al medir toda la paleta aparecieron **tres** colores que fallaban, no
+uno. Los tres arreglados el 2026-08-13.
+
+| Qué | Antes | Después | Contraste |
+|---|---|---|---|
+| Azul de marca (`primary`) | `#6BAEC9` | `#377A95` | 2,32 → **4,51:1** |
+| Hover de botones (`primaryHover`) | `#A8D7E6` | `#2E687F` | 1,55 → **6,17:1** |
+| Coral de precios (`accent`) | `#F7A38B` | `#F16037` | 1,87 → **3,05:1** |
+| Texto de la barra de menú | blanco | gris `#4A4A4A` | 1,62 → **5,47:1** |
+
+**Ninguno es un color nuevo.** El azul y el coral conservan su tono y su saturación exactos y sólo
+bajan de luminosidad; el gris de la barra ya se usaba en el texto normal de la tienda.
+
+#### Lo que se descubrió por el camino
+
+- **62 de los 68 botones son blanco sobre el azul**, así que el problema no eran sólo los enlaces:
+  «Añadir al carrito» y «Ver opciones» se leían mal. Por eso se descartó la idea inicial de crear un
+  color aparte sólo para texto — habría dejado sin arreglar justo lo que peor se veía.
+- **El hover de los botones ya fallaba antes**, y mucho: `#A8D7E6` es más CLARO que el azul normal, o
+  sea que al pasar el ratón por cualquiera de los 35 botones que lo usan, la etiqueta blanca caía a
+  **1,55:1** y prácticamente desaparecía. Ahora el hover oscurece en vez de aclarar.
+- **La barra de menú era el peor contraste de toda la tienda** (1,62:1) y está en la navegación
+  principal. El fondo arena no se tocó: sólo el color de las letras.
+- Dentro de la barra había 13 `hover:text-primary`. Ocho van sobre el arena, donde el azul da 2,96:1,
+  así que pasaron a `text-gray-900`. Los otros dos reales van sobre fondo **blanco** (el desplegable de
+  categorías y el menú móvil) y ahí el azul cumple: **se dejaron como estaban**.
+
+#### Por qué el coral se quedó en 3,05:1 y no en 4,5:1
+
+Decisión consciente del titular. Los precios van a 24 px en extranegrita y para **texto grande** la
+norma pide 3:1, no 4,5:1. Llegar a 4,5:1 exigía `#BF350D`, que ya no es coral sino rojo teja y cambiaba
+el aire de las ofertas.
+
+**Queda pendiente:** 3 usos de `text-accent` en texto pequeño (`text-sm`) que con 3,05:1 siguen sin
+cumplir. Si algún día se quiere cerrar del todo, esos tres pasan a gris o al azul.
+
+#### El panel de administración se queda con el azul viejo
+
+14 ficheros de `src/app/(admin)/` llevan `#6BAEC9` escrito a mano en clases arbitrarias
+(`bg-[#6BAEC9]`, `focus:ring-[#6BAEC9]/40`…), así que el cambio del token **no les llega**: en el CSS
+compilado quedan 42 apariciones del azul viejo, todas de ahí. No es urgente —el admin sólo lo ve el
+titular— pero mientras siga así, tienda y panel irán de azules distintos.
 
 ### Lo que queda, y de quién es
 

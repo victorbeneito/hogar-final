@@ -64,3 +64,5 @@ DockerDesktopWSL/
 
 # Volcados que siembran la BD local: contienen datos reales de clientes
 docker/initdb/*.sql
+
+Docs/*.pdf

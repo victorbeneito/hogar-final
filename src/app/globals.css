@@ -26,8 +26,11 @@ body { top: 0 !important; }
 .goog-te-gadget { font-size: 0 !important; }
 
 /* 🎨 VARIABLES CSS (Opcional, pero Tailwind ya usa config) */
+/* Ojo: estas variables NO las usa nadie (comprobado: cero `var(--primary)` en todo
+   src/). Los colores de verdad viven en tailwind.config.js. Se dejan sincronizadas
+   para que quien las lea no se lleve una idea equivocada del azul de la casa. */
 :root {
-  --primary: #6BAEC9;
+  --primary: #377A95;
   --secondary: #4A4A4A;
   --tertiary: #DDC9A3;
   --accent: #F7A38B;

@@ -163,7 +163,14 @@ export default function Navbar() {
   }
 
   return (
-    <nav className="sticky top-0 z-50 bg-terciary text-neutral font-poppins dark:bg-darkNavBg dark:text-darkNavText transition-colors duration-300 shadow-sm">
+    /* El texto era `text-neutral` (blanco) sobre el arena #DDC9A3: 1,62:1, el peor
+       contraste de toda la tienda, y justo en la navegación principal. El fondo
+       arena NO se toca; sólo pasa el texto al gris de la casa #4A4A4A (5,47:1), que
+       ya es el que se usa en el texto normal, así que no añade ningún color nuevo.
+
+       El modo oscuro no se ve afectado: ahí la barra es negra (`dark:bg-darkNavBg`)
+       con texto claro, que ya contrastaba de sobra. */
+    <nav className="sticky top-0 z-50 bg-terciary text-secondary font-poppins dark:bg-darkNavBg dark:text-darkNavText transition-colors duration-300 shadow-sm">
       
       <div className="max-w-[1400px] mx-auto px-4 sm:px-8 py-3 flex justify-between items-center">
         
@@ -177,13 +184,19 @@ export default function Navbar() {
             <button
                 onClick={() => setIsMobileMenuOpen(true)}
                 aria-label="Abrir el menú de navegación"
-                className="lg:hidden text-2xl hover:text-primary focus:outline-none"
+                className="lg:hidden text-2xl hover:text-gray-900 focus:outline-none"
             >
                 <FaBars aria-hidden="true" />
             </button>
 
             {/* Logo / Inicio */}
-            <Link href="/" className="text-xl font-bold hover:text-primary whitespace-nowrap">
+            {/* El hover de todo lo que va sobre el arena pasa de `text-primary` a
+                `text-gray-900`. El azul sobre arena da 2,96:1 (con el azul viejo era
+                aún peor, ~1,35:1: al pasar el ratón el enlace casi desaparecía).
+                Oscurecer es además el gesto normal en un menú de fondo claro.
+                OJO: los enlaces del desplegable y del menú móvil van sobre BLANCO y
+                ahí el azul sí cumple (4,51:1), así que ésos se quedan como estaban. */}
+            <Link href="/" className="text-xl font-bold hover:text-gray-900 whitespace-nowrap">
                 Inicio
             </Link>
 
@@ -202,7 +215,7 @@ export default function Navbar() {
                       <Link
                         key={cat.id}
                         href={getCategoryHref(cat)}
-                        className="hover:text-primary text-sm font-medium uppercase tracking-wide transition-colors whitespace-nowrap"
+                        className="hover:text-gray-900 text-sm font-medium uppercase tracking-wide transition-colors whitespace-nowrap"
                       >
                         {cat.nombre}
                       </Link>
@@ -213,7 +226,7 @@ export default function Navbar() {
                     <div key={cat.id} className="relative group">
                       <Link
                         href={getCategoryHref(cat)}
-                        className="hover:text-primary text-sm font-medium uppercase tracking-wide transition-colors whitespace-nowrap"
+                        className="hover:text-gray-900 text-sm font-medium uppercase tracking-wide transition-colors whitespace-nowrap"
                       >
                         {cat.nombre}
                       </Link>
@@ -241,7 +254,7 @@ export default function Navbar() {
             {/* Blog (Solo Desktop) */}
             <Link
               href="/blog"
-              className={`hidden lg:block hover:text-primary text-sm font-medium uppercase tracking-wide transition-colors whitespace-nowrap ${pathname?.startsWith("/blog") ? "text-primary" : ""}`}
+              className={`hidden lg:block hover:text-gray-900 text-sm font-medium uppercase tracking-wide transition-colors whitespace-nowrap ${pathname?.startsWith("/blog") ? "text-gray-900 font-bold" : ""}`}
             >
               Blog
             </Link>
@@ -275,7 +288,7 @@ export default function Navbar() {
             {/* Icono Lupa (Solo Móvil) */}
             <button
                 onClick={() => setShowMobileSearch(!showMobileSearch)}
-                className="md:hidden text-xl hover:text-primary"
+                className="md:hidden text-xl hover:text-gray-900"
             >
                 <FaSearch />
             </button>
@@ -296,7 +309,7 @@ export default function Navbar() {
                         ? `Carrito de la compra, ${cartCount} ${cartCount === 1 ? "artículo" : "artículos"}`
                         : "Carrito de la compra, vacío"
                 }
-                className="relative text-2xl hover:text-primary transition-colors"
+                className="relative text-2xl hover:text-gray-900 transition-colors"
             >
                 <FaShoppingCart aria-hidden="true" />
                 {cartCount > 0 && (
@@ -313,7 +326,7 @@ export default function Navbar() {
             <div className="hidden md:flex items-center gap-2">
                 {cliente ? (
                     <>
-                        <Link href="/account" className="text-sm font-medium hover:text-primary flex items-center gap-1">
+                        <Link href="/account" className="text-sm font-medium hover:text-gray-900 flex items-center gap-1">
                             <FaUser className="text-xs" /> {cliente.nombre}
                         </Link>
                         <button onClick={handleLogout} className="text-xs bg-red-100 text-red-600 px-2 py-1 rounded hover:bg-red-200 ml-2">

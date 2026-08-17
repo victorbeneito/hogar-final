@@ -1,7 +1,15 @@
 import { Mail, Phone, Smartphone } from "lucide-react";
 
-/* Colores extraídos del banner original (banner-dudas.jpg) */
-const AZUL = "#6BAEC9";
+/* Colores extraídos del banner original (banner-dudas.jpg).
+
+   El azul se actualizó junto al de la marca (#6BAEC9 → #377A95, ver
+   tailwind.config.js). Va escrito a mano y no como clase de Tailwind, así que si un
+   día se vuelve a tocar el azul de la casa hay que acordarse de este fichero: son
+   dos azules uno al lado del otro en la misma cabecera y si no coinciden se nota.
+
+   De paso mejora la lectura del propio banner: el amarillo pasa de 2,00:1 a 3,89:1
+   y el texto blanco de 2,46:1 a 4,79:1. */
+const AZUL = "#377A95";
 const AMARILLO = "#FFEA2E";
 
 const TELEFONO_FIJO = "961154226";
