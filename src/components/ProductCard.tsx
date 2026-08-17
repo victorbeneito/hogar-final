@@ -102,28 +102,26 @@ export default function ProductCard({
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
       >
-        {/* Antes esto eran DOS elementos: la cinta «¡En oferta!» a `top-0` y una
-            etiqueta aparte con el porcentaje a `top-10`. Como la foto también empieza
-            en `mt-10`, la etiqueta y la imagen arrancaban exactamente a la misma
-            altura y el porcentaje se comía la esquina de la foto.
+        {/* La cinta sólo señala que hay oferta. El porcentaje va abajo, junto a los
+            precios (ver el bloque de precio más adelante), y cada uno hace un trabajo
+            distinto: la cinta se ve al recorrer la rejilla con la vista, el porcentaje
+            convence cuando ya estás mirando la tarjeta y comparando 134,80 con 60,65.
 
-            Se fusionaron en una sola banda. Se eligió esto y no bajar la foto porque:
-            el porcentaje se lee mejor en la banda que en una pastilla pequeña, la
-            foto queda entera (que es lo que vende), y no se añade alto a la tarjeta.
+            Historia, para no repetirla: antes había aquí una segunda etiqueta con el
+            porcentaje en `absolute top-10 left-0`. Como la foto empieza en `mt-10`,
+            las dos arrancaban a la misma altura y el porcentaje se comía la esquina de
+            la imagen. Si alguna vez se vuelve a poner algo flotando aquí, tiene que
+            quedar POR ENCIMA de donde empieza la foto, o bajar la foto a `mt-16`.
 
-            Si algún día se prefiere separarlos otra vez, la foto tiene que empezar
-            más abajo que la etiqueta: `mt-16` en el contenedor de la imagen, nunca
-            `mt-10`, o se vuelven a solapar.
-
-            El color va por el token `bg-accent`: antes era un naranja escrito a mano
-            y por eso la corrección de contraste de la paleta no le llegaba (se quedó
-            en 2,18:1; ahora 3,25:1). No se escribe aquí el hex viejo a propósito —
-            Tailwind rastrea el texto del fichero buscando nombres de clase y no
-            distingue los comentarios, así que mencionarlo con su prefijo volvía a
-            generar la clase muerta en el CSS. Comprobado. */}
+            El color va por el token `bg-accent`: antes era un naranja escrito a mano y
+            por eso la corrección de contraste de la paleta no le llegaba (2,18:1; hoy
+            3,25:1, que es lo que pide la norma para texto grande en negrita como éste).
+            No se escribe aquí el hex viejo a propósito — Tailwind rastrea el texto del
+            fichero buscando nombres de clase y no distingue los comentarios, así que
+            mencionarlo con su prefijo volvía a generar la clase muerta. Comprobado. */}
         {tieneOferta && (
           <div className="absolute top-0 left-0 right-0 bg-accent text-white text-xs sm:text-sm font-black uppercase tracking-wide text-center py-1.5 shadow-sm">
-            ¡En oferta! -{descuentoPct}%
+            ¡En oferta!
           </div>
         )}
 
@@ -151,12 +149,24 @@ export default function ProductCard({
 
               {tieneOferta ? (
                 <div className="mb-0 space-y-0">
-                  <p className="text-xs font-bold uppercase tracking-wide text-gray-500 dark:text-gray-300">
-                    {/* `text-gray-500` y no `-400`: el gris 400 (#9CA3AF) sobre blanco
-                        da 2,54:1 y PageSpeed lo marcaba. El 500 (#6B7280) da 4,83:1 y
-                        sigue leyéndose como precio secundario, que es lo que se busca:
-                        que se vea tachado, no que se vea borroso. */}
-                    Precio base <span className="line-through text-gray-500">{precioBase.toFixed(2)} €</span>
+                  {/* Precio tachado + pastilla del descuento, en la misma línea.
+                      `flex-wrap` porque en las tarjetas estrechas los dos no caben y
+                      es preferible que la pastilla baje de línea a que se salga.
+
+                      El gris es el 500 (#6B7280) y no el 400 (#9CA3AF): el 400 sobre
+                      blanco da 2,54:1 y PageSpeed lo marcaba. El 500 da 4,83:1 y sigue
+                      leyéndose como precio secundario, que es lo que se busca — que se
+                      vea tachado, no borroso. */}
+                  <p className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-xs font-bold uppercase tracking-wide text-gray-500 dark:text-gray-300">
+                    <span>
+                      Precio base <span className="line-through">{precioBase.toFixed(2)} €</span>
+                    </span>
+                    {/* Pastilla en coral oscuro sobre tinte claro (5,07:1). NO lleva
+                        blanco sobre el coral normal: eso son 3,25:1 y este texto es
+                        pequeño, así que necesita 4,5:1. Ver tailwind.config.js. */}
+                    <span className="rounded bg-accentSuave px-1.5 py-0.5 tracking-normal text-accentOscuro">
+                      -{descuentoPct}%
+                    </span>
                   </p>
                   <p className="text-accent font-extrabold dark:text-darkNavText text-2xl">
                     {precioActual.toFixed(2)} €

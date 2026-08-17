@@ -37,6 +37,15 @@ module.exports = {
         // De paso mejoran las 3 etiquetas de oferta, que son blanco sobre coral:
         // de 1,99:1 a 3,25:1.
         accent: "#F16037",
+        // Pareja para la pastilla del descuento de la tarjeta de producto. El coral
+        // normal NO sirve ahí: la pastilla lleva texto pequeño, que necesita 4,5:1, y
+        // blanco sobre #F16037 se queda en 3,25:1 (vale para el titular grande de la
+        // cinta, no para esto). Coral oscuro sobre tinte claro da 5,07:1.
+        //
+        // Además evita un tercer bloque naranja fuerte en la misma tarjeta: con la
+        // cinta y el precio final ya hay bastante coral.
+        accentSuave: "#FDE8E0",
+        accentOscuro: "#B23A12",
         neutral: "#FFFFFF",
         // El hover era #A8D7E6, un azul MÁS CLARO que el normal. Con texto blanco
         // encima daba 1,55:1: al pasar el ratón por cualquiera de los 35 botones que

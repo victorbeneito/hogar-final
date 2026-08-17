@@ -1020,6 +1020,45 @@ Y otra del mismo rato: un `{/* comentario */}` **no cabe dentro de** `{condicion
 un segundo hijo de la expresión. Rompió la compilación en tres ficheros. El comentario va **antes** de la
 llave.
 
+### 6.6 La tarjeta de producto: cinta y descuento
+
+Al arreglar el color de la cinta (6.2) salió un problema de maquetación que venía de antes. La tarjeta
+tenía **dos** elementos flotantes:
+
+```
+cinta      absolute top-0    → banda de ~30 px
+etiqueta   absolute top-10   → empieza a 40 px  ┐ el mismo punto:
+foto       mt-10             → empieza a 40 px  ┘ se solapaban
+```
+
+La etiqueta del porcentaje y la foto arrancaban a la misma altura, así que el `-55%` se comía la esquina
+de la imagen.
+
+**Solución adoptada:** la cinta se queda sólo con «¡En oferta!» y el porcentaje baja a una pastilla
+junto a los precios. Cada elemento hace un trabajo distinto — la cinta se ve al recorrer la rejilla, el
+porcentaje convence cuando el visitante ya está comparando el precio tachado con el final.
+
+Se descartó fusionarlos en la banda (`¡EN OFERTA! -55%`): los dos mensajes quedaban con el mismo peso,
+tamaño y color separados por un espacio, y se leían como una frase corrida. La banda naranja **ya
+significa oferta** por su color; repetirlo con palabras le robaba sitio al dato que de verdad persuade.
+
+**La pastilla necesitó dos tonos nuevos** (`accentSuave` / `accentOscuro` en
+[`tailwind.config.js`](../tailwind.config.js)). El coral normal no valía: la pastilla lleva texto
+pequeño, que exige 4,5:1, y blanco sobre `#F16037` da **3,25:1**. Ese 3,25 sí vale para la cinta, porque
+allí el texto es grande y en negrita y la norma sólo pide 3:1. **Es el mismo color fallando o cumpliendo
+según el tamaño del texto** — conviene tenerlo presente antes de reutilizar el coral en cualquier sitio
+nuevo.
+
+Coral oscuro sobre tinte claro da **5,07:1**, y de paso evita un tercer bloque naranja fuerte en la
+misma tarjeta, que ya tiene la cinta y el precio final.
+
+> Si alguna vez se vuelve a poner algo flotando sobre la foto, tiene que quedar **por encima** de donde
+> ésta empieza, o hay que bajar la imagen a `mt-16`. Con `mt-10` se solapan.
+
+Los productos relacionados ([`ProductosRelacionados.tsx`](../src/components/ProductosRelacionados.tsx))
+mantienen su pastilla pequeña en la esquina de la foto: allí no hay cinta que la empuje, no choca con
+nada, y es el patrón habitual.
+
 ---
 
 ### Lo que queda, y de quién es
