@@ -163,8 +163,15 @@ export default function ProductCard({
                     </span>
                     {/* Pastilla en coral oscuro sobre tinte claro (5,07:1). NO lleva
                         blanco sobre el coral normal: eso son 3,25:1 y este texto es
-                        pequeño, así que necesita 4,5:1. Ver tailwind.config.js. */}
-                    <span className="rounded bg-accentSuave px-1.5 py-0.5 tracking-normal text-accentOscuro">
+                        pequeño, así que necesita 4,5:1. Ver tailwind.config.js.
+
+                        `text-sm font-black` la separa del renglón gris de al lado, que
+                        va en `text-xs font-bold`. Subir más (a `text-base`) es seguro
+                        para el contraste: hasta los 18,66 px en negrita la norma sigue
+                        pidiendo 4,5:1, y estamos en 5,07:1. Lo que NO hay que hacer es
+                        pasarla a blanco sobre coral fuerte pensando que "ya es grande":
+                        a este tamaño seguiría siendo texto pequeño y fallaría. */}
+                    <span className="rounded bg-accentSuave px-2 py-0.5 text-sm font-black tracking-normal text-accentOscuro">
                       -{descuentoPct}%
                     </span>
                   </p>
