@@ -601,6 +601,24 @@ model redsys_notificacion {
   @@index([aceptada])
 }
 
+/// Enlaces de un solo uso para restablecer la contraseña de un cliente.
+/// Se guarda el SHA256 del token, nunca el token en claro: si alguien leyera
+/// esta tabla no podría usar los enlaces que estén pendientes de abrir.
+/// Imprescindible para los clientes que vienen de Prestashop 1.6, cuyo hash
+/// md5 legacy se importó bcrypteado y ya no valida su contraseña original.
+model password_reset {
+  id        Int       @id @default(autoincrement())
+  clienteId Int
+  tokenHash String    @unique @db.VarChar(64)
+  expiraEn  DateTime
+  usadoEn   DateTime?
+  ip        String?   @db.VarChar(64)
+  createdAt DateTime  @default(now())
+
+  @@index([clienteId])
+  @@index([expiraEn])
+}
+
 model articulo {
   id               Int      @id @default(autoincrement())
   titulo           String

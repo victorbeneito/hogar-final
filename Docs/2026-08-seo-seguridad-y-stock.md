@@ -1009,6 +1009,48 @@ curl -s "https://www.googletagmanager.com/gtag/js?id=G-B115FWF028" | grep -c "UA
 # 0 = resuelto
 ```
 
+#### Desenlace (2026-08-18): es basura que dejó Google, no hay nada que tocar
+
+Se revisaron **seis** pantallas del panel y en ninguna aparece la UA:
+
+| Dónde | Resultado |
+|---|---|
+| Ajustes → «Recoger eventos de Universal Analytics» | apagado; **no era ese interruptor** |
+| Destinos | sólo el GA4, añadido el 26/04/2023 |
+| Combinar etiquetas | nada combinado |
+| Gestionar la etiqueta de Google | un destino, sin UA |
+| Contenedor `GTM-58NXXRTJ` | comprobado con `curl`: no está |
+| Etiqueta de Ads `AW-323652071` | comprobada con `curl`: no está |
+
+**La explicación está en el propio identificador.** Los IDs de Universal Analytics se formaban como
+`UA-{cuenta}-{nº de propiedad}`, y la cuenta de Analytics de la tienda es la **57384028**:
+
+```
+Cuenta de Analytics ......... 57384028
+Etiqueta fantasma ........... UA-57384028-1
+```
+
+Es decir, `UA-57384028-1` **era la primera propiedad de esta misma cuenta**: el Analytics anterior a GA4.
+En el selector de propiedades hoy sólo figura la **372465091** (la GA4): la vieja ya no existe, Google la
+borró al apagar Universal Analytics.
+
+**Google borró la propiedad pero no limpió la referencia en la configuración de la etiqueta.** El
+`__zone` apunta a un contenedor de una propiedad inexistente. Por eso no sale en ninguna pantalla: el
+panel no puede listar algo que apunta a algo borrado.
+
+**Conclusión: no es un fallo de configuración ni hay nada que arreglar desde aquí.** Los 127 KiB se
+descargan en cada visita para alimentar una propiedad que no existe. Sólo el soporte de Google puede
+retirarlo. Se decidió **no seguir invirtiendo tiempo**: son 127 KiB de los 605 KiB de Google, y los otros
+478 (GA4 y Ads) sí hacen falta.
+
+Si algún día alguien se pregunta de dónde sale esa descarga, la respuesta está aquí. Y para comprobar si
+Google lo ha limpiado por su cuenta:
+
+```bash
+curl -s "https://www.googletagmanager.com/gtag/js?id=G-B115FWF028" | grep -c "UA-57384028-1"
+# 0 = por fin
+```
+
 ### 6.5 Trampa nueva: Tailwind rastrea también los comentarios
 
 Al documentar 6.2 se escribió el hex antiguo con su prefijo de clase dentro de un comentario JSX, y

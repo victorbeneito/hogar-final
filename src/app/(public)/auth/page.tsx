@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useClienteAuth } from '@/context/ClienteAuthContext';
 import { EyeIcon, EyeSlashIcon } from '@heroicons/react/24/outline';
@@ -210,6 +211,18 @@ export default function AuthPage() {
                   {mostrarPassword ? <EyeSlashIcon className="w-5 h-5" /> : <EyeIcon className="w-5 h-5" />}
                 </button>
               </div>
+
+              {/* Recuperar contraseña (Solo Login) */}
+              {!esRegistro && (
+                <div className="text-right">
+                  <Link
+                    href="/auth/recuperar"
+                    className="text-xs text-[#7f7f7f] dark:text-gray-400 hover:text-[#333333] dark:hover:text-white transition-colors underline decoration-dotted underline-offset-4"
+                  >
+                    He olvidado mi contraseña
+                  </Link>
+                </div>
+              )}
 
               {/* Repetir contraseña (Solo Registro) */}
               {esRegistro && (

@@ -1,5 +1,6 @@
 export type EmailTemplateSlug =
   | "account-created"
+  | "password-reset"
   | "order-placed"
   | "order-shipped"
   | "order-cancelled"
@@ -106,6 +107,28 @@ const ACCOUNT_CREATED_HTML =
   `<p style="margin:28px 0 0;font-size:12px;color:#bbb;line-height:1.6;">Si no has creado esta cuenta, puedes ignorar este mensaje con total seguridad.</p>` +
   EMAIL_SHELL_CLOSE;
 
+const PASSWORD_RESET_HTML =
+  EMAIL_SHELL_OPEN +
+  `<h1 style="margin:0 0 6px;font-size:22px;font-weight:700;color:#1a1a1a;">Restablece tu contraseña</h1>
+<p style="margin:0 0 28px;font-size:14px;color:#999;">Hola {{nombre}}, hemos recibido tu solicitud</p>
+<p style="margin:0 0 20px;font-size:15px;color:#444;line-height:1.7;">
+  Pulsa el botón para elegir una contraseña nueva para tu cuenta de <strong>{{brandName}}</strong>.
+  El enlace caduca en {{minutosValidez}} minutos y solo se puede usar una vez.
+</p>` +
+  emailSection(
+    "Cuenta",
+    `<strong style="color:#2d2d2d;font-size:15px;">{{email}}</strong>`
+  ) +
+  emailBtn("{{resetUrl}}", "Crear contraseña nueva →") +
+  `<p style="margin:28px 0 0;font-size:13px;color:#777;line-height:1.7;">
+  Si el botón no funciona, copia y pega esta dirección en tu navegador:<br>
+  <span style="color:#6BAEC9;word-break:break-all;">{{resetUrl}}</span>
+</p>
+<p style="margin:20px 0 0;font-size:12px;color:#bbb;line-height:1.6;">
+  Si no has pedido cambiar la contraseña, ignora este mensaje: tu contraseña actual seguirá siendo válida.
+</p>` +
+  EMAIL_SHELL_CLOSE;
+
 const ORDER_PLACED_HTML =
   EMAIL_SHELL_OPEN +
   `<h1 style="margin:0 0 6px;font-size:22px;font-weight:700;color:#1a1a1a;">¡Gracias por tu pedido, {{nombre}}!</h1>
@@ -196,6 +219,20 @@ export const EMAIL_TEMPLATES: EmailTemplateDefinition[] = [
       subject: "¡Bienvenido a {{brandName}}!",
       preheader: "Ya puedes acceder a tu cuenta y empezar a comprar.",
       html: ACCOUNT_CREATED_HTML,
+    },
+  },
+  {
+    slug: "password-reset",
+    name: "Recuperar contraseña",
+    category: "Clientes",
+    description: "Enlace de un solo uso para restablecer la contraseña.",
+    route: "/admin/personalizar/correos/password-reset",
+    variables: ["{{nombre}}", "{{email}}", "{{resetUrl}}", "{{minutosValidez}}", "{{brandName}}", "{{appUrl}}"],
+    defaults: {
+      enabled: true,
+      subject: "[{{brandName}}] Recupera el acceso a tu cuenta",
+      preheader: "Crea una contraseña nueva en un par de clics.",
+      html: PASSWORD_RESET_HTML,
     },
   },
   {

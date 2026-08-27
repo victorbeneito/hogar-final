@@ -12,6 +12,12 @@ const SAMPLE_VARIABLES: Record<EmailTemplateSlug, Record<string, string>> = {
     email: "cliente@ejemplo.com",
     loginUrl: "#",
   },
+  "password-reset": {
+    nombre: "Cliente Prueba",
+    email: "cliente@ejemplo.com",
+    resetUrl: "#",
+    minutosValidez: "60",
+  },
   "order-placed": {
     nombre: "Cliente Prueba",
     numeroPedido: "PED-2026-0001",
