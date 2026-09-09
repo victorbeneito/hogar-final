@@ -1,3 +1,5 @@
+import { anadirAlCarrito, itemDesdeCarrito, quitarDelCarrito } from '@/lib/analytics';
+
 const CART_STORAGE_KEY = 'cart';
 const CART_SESSION_KEY = 'cart_session_id';
 
@@ -105,7 +107,13 @@ export const addToCart = (product: CartItem) => {
       cantidad: productQuantity,
     });
   }
-  
+
+  // El add_to_cart de GA4 se mide aquí, y no en cada botón, porque toda la tienda
+  // añade al carrito por esta función: la ficha de producto, la vista rápida y
+  // cualquier botón que se añada en el futuro quedan medidos sin tocar nada.
+  // Se mide lo que se acaba de añadir (productQuantity), no el total acumulado.
+  anadirAlCarrito(itemDesdeCarrito({ ...product, cantidad: productQuantity }));
+
   setCart(cart);
   return cart;
 };
@@ -113,17 +121,26 @@ export const addToCart = (product: CartItem) => {
 // 5. Eliminar producto
 export const removeFromCart = (productId: number, product?: Partial<CartItem>) => {
   const cart = getCart();
+  const eliminados: CartItem[] = [];
   const newCart = cart.filter((item) => {
-    if (item.id !== productId) return true;
-    if (!product) return false;
+    const conservar =
+      item.id !== productId
+        ? true
+        : !product
+          ? false
+          : !(
+              (item.tamanoSeleccionado ?? "") === (product.tamanoSeleccionado ?? "") &&
+              (item.colorSeleccionado ?? "") === (product.colorSeleccionado ?? "") &&
+              (item.tiradorSeleccionado ?? "") === (product.tiradorSeleccionado ?? "") &&
+              (item.atributo ?? "") === (product.atributo ?? "")
+            );
 
-    return !(
-      (item.tamanoSeleccionado ?? "") === (product.tamanoSeleccionado ?? "") &&
-      (item.colorSeleccionado ?? "") === (product.colorSeleccionado ?? "") &&
-      (item.tiradorSeleccionado ?? "") === (product.tiradorSeleccionado ?? "") &&
-      (item.atributo ?? "") === (product.atributo ?? "")
-    );
+    if (!conservar) eliminados.push(item);
+    return conservar;
   });
+
+  eliminados.forEach((item) => quitarDelCarrito(itemDesdeCarrito(item)));
+
   setCart(newCart);
   return newCart;
 };

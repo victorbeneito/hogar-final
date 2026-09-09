@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { addToCart } from "@/lib/cartService";
 import { calcularPrecioVariante, ordenarValoresNaturales } from "@/lib/productVariantPricing";
+import { verProducto } from "@/lib/analytics";
 
 type QuickViewProducto = {
   id: number;
@@ -181,6 +182,22 @@ export default function ProductQuickViewModal({ productId, open, onClose }: Prop
     precioDescuento: producto?.precioOferta ?? null,
     precioExtra: varianteSeleccionada?.precio_extra ?? 0,
   });
+
+  // La vista rápida es, para el cliente, ver el producto: se mide como view_item igual
+  // que la ficha completa. Desde el listado mucha gente compra sin llegar a abrir la
+  // ficha, y sin esto GA4 vería añadidos al carrito de productos que nadie ha mirado.
+  useEffect(() => {
+    if (!open || !producto) return;
+    verProducto({
+      item_id: String(producto.id),
+      item_name: producto.nombre,
+      price: precioCalculado.precioFinal,
+      quantity: 1,
+      ...(producto.categoria?.nombre && { item_category: producto.categoria.nombre }),
+      ...(producto.marca?.nombre && { item_brand: producto.marca.nombre }),
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, producto?.id]);
 
   const handleAddToCart = () => {
     if (!producto) return;

@@ -7,6 +7,7 @@ import { getCart, CartItem, clearCart, getCartSessionId, syncCartSnapshot } from
 import { clearGuestCheckout } from "@/lib/guestCheckout";
 import { toast } from "react-hot-toast";
 import { DEFAULT_PAYMENT_CONFIG, normalizePaymentConfig, type PaymentCheckoutConfig, calculateContrareembolso } from "@/lib/paymentSettings";
+import { elegirPago, itemsDesdeCarrito } from "@/lib/analytics";
 
 import PasarelaRedsys from "@/components/PasarelaRedsys"; 
 import PasarelaPaypal from "@/components/PasarelaPaypal"; 
@@ -125,6 +126,12 @@ export default function PagoPage() {
     if (procesandoRef.current) return;
     procesandoRef.current = true;
     setProcesando(true);
+
+    // add_payment_info. Va después del guard antidoble-envío para que no se cuenten
+    // dos veces los clics repetidos en "Pagar", y antes de crear el pedido porque a
+    // partir de aquí el cliente puede irse a la pasarela y no volver: el abandono
+    // entre este evento y el purchase es justo lo que hay que poder ver en GA4.
+    elegirPago(itemsDesdeCarrito(carrito), metodoPago);
 
     // 1. Preparamos los datos para la BD
     const datosPedido = {

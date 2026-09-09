@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { clearCart } from "@/lib/cartService";
 import { clearGuestCheckout } from "@/lib/guestCheckout";
+import { compraFinalizada } from "@/lib/analytics";
 
 export default function ConfirmacionPage() {
   const router = useRouter();
@@ -31,6 +32,34 @@ export default function ConfirmacionPage() {
 
     return () => clearTimeout(timer);
   }, []);
+
+  // purchase de GA4: la conversión. Todas las formas de pago (tarjeta, PayPal, Bizum,
+  // transferencia y contrareembolso) acaban en esta página, así que midiendo aquí se
+  // cubren todas sin repetir código en cada pasarela.
+  //
+  // Los datos se piden al servidor en lugar de leerlos del carrito porque a estas
+  // alturas el carrito ya se ha vaciado, y en los pagos con pasarela el cliente ha
+  // salido de la web y ha vuelto: lo único fiable es el pedido guardado, que además
+  // trae el total definitivo con envío, recargo y cupón.
+  useEffect(() => {
+    const id = Number(pedidoId);
+    if (!Number.isInteger(id) || id <= 0) return;
+
+    let cancelado = false;
+    fetch(`/api/pedidos/${id}/analytics`, { cache: "no-store" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (cancelado || !data?.ok || !data.compra) return;
+        compraFinalizada(data.compra);
+      })
+      .catch(() => {
+        // Si falla la medición no se le dice nada al cliente: su pedido está hecho.
+      });
+
+    return () => {
+      cancelado = true;
+    };
+  }, [pedidoId]);
 
   if (loading) {
     return (

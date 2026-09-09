@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
 import { useCheckoutIdentidad } from "@/hooks/useCheckoutIdentidad";
 import { getCart } from "@/lib/cartService";
+import { elegirEnvio, itemsDesdeCarrito } from "@/lib/analytics";
 
 type CheckoutShippingOption = {
   id: string;
@@ -145,6 +146,14 @@ export default function EnvioPage() {
 
     localStorage.setItem("checkout_envio", JSON.stringify(envioData));
     localStorage.setItem("checkout_comentarios", comentarios.trim());
+
+    // add_shipping_info: el shipping_tier es lo que permite comparar en GA4 cuánto se
+    // abandona según el método (recogida en tienda o transportista).
+    elegirEnvio(
+      itemsDesdeCarrito(getCart()),
+      selectedOption.label || selectedOption.carrierName || selectedOption.metodo
+    );
+
     router.push("/checkout/resumen");
   };
 

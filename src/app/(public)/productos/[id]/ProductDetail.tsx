@@ -8,6 +8,7 @@ import ProductosRelacionados from "@/components/ProductosRelacionados";
 import PaypalExpressButton from "@/components/PaypalExpressButton";
 import toast from "react-hot-toast";
 import { calcularPrecioVariante, ordenarValoresNaturales } from "@/lib/productVariantPricing";
+import { verProducto } from "@/lib/analytics";
 
 interface CategoriaProducto {
   id: number;
@@ -221,6 +222,22 @@ export default function ProductDetail({
       return fieldVal && norm(fieldVal) === normValor && (v.stock ?? 0) > 0;
     });
   };
+
+  // view_item de GA4: es el evento que le dice a Google qué producto se está mirando,
+  // y del que salen tanto los informes de producto como las audiencias de remarketing
+  // de Ads. Se manda una sola vez por ficha (dependencia: el id), no cada vez que el
+  // cliente cambia de color o de tamaño, que sería el mismo producto contado de más.
+  useEffect(() => {
+    verProducto({
+      item_id: String(producto.id),
+      item_name: producto.nombre,
+      price: precioFinalProducto,
+      quantity: 1,
+      ...(producto.categoria?.nombre && { item_category: producto.categoria.nombre }),
+      ...(producto.marca?.nombre && { item_brand: producto.marca.nombre }),
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [producto.id]);
 
   const [modalAbierto, setModalAbierto] = useState(false);
 

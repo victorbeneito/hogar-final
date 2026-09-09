@@ -14,6 +14,7 @@ import { useClienteAuth } from "@/context/ClienteAuthContext";
 import { getGuestCheckout } from "@/lib/guestCheckout";
 import toast from "react-hot-toast";
 import PaypalExpressButton from "@/components/PaypalExpressButton";
+import { iniciarCheckout, itemsDesdeCarrito, verCarrito } from "@/lib/analytics";
 
 export default function CarritoPage() {
   const [carrito, setCarrito] = useState<CartItem[]>([]);
@@ -36,6 +37,9 @@ export default function CarritoPage() {
     setIsClient(true);
     const items = getCart();
     setCarrito(items);
+    // view_cart de GA4. Sólo con carrito lleno: un carrito vacío no es un paso del
+    // embudo y ensuciaría la tasa de conversión del checkout.
+    if (items.length > 0) verCarrito(itemsDesdeCarrito(items));
   }, []);
 
   useEffect(() => {
@@ -82,6 +86,11 @@ export default function CarritoPage() {
       toast.error("Tu carrito está vacío.");
       return;
     }
+
+    // begin_checkout: se mide aquí, antes de decidir a qué paso se envía al cliente
+    // (identificación, direcciones o envío), porque el embudo empieza con la
+    // intención de comprar, no con la pantalla concreta que le toque a cada uno.
+    iniciarCheckout(itemsDesdeCarrito(carrito));
 
     if (!cliente) {
       // Sin cuenta: dejamos elegir entre iniciar sesión o comprar como invitado

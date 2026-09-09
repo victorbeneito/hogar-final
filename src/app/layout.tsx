@@ -13,6 +13,36 @@ import { organizationJsonLd } from "@/lib/seo";
 export const dynamic = "force-dynamic";
 
 /**
+ * Contenedores de Google Tag Manager que se cargan en la tienda.
+ *
+ * Hasta ahora sólo se cargaba GTM-58NXXRTJ, que no tiene ninguna etiqueta de
+ * ecommerce. Las etiquetas de producto y compra (view_item, add_to_cart, purchase…)
+ * viven en GTM-5MJWJJC2, que nunca se llegó a instalar: por eso GA4 no registraba
+ * ventas y Google Ads no recibía conversiones, aunque la tienda vendiera.
+ *
+ * Se cargan los dos a la vez, que es una configuración soportada: todos los
+ * contenedores de la página comparten el mismo `window.dataLayer`, así que cada uno ve
+ * los eventos que empuja src/lib/analytics.ts. Se mantiene el antiguo porque puede
+ * tener etiquetas en uso (remarketing, píxeles) que no hay por qué perder.
+ *
+ * Se puede cambiar la lista sin tocar código con NEXT_PUBLIC_GTM_IDS (separados por
+ * comas). Al ser NEXT_PUBLIC_ se incrusta en el build: cambiarla exige redesplegar.
+ */
+const GTM_IDS = (process.env.NEXT_PUBLIC_GTM_IDS ?? "GTM-58NXXRTJ,GTM-5MJWJJC2")
+  .split(",")
+  .map((id) => id.trim())
+  .filter(Boolean);
+
+/**
+ * Si el contenedor de GTM ya tiene su propia etiqueta de configuración de GA4 con la
+ * misma medición (G-B115FWF028), este gtag.js suelto la duplica: dos page_view por
+ * visita, sesiones infladas y métricas que no cuadran. Poner
+ * NEXT_PUBLIC_GA_VIA_GTM=true deja que GA4 lo cargue GTM y apaga el de aquí.
+ */
+const GA_DIRECTO =
+  process.env.NEXT_PUBLIC_GA_VIA_GTM !== "true" && Boolean(process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID);
+
+/**
  * Poppins, la fuente de toda la tienda.
  *
  * Antes se pedía a Google con un `@import` en la primera línea de globals.css.
@@ -104,14 +134,24 @@ export default function RootLayout({
           </AuthProvider>
         </ThemeProvider>
 
-        {/* Google Tag Manager */}
-        <Script id="gtm" strategy="afterInteractive">
-          {`(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
-          new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
-          j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
-          'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
-          })(window,document,'script','dataLayer','GTM-58NXXRTJ');`}
-        </Script>
+        {/* Google Tag Manager (ver GTM_IDS arriba) */}
+        {GTM_IDS.length > 0 && (
+          <Script id="gtm" strategy="afterInteractive">
+            {`(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+            new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+            j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+            'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+            })(window,document,'script','dataLayer',${JSON.stringify(GTM_IDS[0])});
+            ${GTM_IDS.slice(1)
+              .map(
+                (id) => `(function(w,d,s,l,i){var f=d.getElementsByTagName(s)[0],
+            j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+            'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+            })(window,document,'script','dataLayer',${JSON.stringify(id)});`
+              )
+              .join("\n")}`}
+          </Script>
+        )}
 
         <Script
           src="https://widgets.revi.io/embed/widget.js"
@@ -119,8 +159,8 @@ export default function RootLayout({
           async
         />
 
-        {/* Google Analytics GA4 */}
-        {process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID && (
+        {/* Google Analytics GA4 (ver GA_DIRECTO arriba) */}
+        {GA_DIRECTO && (
           <>
             <Script
               src={`https://www.googletagmanager.com/gtag/js?id=${process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID}`}
