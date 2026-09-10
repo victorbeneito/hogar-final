@@ -56,10 +56,11 @@ function BulkStateModal({
   onCancel,
 }: {
   count: number;
-  onConfirm: (estado: string) => void;
+  onConfirm: (estado: string, notificarCliente: boolean) => void;
   onCancel: () => void;
 }) {
   const [selected, setSelected] = useState("");
+  const [notificarCliente, setNotificarCliente] = useState(false);
   const [estados, setEstados] = useState<EstadoPedido[]>([]);
   const [loadingEstados, setLoadingEstados] = useState(true);
 
@@ -102,6 +103,20 @@ function BulkStateModal({
             ))}
           </div>
         )}
+        <label className="flex items-start gap-2 mb-4 text-sm text-gray-600 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={notificarCliente}
+            onChange={(e) => setNotificarCliente(e.target.checked)}
+            className="mt-0.5 h-4 w-4 rounded border-gray-300 accent-[#6BAEC9]"
+          />
+          <span>
+            Avisar al cliente por correo
+            <span className="block text-xs text-gray-400">
+              Desactivado, el cambio se aplica en silencio. Útil al corregir pedidos antiguos.
+            </span>
+          </span>
+        </label>
         <div className="flex gap-2 justify-end">
           <button
             onClick={onCancel}
@@ -111,7 +126,7 @@ function BulkStateModal({
           </button>
           <button
             disabled={!selected || loadingEstados}
-            onClick={() => selected && onConfirm(selected)}
+            onClick={() => selected && onConfirm(selected, notificarCliente)}
             className="rounded-xl bg-[#6BAEC9] px-4 py-2 text-sm font-semibold text-white hover:bg-[#5FA0B3] disabled:opacity-40 disabled:cursor-not-allowed"
           >
             Aplicar
@@ -310,13 +325,13 @@ export default function AdminPedidos() {
   };
 
   // Acciones masivas
-  const handleBulkEstado = async (estado: string) => {
+  const handleBulkEstado = async (estado: string, notificarCliente: boolean) => {
     setBulkLoading(true);
     try {
       await fetch("/api/pedidos/bulk", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ids: Array.from(selectedIds), estado }),
+        body: JSON.stringify({ ids: Array.from(selectedIds), estado, notificarCliente }),
       });
       setBulkModal(null);
       setSelectedIds(new Set());

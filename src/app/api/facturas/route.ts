@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { PREFIJO_FACTURA_PRESTASHOP } from "@/lib/invoiceSettings";
 
 export const dynamic = "force-dynamic";
 
@@ -13,7 +14,7 @@ export async function GET(req: NextRequest) {
     const fechaHasta = searchParams.get("fechaHasta");
     const sortBy = searchParams.get("sortBy") || "fechaFactura";
     const sortDir = searchParams.get("sortDir") === "asc" ? "asc" : "desc";
-    const prestashopPrefix = "PS-";
+    const prestashopPrefix = PREFIJO_FACTURA_PRESTASHOP;
 
     const where: any = {};
     if (numero) {

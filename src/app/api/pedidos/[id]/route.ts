@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { sendTemplateEmail } from "@/lib/emailService";
-import { sendReviOrder, REVI_SYNC_CUTOFF_DATE } from "@/lib/reviService";
-import { createFactura } from "@/lib/invoiceGenerator";
 import { canEdit } from "@/lib/adminAuth";
-import { getBaseUrl } from "@/lib/urls";
+import {
+  aplicarEfectosCambioEstado,
+  registrarHistorialEstado,
+} from "@/lib/orderStatusChange";
 
 export const dynamic = "force-dynamic";
 
@@ -512,66 +512,20 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
       },
     });
 
-    // Guardar historial de estado si cambió
+    // Historial y efectos del cambio de estado (emails, factura, Revi)
     if (body.estado && pedidoAnterior && pedidoAnterior.estado !== body.estado) {
-      const estadoInfo = await prisma.estadopedido.findUnique({
-        where: { clave: body.estado },
-        select: { nombre: true, color: true },
-      });
-      await prisma.historialestadopedido.create({
-        data: {
-          pedidoId: id,
-          estado: estadoInfo?.nombre ?? body.estado,
-          color: estadoInfo?.color ?? "#6b7280",
-          fecha: new Date(),
+      await registrarHistorialEstado(id, body.estado);
+      await aplicarEfectosCambioEstado({
+        pedidoId: id,
+        estado: body.estado,
+        pedidoAnterior,
+        overrides: {
+          numeroSeguimiento: body.numeroSeguimiento,
+          trackingUrl: body.trackingUrl,
+          notas: body.notas,
         },
+        pedidoParaRevi: pedidoCompleto,
       });
-    }
-
-    // Emails automáticos al cambiar el estado del pedido
-    if (pedidoAnterior && body.estado && pedidoAnterior.estado !== body.estado && pedidoAnterior.email) {
-      const appUrl = getBaseUrl();
-      const nombre = pedidoAnterior.nombre || "Cliente";
-      const numeroPedido = pedidoAnterior.numeroPedido;
-
-      if (body.estado === "ENVIADO") {
-        const trackingNumber = body.numeroSeguimiento || pedidoAnterior.numeroSeguimiento || "";
-        const trackingUrl =
-          body.trackingUrl ||
-          pedidoAnterior.trackingUrl ||
-          (trackingNumber
-            ? `https://www.ontime.es/seguimiento/?expedicion=${trackingNumber}`
-            : `${appUrl}/mis-pedidos`);
-        sendTemplateEmail({
-          to: pedidoAnterior.email,
-          templateSlug: "order-shipped",
-          variables: { nombre, numeroPedido, trackingNumber, trackingUrl },
-        }).catch((err) => console.error("❌ Email pedido enviado:", err?.message));
-      } else if (body.estado === "CANCELADO") {
-        const motivo = body.notas ? `Motivo: ${body.notas}` : "";
-        sendTemplateEmail({
-          to: pedidoAnterior.email,
-          templateSlug: "order-cancelled",
-          variables: { nombre, numeroPedido, motivo },
-        }).catch((err) => console.error("❌ Email pedido cancelado:", err?.message));
-      } else if (body.estado === "CUESTIONARIO" && pedidoAnterior.fechaPedido >= REVI_SYNC_CUTOFF_DATE) {
-        sendReviOrder(pedidoCompleto)
-          .then(() => prisma.pedido.update({ where: { id }, data: { reviInvitadoAt: new Date() } }))
-          .catch((err) =>
-            console.error("[REVI] Error enviando pedido a REVI:", err?.message)
-          );
-      }
-
-      // Generar factura si el nuevo estado tiene permitirFacturaPDF = true
-      const estadoConfig = await prisma.estadopedido.findUnique({
-        where: { clave: body.estado },
-        select: { permitirFacturaPDF: true },
-      });
-      if (estadoConfig?.permitirFacturaPDF) {
-        createFactura(id).catch((err) =>
-          console.error("[FACTURA] Error generando factura:", err?.message)
-        );
-      }
     }
 
     if (pedidoCompleto) {

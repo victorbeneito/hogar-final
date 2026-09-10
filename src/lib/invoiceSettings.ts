@@ -34,6 +34,9 @@ export type InvoiceSettingsConfig = {
   };
 };
 
+/** Prefijo de las facturas importadas del archivo de Prestashop: serie aparte. */
+export const PREFIJO_FACTURA_PRESTASHOP = "PS-";
+
 export const INVOICE_ORDER_STATUS_OPTIONS = [
   { value: "PENDIENTE",   label: "Pendiente" },
   { value: "PROCESANDO",  label: "Procesando" },
@@ -95,7 +98,7 @@ export function normalizeInvoiceSettings(input: any): InvoiceSettingsConfig {
   return {
     active: Boolean(s.active ?? def.active),
     emitOnOrderStatuses: Array.isArray(s.emitOnOrderStatuses)
-      ? [...new Set(s.emitOnOrderStatuses.map((v: any) => String(v).toUpperCase()))]
+      ? [...new Set<string>(s.emitOnOrderStatuses.map((v: any) => String(v).toUpperCase()))]
       : def.emitOnOrderStatuses,
     prefix: String(s.prefix ?? def.prefix),
     includeYear: Boolean(s.includeYear ?? def.includeYear),

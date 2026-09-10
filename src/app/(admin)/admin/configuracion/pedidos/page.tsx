@@ -887,7 +887,7 @@ function EstadoForm({
             onChange={(v) => set("enviarEmail", v)}
           />
           <OptionCheck
-            label="Permitir factura PDF al cliente"
+            label="Emitir la factura al entrar en este estado"
             checked={estado.permitirFacturaPDF}
             onChange={(v) => set("permitirFacturaPDF", v)}
           />
