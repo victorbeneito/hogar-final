@@ -184,6 +184,11 @@ export default function RegularizarPedidosPage() {
                 <span className="text-gray-600">
                   Última factura emitida: <strong>{fmt(reporte.serie.ultimaFecha)}</strong>
                 </span>
+                {pasos.facturas && reporte.sinEstadoFacturable > 0 && (
+                  <span className="text-gray-600" title="No se tocan: su estado actual no emite factura">
+                    Sin estado facturable: <strong>{reporte.sinEstadoFacturable}</strong>
+                  </span>
+                )}
               </div>
             </div>
 

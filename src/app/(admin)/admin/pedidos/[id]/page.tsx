@@ -1064,6 +1064,26 @@ export default function PedidoDetallePage({ params }: { params: Promise<{ id: st
                   </tbody>
                 </table>
               </div>
+              <div className="mt-4 border-t border-gray-100 pt-3">
+                <label className="block text-xs font-semibold text-gray-500 mb-1">
+                  Corregir estado de pago
+                </label>
+                <div className="flex flex-wrap items-center gap-2">
+                  <select
+                    value={estadoPago}
+                    onChange={(e) => setEstadoPago(e.target.value)}
+                    className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm"
+                  >
+                    <option value="PENDIENTE">PENDIENTE</option>
+                    <option value="PAGADO">PAGADO</option>
+                    <option value="FALLIDO">FALLIDO</option>
+                    <option value="REEMBOLSADO">REEMBOLSADO</option>
+                  </select>
+                  <span className="text-xs text-gray-400">
+                    Se guarda con &laquo;Guardar cambios&raquo;. No mueve el estado del pedido ni emite factura.
+                  </span>
+                </div>
+              </div>
               {pedido.cuponCodigo && (
                 <p className="mt-3 text-sm text-gray-500">Cupón: <span className="font-semibold text-gray-700">{pedido.cuponCodigo}</span></p>
               )}
