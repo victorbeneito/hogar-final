@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowRight, Download, FileDown, RefreshCw, Search, Settings } from "lucide-react";
+import { ArrowRight, Download, FileDown, RefreshCw, Search, Settings, Wrench } from "lucide-react";
 
 type InvoiceRow = {
   id: number;
@@ -138,6 +138,13 @@ export default function AdminFacturasPage() {
             >
               <Settings className="w-4 h-4" />
               Configuración
+            </button>
+            <button
+              onClick={() => router.push("/admin/facturas/regularizar")}
+              className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+            >
+              <Wrench className="w-4 h-4" />
+              Regularizar
             </button>
             <button
               onClick={refresh}

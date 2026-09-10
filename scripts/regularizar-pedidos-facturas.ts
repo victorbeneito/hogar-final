@@ -1,20 +1,16 @@
 /**
  * Regulariza los pedidos que se cambiaron de estado en bloque con el endpoint
- * antiguo (`updateMany` a secas), que dejaba el proceso a medias:
+ * antiguo (`updateMany` a secas), que dejaba el proceso a medias: sin línea en
+ * `historialestadopedido`, sin factura y sin invitación de reseña de Revi.
  *
- *   1. historial   — el pedido cambió de estado pero no se escribió la línea en
- *                    `historialestadopedido`, así que la ficha sigue mostrando
- *                    el estado anterior aunque el listado muestre el nuevo.
- *   2. facturas    — nunca se emitió la factura del estado facturable. Se emiten
- *                    en orden cronológico de fecha de pedido para que número y
- *                    fecha queden correlativos.
- *   3. revi        — no se envió la invitación de reseña de los CUESTIONARIO.
+ * La lógica vive en src/lib/regularizarPedidos.ts, compartida con la pantalla
+ * /admin/facturas/regularizar. Este script solo sirve si tienes acceso directo
+ * a la base de datos (local, o por túnel); en hosting gestionado usa la pantalla.
  *
  * Por defecto NO escribe nada: enseña lo que haría. Para aplicarlo, `--aplicar`.
  *
  *   npx tsx scripts/regularizar-pedidos-facturas.ts
  *   npx tsx scripts/regularizar-pedidos-facturas.ts --facturas --aplicar
- *   npx tsx scripts/regularizar-pedidos-facturas.ts --historial --revi --aplicar
  *
  * Opciones:
  *   --aplicar          escribe en la base de datos (sin esto, simulacro)
@@ -33,186 +29,78 @@ dotenv.config({ path: path.resolve(process.cwd(), ".env.local") });
 dotenv.config({ path: path.resolve(process.cwd(), ".env") });
 
 import { prisma } from "../src/lib/prisma";
-import {
-  createFactura,
-  getInvoiceSettings,
-  resolverFechaFactura,
-  ultimaFacturaSerie,
-} from "../src/lib/invoiceGenerator";
-import { buildInvoiceNumber } from "../src/lib/invoiceSettings";
-import { enviarPedidoARevi, registrarHistorialEstado } from "../src/lib/orderStatusChange";
-import { REVI_SYNC_CUTOFF_DATE } from "../src/lib/reviService";
+import { regularizarPedidos } from "../src/lib/regularizarPedidos";
 
 const args = process.argv.slice(2);
 const aplicar = args.includes("--aplicar");
-const soloPedido = (flag: string) => args.includes(flag);
+const seleccionados = ["--historial", "--facturas", "--revi"].filter((f) => args.includes(f));
 
 // Sin selección explícita se ejecutan los tres pasos.
-const pasosPedidos = ["--historial", "--facturas", "--revi"].filter(soloPedido);
-const hacer = {
-  historial: pasosPedidos.length === 0 || soloPedido("--historial"),
-  facturas: pasosPedidos.length === 0 || soloPedido("--facturas"),
-  revi: pasosPedidos.length === 0 || soloPedido("--revi"),
+const pasos = {
+  historial: seleccionados.length === 0 || args.includes("--historial"),
+  facturas: seleccionados.length === 0 || args.includes("--facturas"),
+  revi: seleccionados.length === 0 || args.includes("--revi"),
 };
 
-function argFecha(nombre: string, porDefecto: Date | null): Date | null {
+function argFecha(nombre: string): Date | undefined {
   const raw = args.find((a) => a.startsWith(`${nombre}=`))?.split("=")[1];
-  if (!raw) return porDefecto;
+  if (!raw) return undefined;
   const d = new Date(raw);
   if (Number.isNaN(d.getTime())) throw new Error(`Fecha inválida en ${nombre}: ${raw}`);
   return d;
 }
 
-const desde = argFecha("--desde", REVI_SYNC_CUTOFF_DATE)!;
-const hasta = argFecha("--hasta", null);
-
-// Un pedido cancelado o devuelto no se factura por regularización.
-const ESTADOS_NO_FACTURABLES = ["CANCELADO", "DEVUELTO"];
-
-const fmt = (d: Date | null | undefined) => (d ? d.toISOString().slice(0, 10) : "—");
+const fmt = (d: string | null | undefined) => (d ? d.slice(0, 10) : "—");
 const eur = (n: number) => `${n.toFixed(2)} €`;
 
 async function main() {
-  console.log(aplicar ? "⚠️  MODO APLICAR — se escribirá en la base de datos" : "🔍 SIMULACRO — no se escribe nada (usa --aplicar)");
-  console.log(`   Rango: ${fmt(desde)} → ${hasta ? fmt(hasta) : "hoy"}`);
-  console.log(`   Pasos: ${Object.entries(hacer).filter(([, v]) => v).map(([k]) => k).join(", ")}\n`);
+  console.log(
+    aplicar
+      ? "⚠️  MODO APLICAR — se escribirá en la base de datos"
+      : "🔍 SIMULACRO — no se escribe nada (usa --aplicar)",
+  );
 
-  const where = {
-    fechaPedido: { gte: desde, ...(hasta ? { lte: hasta } : {}) },
-  };
-
-  const pedidos = await prisma.pedido.findMany({
-    where,
-    orderBy: [{ fechaPedido: "asc" }, { id: "asc" }],
-    select: {
-      id: true,
-      numeroPedido: true,
-      estado: true,
-      totalFinal: true,
-      fechaPedido: true,
-      reviInvitadoAt: true,
-      factura: { select: { numeroFactura: true, fechaFactura: true } },
-      estadoHistorial: { select: { estado: true, fecha: true }, orderBy: { fecha: "desc" }, take: 1 },
-    },
+  const r = await regularizarPedidos({
+    aplicar,
+    pasos,
+    desde: argFecha("--desde"),
+    hasta: argFecha("--hasta") ?? null,
   });
 
-  console.log(`Pedidos en rango: ${pedidos.length}\n`);
+  console.log(`   Rango: ${fmt(r.desde)} → ${r.hasta ? fmt(r.hasta) : "hoy"}`);
+  console.log(`   Pedidos en rango: ${r.totalPedidos}`);
+  console.log(`   Serie: siguiente nº ${r.serie.siguienteNumero} · última factura ${fmt(r.serie.ultimaFecha)}\n`);
 
-  const estados = await prisma.estadopedido.findMany({
-    select: { clave: true, nombre: true, permitirFacturaPDF: true },
-  });
-  const porClave = new Map(estados.map((e) => [e.clave, e]));
-
-  // ── 1. Historial de estados desfasado ──────────────────────────────────────
-  if (hacer.historial) {
-    const desfasados = pedidos.filter((p) => {
-      const ultimo = p.estadoHistorial[0];
-      const nombreEstado = porClave.get(p.estado)?.nombre ?? p.estado;
-      // Sin historial ninguno, o el último hito no corresponde al estado actual.
-      return !ultimo || (ultimo.estado !== nombreEstado && ultimo.estado !== p.estado);
-    });
-
-    console.log(`── 1. HISTORIAL DESFASADO: ${desfasados.length} pedido(s)`);
-    for (const p of desfasados) {
-      const ultimo = p.estadoHistorial[0];
+  if (pasos.historial) {
+    console.log(`── 1. HISTORIAL DESFASADO: ${r.historial.length} pedido(s)`);
+    for (const h of r.historial) {
       console.log(
-        `   ${p.numeroPedido}  estado=${p.estado.padEnd(12)} último hito=${(ultimo?.estado ?? "(ninguno)").padEnd(16)} ${fmt(ultimo?.fecha)}`,
+        `   ${h.numeroPedido}  estado=${h.estado.padEnd(12)} último hito=${(h.ultimoHito ?? "(ninguno)").padEnd(16)} ${fmt(h.fechaUltimoHito)}${h.error ? `  ❌ ${h.error}` : ""}`,
       );
-      if (aplicar) {
-        // Se fecha hoy: el cambio en bloque no dejó rastro de cuándo se hizo.
-        await registrarHistorialEstado(p.id, p.estado);
-      }
     }
     console.log("");
   }
 
-  // ── 2. Facturas que faltan ────────────────────────────────────────────────
-  if (hacer.facturas) {
-    const pendientes = pedidos.filter(
-      (p) =>
-        !p.factura &&
-        !ESTADOS_NO_FACTURABLES.includes(p.estado) &&
-        porClave.get(p.estado)?.permitirFacturaPDF === true,
-    );
-
-    const sinFacturaNoFacturable = pedidos.filter(
-      (p) => !p.factura && !pendientes.includes(p),
-    );
-
-    console.log(`── 2. FACTURAS A EMITIR: ${pendientes.length} pedido(s)`);
-    if (pendientes.length === 0 && sinFacturaNoFacturable.length > 0) {
-      console.log(
-        `   (Hay ${sinFacturaNoFacturable.length} pedido(s) sin factura cuyo estado no la emite.`,
-      );
-      console.log(
-        `    Marca "Emitir la factura al entrar en este estado" en /admin/configuracion/pedidos.)`,
-      );
+  if (pasos.facturas) {
+    console.log(`── 2. FACTURAS A EMITIR: ${r.facturas.length} pedido(s)`);
+    if (r.facturas.length === 0 && r.sinEstadoFacturable > 0) {
+      console.log(`   (Hay ${r.sinEstadoFacturable} pedido(s) sin factura cuyo estado no la emite.`);
+      console.log(`    Marca "Emitir la factura al entrar en este estado" en /admin/configuracion/pedidos.)`);
     }
-
-    // El simulacro reproduce la numeración real: misma fecha de expedición y
-    // misma secuencia que aplicaría `createFactura`, para poder revisarla antes.
-    const settings = await getInvoiceSettings();
-    const ultima = await ultimaFacturaSerie();
-    let fechaSimulada = ultima?.fechaFactura ?? null;
-    let secuenciaSimulada = settings.nextSequence;
-
-    if (!aplicar && ultima) {
-      console.log(`   Última factura de la serie: ${fmt(ultima.fechaFactura)} · siguiente nº ${secuenciaSimulada}`);
-    }
-
-    // En orden cronológico de pedido: así los números salen correlativos con las fechas.
-    for (const p of pendientes) {
-      if (!aplicar) {
-        const fechaFactura = resolverFechaFactura(p.fechaPedido, fechaSimulada);
-        if (
-          settings.resetAnnually &&
-          fechaSimulada &&
-          fechaSimulada.getFullYear() < fechaFactura.getFullYear()
-        ) {
-          secuenciaSimulada = 1;
-        }
-        const numero = buildInvoiceNumber(settings, secuenciaSimulada, fechaFactura);
-        const aviso =
-          fechaFactura.toDateString() !== p.fechaPedido.toDateString()
-            ? `  ⚠️ fecha desplazada (pedido ${fmt(p.fechaPedido)})`
-            : "";
-        console.log(
-          `   ${p.numeroPedido}  ${fmt(p.fechaPedido)}  ${eur(Number(p.totalFinal))}  → ${numero} (${fmt(fechaFactura)})${aviso}`,
-        );
-        fechaSimulada = fechaFactura;
-        secuenciaSimulada++;
-        continue;
-      }
-      try {
-        const r = await createFactura(p.id);
-        console.log(
-          `   ${p.numeroPedido}  ${fmt(p.fechaPedido)}  ${eur(Number(p.totalFinal))}  → ${r?.numeroFactura} (${fmt(r?.fechaFactura)})`,
-        );
-      } catch (err: any) {
-        console.error(`   ❌ ${p.numeroPedido}: ${err?.message || err}`);
-      }
+    for (const f of r.facturas) {
+      const aviso = f.fechaDesplazada ? `  ⚠️ fecha desplazada (pedido ${fmt(f.fechaPedido)})` : "";
+      const pago = f.estadoPago !== "PAGADO" ? `  ⚠️ pago ${f.estadoPago}` : "";
+      console.log(
+        `   ${f.numeroPedido}  ${fmt(f.fechaPedido)}  ${eur(f.total)}  → ${f.numeroFactura ?? "—"} (${fmt(f.fechaFactura)})${aviso}${pago}${f.error ? `  ❌ ${f.error}` : ""}`,
+      );
     }
     console.log("");
   }
 
-  // ── 3. Invitaciones de reseña pendientes ──────────────────────────────────
-  if (hacer.revi) {
-    const pendientesRevi = pedidos.filter(
-      (p) => p.estado === "CUESTIONARIO" && !p.reviInvitadoAt && p.fechaPedido >= REVI_SYNC_CUTOFF_DATE,
-    );
-
-    console.log(`── 3. INVITACIONES REVI PENDIENTES: ${pendientesRevi.length} pedido(s)`);
-    for (const p of pendientesRevi) {
-      if (!aplicar) {
-        console.log(`   ${p.numeroPedido}  ${fmt(p.fechaPedido)}`);
-        continue;
-      }
-      try {
-        await enviarPedidoARevi(p.id);
-        console.log(`   ✅ ${p.numeroPedido}`);
-      } catch (err: any) {
-        console.error(`   ❌ ${p.numeroPedido}: ${err?.message || err}`);
-      }
+  if (pasos.revi) {
+    console.log(`── 3. INVITACIONES REVI PENDIENTES: ${r.revi.length} pedido(s)`);
+    for (const v of r.revi) {
+      console.log(`   ${v.numeroPedido}  ${fmt(v.fechaPedido)}${v.error ? `  ❌ ${v.error}` : ""}`);
     }
     console.log("");
   }
