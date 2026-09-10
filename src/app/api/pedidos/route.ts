@@ -8,6 +8,7 @@ import { canEdit } from "@/lib/adminAuth";
 import { calcularTotalesPedido, ErrorCalculoPedido, type TotalesPedido } from "@/lib/checkoutPricing";
 import { getBaseUrl } from "@/lib/urls";
 import { idsProductosSinControlDeStock } from "@/lib/stock";
+import { cargarEstadosPedido, indexarEstados, resolverEstadoVisible } from "@/lib/estadoPedido";
 
 async function getEstadoInicialPorMetodo(metodoPago: string, tx: any): Promise<{ nombre: string; color: string; clave: string }> {
   const metodo = (metodoPago || "").toLowerCase().trim();
@@ -235,6 +236,12 @@ export async function GET(req: Request) {
         factura: {
           select: { id: true, numeroFactura: true, fechaFactura: true, total: true },
         },
+        // Necesario para resolver el estado que ve el cliente cuando el actual
+        // está marcado como oculto.
+        estadoHistorial: {
+          select: { estado: true, fecha: true },
+          orderBy: { fecha: "desc" },
+        },
       },
       orderBy: orderMap[sortBy] || { fechaPedido: "desc" },
       skip: (page - 1) * limit,
@@ -243,20 +250,17 @@ export async function GET(req: Request) {
 
     const total = await prisma.pedido.count({ where: whereClause });
 
-    // Cargar config de estados para resolver color y nombre correctamente
-    const allEstados = await prisma.estadopedido.findMany({
-      select: { clave: true, nombre: true, color: true },
-    });
-    const estadoByKey = new Map<string, { nombre: string; color: string }>();
-    for (const e of allEstados) {
-      estadoByKey.set(e.clave.toLowerCase(), { nombre: e.nombre, color: e.color });
-      estadoByKey.set(e.nombre.toLowerCase(), { nombre: e.nombre, color: e.color });
-    }
+    // Cargar config de estados para resolver color, nombre y banderas
+    const allEstados = await cargarEstadosPedido();
+    const estadoByKey = indexarEstados(allEstados);
 
     const pedidosFormateados = pedidosRaw.map((p: any) => {
       const configMatch = estadoByKey.get((p.estado || "").toLowerCase());
       const colorEstado = configMatch?.color || "#6b7280";
       const nombreEstado = configMatch?.nombre || p.estado || "";
+      // Lo que ve el cliente: si el estado actual está marcado como oculto, el
+      // último hito visible del historial en su lugar.
+      const visible = resolverEstadoVisible(p.estado, p.estadoHistorial || [], estadoByKey);
 
       return {
         id: p.id,
@@ -315,6 +319,10 @@ export async function GET(req: Request) {
         estado: p.estado,
         colorEstado: colorEstado,
         nombreEstado: nombreEstado,
+        estadoPublico: visible.nombre,
+        colorEstadoPublico: visible.color,
+        // "Relacionado con facturación": el pedido cuenta como facturado.
+        esFacturable: configMatch?.esFactura === true,
         cuponCodigo: p.cuponCodigo,
         cuponDescuento: p.cuponDescuento ? Number(p.cuponDescuento) : null,
         notas: p.notas,

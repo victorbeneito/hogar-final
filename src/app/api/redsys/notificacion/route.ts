@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { normalizePaymentConfig } from "@/lib/paymentSettings";
 import { sendTemplateEmail, sendRawEmail, buildAdminOrderEmail, loadEmailSettings } from "@/lib/emailService";
 import { getBaseUrl } from "@/lib/urls";
+import { aplicarEfectosCambioEstadoPorId } from "@/lib/orderStatusChange";
 
 export const dynamic = "force-dynamic";
 
@@ -186,6 +187,11 @@ export async function POST(req: NextRequest) {
         await prisma.historialestadopedido.create({
           data: { pedidoId, estado: nombreEstado, color: colorEstado, fecha: new Date() },
         });
+        // Banderas del estado (pagado / enviado / entregado) y factura si procede.
+        // Sin correo: el aviso al cliente lo manda este mismo flujo más abajo.
+        await aplicarEfectosCambioEstadoPorId(pedidoId, nombreEstado).catch((err: any) =>
+          console.warn("⚠️ No se pudieron aplicar los efectos del estado:", err?.message),
+        );
       } catch (err: any) {
         console.warn("⚠️ No se pudo insertar historial Redsys exitoso:", err?.message);
       }

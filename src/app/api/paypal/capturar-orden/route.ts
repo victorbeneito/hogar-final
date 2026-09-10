@@ -5,6 +5,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { sendTemplateEmail, sendRawEmail, buildAdminOrderEmail, loadEmailSettings } from "@/lib/emailService";
 import { getBaseUrl } from "@/lib/urls";
+import { aplicarEfectosCambioEstadoPorId } from "@/lib/orderStatusChange";
 
 export async function POST(req: NextRequest) {
   try {
@@ -73,6 +74,12 @@ export async function POST(req: NextRequest) {
           } catch (err: any) {
             console.warn("⚠️ No se pudo insertar historial PayPal exitoso:", err?.message);
           }
+
+          // Banderas del estado (pagado / enviado / entregado) y factura si procede.
+          // Sin correo: el aviso al cliente lo manda este mismo flujo más abajo.
+          await aplicarEfectosCambioEstadoPorId(id, nombreEstado).catch((err: any) =>
+            console.warn("⚠️ No se pudieron aplicar los efectos del estado:", err?.message),
+          );
         }
 
         if (pedido) {

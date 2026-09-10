@@ -21,6 +21,8 @@ interface Pedido {
   fechaPedido?: string;
   createdAt?: string;
   estado: string;
+  /** Estado tal y como debe verlo el cliente: la API oculta los internos. */
+  estadoPublico?: string;
   totalFinal: number;
   envioMetodo: string;
   envioCoste: number;
@@ -134,8 +136,8 @@ export default function OrdersPage() {
                     <div className="flex-1">
                         <div className="flex flex-wrap items-center gap-3 mb-1">
                             <span className="text-base font-bold text-gray-900 dark:text-white">{referencia}</span>
-                            <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase border ${getStatusColor(pedido.estado)}`}>
-                                {pedido.estado}
+                            <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase border ${getStatusColor(pedido.estadoPublico || pedido.estado)}`}>
+                                {pedido.estadoPublico || pedido.estado}
                             </span>
                         </div>
                         <p className="text-xs text-gray-500 dark:text-gray-400">

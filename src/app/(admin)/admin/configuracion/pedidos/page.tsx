@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import toast from "react-hot-toast";
 import { Save, Plus, Trash2, ArrowLeft, Pencil, X, Check } from "lucide-react";
 import Link from "next/link";
+import { EMAIL_TEMPLATES } from "@/lib/emailConfig";
 
 interface ConfigPedidos {
   "pedidos.montoMinimo": string;
@@ -861,13 +862,21 @@ function EstadoForm({
             <label className="block text-sm text-gray-500 mb-1">
               Plantilla de correo electrónico
             </label>
-            <input
-              type="text"
+            <select
               value={estado.plantillaEmail ?? ""}
               onChange={(e) => set("plantillaEmail", e.target.value || null)}
-              placeholder="ej: payment, shipped, order_canceled…"
               className="w-full rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-950 px-4 py-3 text-sm"
-            />
+            >
+              <option value="">Sin plantilla asignada</option>
+              {EMAIL_TEMPLATES.filter((t) => t.category === "Pedidos").map((t) => (
+                <option key={t.slug} value={t.slug}>
+                  {t.name}
+                </option>
+              ))}
+            </select>
+            <p className="mt-1 text-xs text-gray-400">
+              Solo se envía si está marcado &laquo;Enviar un correo al cliente al cambiar estado&raquo;.
+            </p>
           </div>
         </div>
       </div>
@@ -878,51 +887,62 @@ function EstadoForm({
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
           <OptionCheck
             label="Considerar el pedido como validado"
+            hint="Solo estos estados suman en las ventas del panel"
             checked={estado.considerarValidado}
             onChange={(v) => set("considerarValidado", v)}
           />
           <OptionCheck
             label="Enviar un correo al cliente al cambiar estado"
+            hint="Usa la plantilla elegida arriba"
             checked={estado.enviarEmail}
             onChange={(v) => set("enviarEmail", v)}
           />
           <OptionCheck
             label="Emitir la factura al entrar en este estado"
+            hint="Con la fecha del pedido, numerada correlativamente"
             checked={estado.permitirFacturaPDF}
             onChange={(v) => set("permitirFacturaPDF", v)}
           />
           <OptionCheck
             label="Ocultar este estado en el historial del cliente"
+            hint="El cliente verá el último estado visible en su lugar"
             checked={estado.ocultarEstado}
             onChange={(v) => set("ocultarEstado", v)}
           />
           <OptionCheck
             label="Adjuntar factura PDF al correo"
+            hint="Requiere que este estado emita factura y avise por correo"
             checked={estado.adjuntarFacturaPDF}
             onChange={(v) => set("adjuntarFacturaPDF", v)}
           />
           <OptionCheck
             label="Adjuntar albarán PDF al correo"
+            hint="Todavía no disponible: no hay plantilla de albarán"
             checked={estado.adjuntarAlbaranPDF}
             onChange={(v) => set("adjuntarAlbaranPDF", v)}
+            disabled
           />
           <OptionCheck
             label="Establecer el pedido como enviado"
+            hint="Rellena la fecha de envío si está vacía"
             checked={estado.establecerEnviado}
             onChange={(v) => set("establecerEnviado", v)}
           />
           <OptionCheck
             label="Establecer el pedido como pagado"
+            hint="Marca el pago como PAGADO"
             checked={estado.establecerPagado}
             onChange={(v) => set("establecerPagado", v)}
           />
           <OptionCheck
             label="Marcar como entregado (esEntrega)"
+            hint="Rellena la fecha de entrega si está vacía"
             checked={estado.esEntrega}
             onChange={(v) => set("esEntrega", v)}
           />
           <OptionCheck
             label="Relacionado con facturación"
+            hint="El pedido cuenta como facturado en los listados"
             checked={estado.esFactura}
             onChange={(v) => set("esFactura", v)}
           />
@@ -975,22 +995,36 @@ function Toggle({
 
 function OptionCheck({
   label,
+  hint,
   checked,
   onChange,
+  disabled,
 }: {
   label: string;
+  hint?: string;
   checked: boolean;
   onChange: (v: boolean) => void;
+  disabled?: boolean;
 }) {
   return (
-    <label className="flex items-start gap-3 rounded-xl border border-gray-200 dark:border-gray-700 p-3 cursor-pointer select-none">
+    <label
+      className={`flex items-start gap-3 rounded-xl border border-gray-200 dark:border-gray-700 p-3 select-none ${
+        disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer"
+      }`}
+    >
       <input
         type="checkbox"
         checked={checked}
+        disabled={disabled}
         onChange={(e) => onChange(e.target.checked)}
         className="mt-0.5 w-4 h-4 rounded accent-primary flex-shrink-0"
       />
-      <span className="text-sm text-gray-700 dark:text-gray-200 leading-snug">{label}</span>
+      <span className="text-sm text-gray-700 dark:text-gray-200 leading-snug">
+        {label}
+        {hint && (
+          <span className="block text-xs text-gray-400 dark:text-gray-500 mt-0.5">{hint}</span>
+        )}
+      </span>
     </label>
   );
 }

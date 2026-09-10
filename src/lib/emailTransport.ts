@@ -23,6 +23,12 @@ export type EmailTransportConfig = {
   };
 };
 
+export type EmailAttachment = {
+  filename: string;
+  content: Buffer;
+  contentType?: string;
+};
+
 export type OutboundEmail = {
   to: string | string[];
   subject: string;
@@ -30,6 +36,7 @@ export type OutboundEmail = {
   text?: string;
   replyTo?: string;
   from?: string;
+  attachments?: EmailAttachment[];
 };
 
 export type EmailSendResult = {
@@ -108,6 +115,11 @@ async function sendViaSmtp(config: EmailTransportConfig, email: OutboundEmail): 
     subject: email.subject,
     html: email.html,
     text: email.text,
+    attachments: email.attachments?.map((a) => ({
+      filename: a.filename,
+      content: a.content,
+      contentType: a.contentType || "application/pdf",
+    })),
   });
 
   return {
@@ -134,6 +146,15 @@ async function sendViaApi(config: EmailTransportConfig, email: OutboundEmail): P
       html: email.html,
       text: email.text,
       replyTo: email.replyTo || config.replyToEmail,
+      // Los proveedores HTTP esperan el adjunto en base64. El nombre exacto del
+      // campo varía entre APIs; si algún día se usa este modo con adjuntos, hay
+      // que confirmarlo contra la documentación del proveedor.
+      attachments: email.attachments?.map((a) => ({
+        filename: a.filename,
+        content: a.content.toString("base64"),
+        contentType: a.contentType || "application/pdf",
+        encoding: "base64",
+      })),
     }),
   });
 

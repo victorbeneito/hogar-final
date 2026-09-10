@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import jwt from "jsonwebtoken";
+import { clavesEstadosValidados } from '@/lib/estadoPedido';
 
 export async function GET(req: NextRequest) {
   try {
@@ -51,6 +52,12 @@ export async function GET(req: NextRequest) {
     const hace7dias = new Date(ahora);
     hace7dias.setDate(hace7dias.getDate() - 7);
 
+    // "Considerar el pedido como validado": solo esos estados cuentan como venta.
+    // Si no hay ninguno marcado se cuentan todos, para no dejar el panel a cero
+    // por una casilla sin poner.
+    const clavesValidadas = await clavesEstadosValidados();
+    const soloVentasValidadas = clavesValidadas ? { estado: { in: clavesValidadas } } : {};
+
     const [
       productos,
       categorias,
@@ -76,10 +83,10 @@ export async function GET(req: NextRequest) {
       prisma.cliente.count(),
       prisma.cupon.count(),
       // Suma total de ventas (sin período, para referencia)
-      prisma.pedido.aggregate({ _sum: { totalFinal: true } }),
+      prisma.pedido.aggregate({ where: soloVentasValidadas, _sum: { totalFinal: true } }),
       // Ventas en el período seleccionado, agrupadas por día
       prisma.pedido.findMany({
-        where: { fechaPedido: { gte: periodoDesde, lte: periodoHasta } },
+        where: { fechaPedido: { gte: periodoDesde, lte: periodoHasta }, ...soloVentasValidadas },
         select: { fechaPedido: true, totalFinal: true },
         orderBy: { fechaPedido: 'asc' },
       }),
@@ -136,9 +143,9 @@ export async function GET(req: NextRequest) {
           },
         },
       }),
-      // Pedidos en el período (suma y conteo)
+      // Ventas del período (suma y conteo), solo estados validados
       prisma.pedido.aggregate({
-        where: { fechaPedido: { gte: periodoDesde, lte: periodoHasta } },
+        where: { fechaPedido: { gte: periodoDesde, lte: periodoHasta }, ...soloVentasValidadas },
         _sum: { totalFinal: true },
         _count: { id: true },
       }),

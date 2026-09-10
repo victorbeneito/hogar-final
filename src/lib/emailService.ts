@@ -6,7 +6,7 @@ import {
   type EmailTemplateConfig,
   type EmailTemplateSlug,
 } from "@/lib/emailConfig";
-import { getEmailTransportConfig, isEmailTransportReady, sendOutboundEmail, type EmailSendResult } from "@/lib/emailTransport";
+import { getEmailTransportConfig, isEmailTransportReady, sendOutboundEmail, type EmailAttachment, type EmailSendResult } from "@/lib/emailTransport";
 import { getBaseUrl } from "@/lib/urls";
 
 export type EmailVariables = Record<string, string | number | boolean | null | undefined>;
@@ -17,6 +17,7 @@ export type SendTemplateEmailInput = {
   variables?: EmailVariables;
   replyTo?: string;
   from?: string;
+  attachments?: EmailAttachment[];
 };
 
 export type SendRawEmailInput = {
@@ -96,6 +97,7 @@ export async function sendTemplateEmail(input: SendTemplateEmailInput): Promise<
     text,
     replyTo: input.replyTo || config.replyToEmail,
     from: input.from,
+    attachments: input.attachments,
   });
 }
 

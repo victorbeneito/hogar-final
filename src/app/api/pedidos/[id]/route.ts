@@ -4,6 +4,7 @@ import { canEdit } from "@/lib/adminAuth";
 import {
   aplicarEfectosCambioEstado,
   registrarHistorialEstado,
+  PEDIDO_PREVIO_SELECT,
 } from "@/lib/orderStatusChange";
 
 export const dynamic = "force-dynamic";
@@ -299,20 +300,11 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
 
     const body = await req.json();
 
-    // Leer estado anterior para detectar cambios y enviar email si procede
+    // Leer estado anterior para detectar cambios y aplicar los efectos si procede
     const pedidoAnterior = body.estado
       ? await prisma.pedido.findUnique({
           where: { id },
-          select: {
-            estado: true,
-            email: true,
-            nombre: true,
-            numeroPedido: true,
-            numeroSeguimiento: true,
-            trackingUrl: true,
-            totalFinal: true,
-            fechaPedido: true,
-          },
+          select: PEDIDO_PREVIO_SELECT,
         })
       : null;
 
