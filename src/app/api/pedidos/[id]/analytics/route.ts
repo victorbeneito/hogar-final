@@ -4,6 +4,22 @@ import { prisma } from "@/lib/prisma";
 export const dynamic = "force-dynamic";
 
 /**
+ * La línea del pedido guarda el nombre con la variante pegada detrás
+ * ("Estor Zen - Tamaño : 140x180- Tirador : Derecha", ver src/lib/checkoutPricing.ts), pero
+ * view_item y add_to_cart mandan a GA4 el nombre limpio. Sin quitar el sufijo, el mismo producto
+ * aparecería en los informes con un nombre distinto por cada combinación vendida.
+ *
+ * Se quita exactamente " - " + varianteInfo y nada más, en vez de cortar por el primer guion,
+ * porque hay nombres de producto que ya llevan " - " dentro. Si el nombre no acaba así (pedidos
+ * importados de PrestaShop o creados a mano con otro formato) se deja tal cual: la variante
+ * sigue viajando aparte en item_variant.
+ */
+function nombreSinVariante(nombre: string, varianteInfo: string | null) {
+  const sufijo = varianteInfo ? ` - ${varianteInfo}` : "";
+  return sufijo && nombre.endsWith(sufijo) ? nombre.slice(0, -sufijo.length) : nombre;
+}
+
+/**
  * Datos mínimos de un pedido para medir la compra en GA4 / Google Ads.
  *
  * La página de confirmación no puede componer el evento `purchase` por su cuenta: para
@@ -63,7 +79,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
         items: pedido.pedidoproducto.map((linea, index) => ({
           // Mismo item_id que en view_item y add_to_cart: el id del producto.
           item_id: String(linea.productoIdRef ?? ""),
-          item_name: linea.nombre,
+          item_name: nombreSinVariante(linea.nombre, linea.varianteInfo),
           price: Number(linea.precioUnitario ?? 0),
           quantity: Number(linea.cantidad ?? 1),
           ...(linea.varianteInfo ? { item_variant: linea.varianteInfo } : {}),
