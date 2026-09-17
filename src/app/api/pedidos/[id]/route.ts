@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { canEdit } from "@/lib/adminAuth";
+import { canEdit, getAdminFromRequest } from "@/lib/adminAuth";
 import {
   aplicarEfectosCambioEstado,
   registrarHistorialEstado,
@@ -113,6 +113,15 @@ function cleanData<T extends Record<string, any>>(data: T) {
 }
 
 export async function GET(req: NextRequest, { params }: RouteParams) {
+  // Devuelve el pedido completo con los datos personales del cliente (nombre, email, teléfono,
+  // direcciones, NIF) y hasta el 2026-09-17 no comprobaba nada: con los ids correlativos se
+  // podían recorrer todos. Sólo lo usa la ficha de pedido del panel, así que queda para
+  // administradores, de cualquier rol porque es de lectura. Al cliente le llegan sus pedidos por
+  // GET /api/pedidos, y la confirmación de compra usa /analytics, que no lleva datos personales.
+  if (!getAdminFromRequest(req)) {
+    return NextResponse.json({ ok: false, error: "No autorizado" }, { status: 401 });
+  }
+
   try {
     const { id: idString } = await params;
     const id = parseInt(idString, 10);

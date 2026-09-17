@@ -1,11 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { canEdit, getAdminFromRequest } from "@/lib/adminAuth";
 
 interface RouteParams {
   params: Promise<{ id: string }>;
 }
 
-export async function GET(_req: NextRequest, { params }: RouteParams) {
+// Los mensajes de un pedido son la conversación interna con el cliente, notas privadas
+// incluidas. Hasta el 2026-09-17 esta ruta no comprobaba nada en ninguno de sus dos métodos:
+// cualquiera podía leer los de cualquier pedido y publicar uno firmado como "admin". Sólo la usa
+// la ficha de pedido del panel, así que leer queda para cualquier administrador y escribir para
+// los roles que pueden editar, igual que el PUT del pedido.
+
+export async function GET(req: NextRequest, { params }: RouteParams) {
+  if (!getAdminFromRequest(req)) {
+    return NextResponse.json({ ok: false, error: "No autorizado" }, { status: 401 });
+  }
+
   const { id: idString } = await params;
   const pedidoId = parseInt(idString, 10);
   if (Number.isNaN(pedidoId)) {
@@ -21,6 +32,10 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
 }
 
 export async function POST(req: NextRequest, { params }: RouteParams) {
+  if (!canEdit(req)) {
+    return NextResponse.json({ ok: false, error: "No tienes permiso para escribir mensajes" }, { status: 403 });
+  }
+
   try {
     const { id: idString } = await params;
     const pedidoId = parseInt(idString, 10);

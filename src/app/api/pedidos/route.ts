@@ -4,7 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { sendTemplateEmail, sendRawEmail, buildAdminOrderEmail, loadEmailSettings } from "@/lib/emailService";
-import { canEdit } from "@/lib/adminAuth";
+import { canEdit, getAdminFromRequest } from "@/lib/adminAuth";
+import { getClienteFromRequest } from "@/lib/clienteAuth";
 import { calcularTotalesPedido, ErrorCalculoPedido, type TotalesPedido } from "@/lib/checkoutPricing";
 import { getBaseUrl } from "@/lib/urls";
 import { idsProductosSinControlDeStock } from "@/lib/stock";
@@ -76,7 +77,19 @@ function buildBillingSnapshot(datosCliente: any = {}) {
 // ======================================================================
 // GET: LISTAR PEDIDOS
 // ======================================================================
-export async function GET(req: Request) {
+export async function GET(req: NextRequest) {
+  // Este listado devuelve nombre, email, teléfono y dirección de los clientes, y hasta el
+  // 2026-09-17 respondía a cualquiera sin sesión. Ahora:
+  //  - un administrador (cookie admin_token, cualquier rol, auditor incluido) ve todos;
+  //  - un cliente (token en Authorization) ve SÓLO los suyos, diga lo que diga ?clienteId=;
+  //  - sin ninguna de las dos cosas, 401.
+  // El POST de más abajo sigue abierto a propósito: es el que crea los pedidos del checkout.
+  const admin = getAdminFromRequest(req);
+  const clienteSesion = admin ? null : getClienteFromRequest(req);
+  if (!admin && !clienteSesion) {
+    return NextResponse.json({ ok: false, error: "No autorizado" }, { status: 401 });
+  }
+
   try {
     const { searchParams } = new URL(req.url);
     const clienteId = searchParams.get("clienteId");
@@ -97,7 +110,12 @@ export async function GET(req: Request) {
     console.log(`🔍 [GET Pedidos] Buscando para ClienteID: ${clienteId || "TODOS"}`);
 
     const whereClause: any = {};
-    if (clienteId && !Number.isNaN(parseInt(clienteId, 10))) {
+    if (clienteSesion) {
+      // El cliente del token manda sobre el de la URL: si no, bastaría cambiar el número para
+      // ver los pedidos de otro. Las claves de primer nivel de Prisma se combinan con AND, así
+      // que el resto de filtros sólo pueden estrechar sus propios pedidos.
+      whereClause.clienteId = clienteSesion.clienteId;
+    } else if (clienteId && !Number.isNaN(parseInt(clienteId, 10))) {
       whereClause.clienteId = parseInt(clienteId, 10);
     }
     if (id && !Number.isNaN(parseInt(id, 10))) {
