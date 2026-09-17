@@ -2,66 +2,33 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { X, Cookie, ChevronDown, ChevronUp, Shield, BarChart2, Settings2 } from "lucide-react";
+import { X, Cookie, ChevronDown, ChevronUp, Shield, BarChart2, Settings2, Megaphone } from "lucide-react";
+import { guardarConsentimiento, leerConsentimiento } from "@/lib/consent";
 
-type ConsentPreferences = {
-  necesarias: true;
-  analiticas: boolean;
-  personalizacion: boolean;
-  timestamp: number;
-};
-
-const STORAGE_KEY = "cookie_consent";
-const CONSENT_DURATION_DAYS = 365;
-
-function isConsentValid(stored: ConsentPreferences): boolean {
-  const expiresAt = stored.timestamp + CONSENT_DURATION_DAYS * 24 * 60 * 60 * 1000;
-  return Date.now() < expiresAt;
-}
-
-function loadConsent(): ConsentPreferences | null {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as ConsentPreferences;
-    if (!isConsentValid(parsed)) {
-      localStorage.removeItem(STORAGE_KEY);
-      return null;
-    }
-    return parsed;
-  } catch {
-    return null;
-  }
-}
-
-function saveConsent(prefs: Omit<ConsentPreferences, "necesarias" | "timestamp">) {
-  const consent: ConsentPreferences = {
-    necesarias: true,
-    ...prefs,
-    timestamp: Date.now(),
-  };
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(consent));
-  window.dispatchEvent(new CustomEvent("cookieConsentUpdated", { detail: consent }));
-}
+// El guardado, la caducidad y la traducción a las señales de Google viven en
+// src/lib/consent.ts: aquí sólo queda la interfaz. Se separaron cuando el banner pasó de
+// limitarse a recordar la respuesta a tener que comunicársela a Google.
 
 export default function CookieConsent() {
   const [visible, setVisible] = useState(false);
   const [showConfig, setShowConfig] = useState(false);
   const [analiticas, setAnaliticas] = useState(false);
+  const [publicidad, setPublicidad] = useState(false);
   const [personalizacion, setPersonalizacion] = useState(false);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
-    const stored = loadConsent();
+    const stored = leerConsentimiento();
     if (!stored) {
       setVisible(true);
     }
 
     const handleOpen = () => {
-      const stored = loadConsent();
+      const stored = leerConsentimiento();
       if (stored) {
         setAnaliticas(stored.analiticas);
+        setPublicidad(stored.publicidad);
         setPersonalizacion(stored.personalizacion);
       }
       setShowConfig(true);
@@ -74,19 +41,19 @@ export default function CookieConsent() {
   if (!mounted || !visible) return null;
 
   const handleAcceptAll = () => {
-    saveConsent({ analiticas: true, personalizacion: true });
+    guardarConsentimiento({ analiticas: true, publicidad: true, personalizacion: true });
     setVisible(false);
     setShowConfig(false);
   };
 
   const handleRejectAll = () => {
-    saveConsent({ analiticas: false, personalizacion: false });
+    guardarConsentimiento({ analiticas: false, publicidad: false, personalizacion: false });
     setVisible(false);
     setShowConfig(false);
   };
 
   const handleSaveConfig = () => {
-    saveConsent({ analiticas, personalizacion });
+    guardarConsentimiento({ analiticas, publicidad, personalizacion });
     setVisible(false);
     setShowConfig(false);
   };
@@ -150,6 +117,31 @@ export default function CookieConsent() {
                   aria-checked={analiticas}
                   role="switch"
                   aria-label="Cookies analíticas"
+                >
+                  <div className="w-3.5 h-3.5 bg-white rounded-full shadow" />
+                </button>
+              </div>
+
+              {/* Publicidad. Categoría propia porque la tienda ejecuta remarketing de
+                  Google Ads: el Consent Mode v2 exige consentimiento explícito para
+                  ad_storage, ad_user_data y ad_personalization, y no se pueden dar por
+                  aceptadas con el permiso de analítica ni con el de personalización. */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Megaphone className="w-4 h-4 text-amber-500" />
+                  <div>
+                    <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">Publicidad</p>
+                    <p className="text-xs text-gray-400">Anuncios y medición de campañas.</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setPublicidad((v) => !v)}
+                  className={`w-10 h-5 rounded-full flex items-center transition-colors duration-200 px-1 ${
+                    publicidad ? "bg-primary justify-end" : "bg-gray-300 dark:bg-gray-600 justify-start"
+                  }`}
+                  aria-checked={publicidad}
+                  role="switch"
+                  aria-label="Cookies de publicidad"
                 >
                   <div className="w-3.5 h-3.5 bg-white rounded-full shadow" />
                 </button>

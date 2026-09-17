@@ -9,6 +9,7 @@ import Script from "next/script";
 import TrafficTracker from "@/components/TrafficTracker";
 import { CANONICAL_BASE_URL } from "@/lib/urls";
 import { organizationJsonLd } from "@/lib/seo";
+import { SCRIPT_CONSENTIMIENTO_POR_DEFECTO } from "@/lib/consent";
 
 export const dynamic = "force-dynamic";
 
@@ -112,6 +113,11 @@ export default function RootLayout({
   return (
     <html lang="es" suppressHydrationWarning className={poppins.variable}>
       <body suppressHydrationWarning className="bg-fondo dark:bg-darkBg text-secondary dark:text-darkNavText transition-colors duration-300 flex flex-col min-h-screen">
+        {/* Consent Mode v2. Va aquí arriba del todo, como <script> normal y no como <Script>
+            de next, porque tiene que ejecutarse mientras el navegador lee el HTML: si llegara
+            después del contenedor de Tag Manager, Google daría el consentimiento por ausente.
+            El detalle está en src/lib/consent.ts. */}
+        <script dangerouslySetInnerHTML={{ __html: SCRIPT_CONSENTIMIENTO_POR_DEFECTO }} />
         {/* Identidad de la tienda para buscadores y asistentes de IA. Va en el layout
             raíz para que esté en todas las páginas. */}
         <script
