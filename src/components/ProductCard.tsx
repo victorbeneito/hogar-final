@@ -4,7 +4,7 @@ import React, { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import ProductQuickViewModal from "@/components/ProductQuickViewModal";
-import { SIZES_TARJETA_CATALOGO, urlImagenProducto } from "@/lib/imagenes";
+import { SIZES_TARJETA_CATALOGO, esImagenSubidaDesdeAdmin, urlImagenProducto } from "@/lib/imagenes";
 
 interface ProductCardProps {
   producto: any;
@@ -138,6 +138,9 @@ export default function ProductCard({
                 fill
                 sizes={sizes}
                 priority={prioridad}
+                // Las subidas desde el admin no pasan por el optimizador: ver
+                // `esImagenSubidaDesdeAdmin` en lib/imagenes.ts.
+                unoptimized={esImagenSubidaDesdeAdmin(urlImagen)}
                 className="object-contain rounded-md transition-transform duration-300 group-hover:scale-[1.02]"
               />
             </div>

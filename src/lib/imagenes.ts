@@ -106,6 +106,23 @@ export function urlImagenProducto(url: string | null | undefined): string {
 }
 
 /**
+ * Indica si la imagen se subió desde el admin (`/api/admin/upload/imagen`), que la
+ * guarda en `public/img/productos/` con la aplicación ya arrancada.
+ *
+ * Esas imágenes **no pueden pasar por el optimizador de `next/image`**. En producción
+ * Next sólo conoce los ficheros de `public/` que existían al arrancar: el optimizador
+ * se pide el original a sí mismo, recibe un 404 y contesta 400 "isn't a valid image",
+ * así que la tarjeta sale sin foto. Pedida directamente sí funciona, porque la sirve
+ * el servidor web de Plesk desde el disco. Comprobado el 2026-09-25 con el producto
+ * 870: directa 200, por `/_next/image` 400, hasta reiniciar la aplicación.
+ *
+ * Por eso a estas se les pone `unoptimized` y el navegador las pide tal cual.
+ */
+export function esImagenSubidaDesdeAdmin(url: string): boolean {
+  return url.startsWith("/img/productos/");
+}
+
+/**
  * Atributos `sizes` de las tarjetas de producto.
  *
  * Cada uno debe reflejar la rejilla donde se usa. Si `sizes` miente, `next/image`
