@@ -10,6 +10,7 @@ export async function GET() {
       include: {
         atributovalor: {
           orderBy: [{ orden: "asc" }, { id: "asc" }],
+          include: { _count: { select: { varianteatributo: true } } },
         },
       },
     });
@@ -47,6 +48,33 @@ export async function POST(req: NextRequest) {
     });
 
     return NextResponse.json({ ok: true, atributo }, { status: 201 });
+  } catch (error: any) {
+    return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+  }
+}
+
+// Borrado masivo: { ids: number[] }. Los valores caen con el atributo y,
+// en cascada, se desenganchan de las variantes que los usaban.
+export async function DELETE(req: NextRequest) {
+  if (!canEdit(req)) {
+    return NextResponse.json({ ok: false, error: "No tienes permiso" }, { status: 403 });
+  }
+  try {
+    const body = await req.json().catch(() => ({}));
+    const ids: number[] = Array.isArray(body.ids)
+      ? Array.from(new Set<number>(body.ids.map(Number).filter(Number.isInteger)))
+      : [];
+
+    if (ids.length === 0) {
+      return NextResponse.json({ ok: false, error: "No hay atributos seleccionados" }, { status: 400 });
+    }
+
+    const [, { count }] = await prisma.$transaction([
+      prisma.atributovalor.deleteMany({ where: { atributoId: { in: ids } } }),
+      prisma.atributo.deleteMany({ where: { id: { in: ids } } }),
+    ]);
+
+    return NextResponse.json({ ok: true, eliminados: count });
   } catch (error: any) {
     return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
   }

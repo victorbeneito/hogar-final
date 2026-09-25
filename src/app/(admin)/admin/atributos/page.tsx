@@ -12,6 +12,7 @@ type Valor = {
   colorHex: string | null;
   imagen: string | null;
   orden: number;
+  _count?: { varianteatributo: number };
 };
 
 type Atributo = {
@@ -57,6 +58,40 @@ function contieneTexto(value: unknown, query: string) {
   return normalizarTexto(value).includes(query);
 }
 
+function variantesQueUsan(valores: Valor[]) {
+  return valores.reduce((total, valor) => total + (valor._count?.varianteatributo ?? 0), 0);
+}
+
+function alternarEnLista(lista: number[], id: number) {
+  return lista.includes(id) ? lista.filter((item) => item !== id) : [...lista, id];
+}
+
+function Casilla({
+  checked,
+  indeterminate = false,
+  onChange,
+  title,
+}: {
+  checked: boolean;
+  indeterminate?: boolean;
+  onChange: () => void;
+  title: string;
+}) {
+  return (
+    <input
+      type="checkbox"
+      ref={(el) => {
+        if (el) el.indeterminate = indeterminate;
+      }}
+      checked={checked}
+      onChange={onChange}
+      title={title}
+      aria-label={title}
+      className="h-4 w-4 cursor-pointer rounded border-gray-300 accent-[#6BAEC9]"
+    />
+  );
+}
+
 export default function AdminAtributosPage() {
   const [atributos, setAtributos] = useState<Atributo[]>([]);
   const [atributoForm, setAtributoForm] = useState<AtributoForm>(emptyAtributoForm);
@@ -66,7 +101,10 @@ export default function AdminAtributosPage() {
   const [selectedAttributeId, setSelectedAttributeId] = useState<number | null>(null);
   const [busquedaValores, setBusquedaValores] = useState("");
   const [atributosAbiertos, setAtributosAbiertos] = useState<number[]>([]);
+  const [atributosSeleccionados, setAtributosSeleccionados] = useState<number[]>([]);
+  const [valoresSeleccionados, setValoresSeleccionados] = useState<number[]>([]);
   const [loading, setLoading] = useState(false);
+  const [eliminando, setEliminando] = useState(false);
   const router = useRouter();
 
   function loadImageFile(file: File): Promise<string> {
@@ -155,6 +193,40 @@ export default function AdminAtributosPage() {
       return changed ? Array.from(merged) : prev;
     });
   }, [atributosVisibles, terminoBusqueda]);
+
+  // La selección nunca incluye filas ocultas por el buscador: así un borrado
+  // masivo solo afecta a lo que se está viendo.
+  useEffect(() => {
+    const atributoIds = new Set(atributosVisibles.map(({ atributo }) => atributo.id));
+    const valorIds = new Set(
+      atributosVisibles.flatMap(({ valoresVisibles }) => valoresVisibles.map((valor) => valor.id))
+    );
+    setAtributosSeleccionados((prev) => {
+      const next = prev.filter((id) => atributoIds.has(id));
+      return next.length === prev.length ? prev : next;
+    });
+    setValoresSeleccionados((prev) => {
+      const next = prev.filter((id) => valorIds.has(id));
+      return next.length === prev.length ? prev : next;
+    });
+  }, [atributosVisibles]);
+
+  const todosAtributosSeleccionados =
+    atributosVisibles.length > 0 && atributosSeleccionados.length === atributosVisibles.length;
+
+  function toggleTodosAtributos() {
+    setAtributosSeleccionados(
+      todosAtributosSeleccionados ? [] : atributosVisibles.map(({ atributo }) => atributo.id)
+    );
+  }
+
+  function toggleTodosValores(valores: Valor[]) {
+    const ids = valores.map((valor) => valor.id);
+    const todos = ids.length > 0 && ids.every((id) => valoresSeleccionados.includes(id));
+    setValoresSeleccionados((prev) =>
+      todos ? prev.filter((id) => !ids.includes(id)) : Array.from(new Set([...prev, ...ids]))
+    );
+  }
 
   function toggleAtributo(id: number) {
     setAtributosAbiertos((prev) =>
@@ -284,6 +356,90 @@ export default function AdminAtributosPage() {
       return;
     }
     await fetchAtributos();
+  }
+
+  async function handleBulkDeleteAtributos() {
+    const seleccion = atributos.filter((atributo) => atributosSeleccionados.includes(atributo.id));
+    if (seleccion.length === 0) return;
+
+    const totalValores = seleccion.reduce((total, atributo) => total + atributo.atributovalor.length, 0);
+    const variantes = seleccion.reduce((total, atributo) => total + variantesQueUsan(atributo.atributovalor), 0);
+    const aviso = [
+      `¿Eliminar ${seleccion.length} ${seleccion.length === 1 ? "atributo" : "atributos"} y sus ${totalValores} valores?`,
+      seleccion.map((atributo) => `• ${atributo.nombre}`).join("\n"),
+      variantes > 0 ? `⚠️ Se quitarán de ${variantes} asignaciones en variantes de producto.` : null,
+      "Esta acción no se puede deshacer.",
+    ]
+      .filter(Boolean)
+      .join("\n\n");
+    if (!confirm(aviso)) return;
+
+    const ids = seleccion.map((atributo) => atributo.id);
+    setEliminando(true);
+    try {
+      const res = await fetch("/api/atributos", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) throw new Error(data.error ?? "No se pudieron eliminar los atributos");
+
+      await fetchAtributos();
+      setAtributosSeleccionados([]);
+      setAtributosAbiertos((prev) => prev.filter((id) => !ids.includes(id)));
+      if (selectedAttributeId !== null && ids.includes(selectedAttributeId)) setSelectedAttributeId(null);
+      if (editandoAtributo !== null && ids.includes(editandoAtributo)) {
+        setEditandoAtributo(null);
+        setAtributoForm(emptyAtributoForm);
+      }
+      if (editandoValor && ids.includes(editandoValor.atributoId)) {
+        setEditandoValor(null);
+        setValorForm(emptyValorForm);
+      }
+    } catch (error: any) {
+      alert(error.message);
+    } finally {
+      setEliminando(false);
+    }
+  }
+
+  async function handleBulkDeleteValores(atributo: Atributo, valores: Valor[]) {
+    const seleccion = valores.filter((valor) => valoresSeleccionados.includes(valor.id));
+    if (seleccion.length === 0) return;
+
+    const variantes = variantesQueUsan(seleccion);
+    const aviso = [
+      `¿Eliminar ${seleccion.length} ${seleccion.length === 1 ? "valor" : "valores"} de ${atributo.nombre}?`,
+      variantes > 0 ? `⚠️ Se quitarán de ${variantes} variantes de producto que los usan.` : null,
+      "Esta acción no se puede deshacer.",
+    ]
+      .filter(Boolean)
+      .join("\n\n");
+    if (!confirm(aviso)) return;
+
+    const ids = seleccion.map((valor) => valor.id);
+    setEliminando(true);
+    try {
+      const res = await fetch(`/api/atributos/${atributo.id}/valores`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) throw new Error(data.error ?? "No se pudieron eliminar los valores");
+
+      await fetchAtributos();
+      setValoresSeleccionados((prev) => prev.filter((id) => !ids.includes(id)));
+      if (editandoValor && ids.includes(editandoValor.valorId)) {
+        setEditandoValor(null);
+        setValorForm(emptyValorForm);
+      }
+    } catch (error: any) {
+      alert(error.message);
+    } finally {
+      setEliminando(false);
+    }
   }
 
   return (
@@ -563,6 +719,46 @@ export default function AdminAtributosPage() {
                 )}
               </div>
             </div>
+
+            {atributosVisibles.length > 0 && (
+              <div
+                className={`mt-4 flex flex-wrap items-center gap-3 rounded-2xl border px-4 py-3 text-sm transition ${
+                  atributosSeleccionados.length > 0 ? "border-red-200 bg-red-50/60" : "border-gray-100 bg-white/60"
+                }`}
+              >
+                <label className="flex cursor-pointer items-center gap-2 font-medium text-gray-600">
+                  <Casilla
+                    checked={todosAtributosSeleccionados}
+                    indeterminate={atributosSeleccionados.length > 0 && !todosAtributosSeleccionados}
+                    onChange={toggleTodosAtributos}
+                    title="Seleccionar todos los atributos visibles"
+                  />
+                  {atributosSeleccionados.length > 0
+                    ? `${atributosSeleccionados.length} ${atributosSeleccionados.length === 1 ? "atributo seleccionado" : "atributos seleccionados"}`
+                    : "Seleccionar atributos"}
+                </label>
+
+                {atributosSeleccionados.length > 0 && (
+                  <div className="ml-auto flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setAtributosSeleccionados([])}
+                      className="rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-600 transition hover:bg-gray-50"
+                    >
+                      Quitar selección
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleBulkDeleteAtributos}
+                      disabled={eliminando}
+                      className="rounded-xl bg-red-500 px-4 py-2 text-sm font-semibold text-white shadow transition hover:bg-red-600 disabled:opacity-50"
+                    >
+                      {eliminando ? "⏳ Eliminando..." : `🗑️ Eliminar ${atributosSeleccionados.length}`}
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {atributos.length === 0 ? (
@@ -587,43 +783,58 @@ export default function AdminAtributosPage() {
             <div className="divide-y divide-gray-100">
               {atributosVisibles.map(({ atributo, valoresVisibles, coincideAtributo }) => {
                 const abierto = atributosAbiertos.includes(atributo.id);
+                const atributoMarcado = atributosSeleccionados.includes(atributo.id);
+                const valoresMarcados = valoresVisibles.filter((valor) => valoresSeleccionados.includes(valor.id));
+                const todosValoresMarcados =
+                  valoresVisibles.length > 0 && valoresMarcados.length === valoresVisibles.length;
 
                 return (
                   <div key={atributo.id} className="px-4 py-4 md:px-8 md:py-6">
                     <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                      <button
-                        type="button"
-                        onClick={() => toggleAtributo(atributo.id)}
-                        className="flex flex-1 items-start gap-4 rounded-2xl border border-gray-100 bg-[#FAFBFC] px-4 py-4 text-left transition hover:border-[#6BAEC9]/30 hover:bg-[#F5FBFE]"
-                      >
-                        <span className="mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white text-[#6BAEC9] shadow-sm ring-1 ring-gray-100">
-                          {abierto ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                        </span>
-
-                        <div className="min-w-0 flex-1">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <h3 className="text-lg md:text-xl font-bold text-[#4A4A4A]">{atributo.nombre}</h3>
-                            <span className="text-xs text-gray-400 font-mono">ID: #{atributo.id}</span>
-                            <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">
-                              {getAtributoTipoLabel(atributo.tipo)}
-                            </span>
-                            <span className="text-xs bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full">
-                              Orden: {atributo.orden}
-                            </span>
-                            <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
-                              {valoresVisibles.length} valores
-                            </span>
-                            {terminoBusqueda && coincideAtributo && (
-                              <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">
-                                Coincide por nombre
-                              </span>
-                            )}
-                          </div>
-                          <p className="text-sm text-gray-500 mt-1">
-                            {abierto ? "Pulsa para comprimir esta sección." : "Pulsa para ver todos los valores de este atributo."}
-                          </p>
+                      <div className="flex flex-1 items-start gap-3">
+                        <div className="pt-6">
+                          <Casilla
+                            checked={atributoMarcado}
+                            onChange={() => setAtributosSeleccionados((prev) => alternarEnLista(prev, atributo.id))}
+                            title={`Seleccionar ${atributo.nombre}`}
+                          />
                         </div>
-                      </button>
+                        <button
+                          type="button"
+                          onClick={() => toggleAtributo(atributo.id)}
+                          className={`flex flex-1 items-start gap-4 rounded-2xl border px-4 py-4 text-left transition hover:border-[#6BAEC9]/30 hover:bg-[#F5FBFE] ${
+                            atributoMarcado ? "border-red-200 bg-red-50/40" : "border-gray-100 bg-[#FAFBFC]"
+                          }`}
+                        >
+                          <span className="mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white text-[#6BAEC9] shadow-sm ring-1 ring-gray-100">
+                            {abierto ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                          </span>
+
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <h3 className="text-lg md:text-xl font-bold text-[#4A4A4A]">{atributo.nombre}</h3>
+                              <span className="text-xs text-gray-400 font-mono">ID: #{atributo.id}</span>
+                              <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">
+                                {getAtributoTipoLabel(atributo.tipo)}
+                              </span>
+                              <span className="text-xs bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full">
+                                Orden: {atributo.orden}
+                              </span>
+                              <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
+                                {valoresVisibles.length} valores
+                              </span>
+                              {terminoBusqueda && coincideAtributo && (
+                                <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">
+                                  Coincide por nombre
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-sm text-gray-500 mt-1">
+                              {abierto ? "Pulsa para comprimir esta sección." : "Pulsa para ver todos los valores de este atributo."}
+                            </p>
+                          </div>
+                        </button>
+                      </div>
 
                       <div className="flex gap-2 self-start lg:pt-1">
                         <button
@@ -648,10 +859,53 @@ export default function AdminAtributosPage() {
 
                     {abierto && (
                       <div className="mt-4 overflow-hidden rounded-2xl border border-gray-100 bg-white p-4 md:p-5">
+                        {valoresMarcados.length > 0 && (
+                          <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-red-200 bg-red-50/60 px-4 py-3 text-sm">
+                            <span className="font-medium text-gray-700">
+                              {valoresMarcados.length} {valoresMarcados.length === 1 ? "valor seleccionado" : "valores seleccionados"}
+                              {variantesQueUsan(valoresMarcados) > 0 && (
+                                <span className="ml-2 text-xs text-red-600">
+                                  · usados en {variantesQueUsan(valoresMarcados)} variantes
+                                </span>
+                              )}
+                            </span>
+                            <div className="ml-auto flex flex-wrap gap-2">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setValoresSeleccionados((prev) =>
+                                    prev.filter((id) => !valoresMarcados.some((valor) => valor.id === id))
+                                  )
+                                }
+                                className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 transition hover:bg-gray-50"
+                              >
+                                Quitar selección
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleBulkDeleteValores(atributo, valoresVisibles)}
+                                disabled={eliminando}
+                                className="rounded-lg bg-red-500 px-3 py-1.5 text-xs font-semibold text-white shadow transition hover:bg-red-600 disabled:opacity-50"
+                              >
+                                {eliminando ? "⏳ Eliminando..." : `🗑️ Eliminar ${valoresMarcados.length}`}
+                              </button>
+                            </div>
+                          </div>
+                        )}
                         <div className="overflow-x-auto">
                           <div className="min-w-[780px]">
                             <div className="grid grid-cols-12 gap-3 text-xs font-semibold text-gray-400 uppercase tracking-wider px-2 py-2 border-b border-gray-100 mb-3">
-                              <div className="col-span-1 text-center">ID</div>
+                              <div className="col-span-1 flex items-center justify-center gap-2">
+                                {valoresVisibles.length > 0 && (
+                                  <Casilla
+                                    checked={todosValoresMarcados}
+                                    indeterminate={valoresMarcados.length > 0 && !todosValoresMarcados}
+                                    onChange={() => toggleTodosValores(valoresVisibles)}
+                                    title={`Seleccionar todos los valores de ${atributo.nombre}`}
+                                  />
+                                )}
+                                ID
+                              </div>
                               <div className="col-span-3">Valor</div>
                               <div className="col-span-2">Color</div>
                               <div className="col-span-3">Imagen</div>
@@ -675,14 +929,35 @@ export default function AdminAtributosPage() {
 
                                 const seEstaEditando =
                                   editandoValor?.atributoId === atributo.id && editandoValor?.valorId === valor.id;
+                                const valorMarcado = valoresSeleccionados.includes(valor.id);
+                                const usos = valor._count?.varianteatributo ?? 0;
+                                const fondoFila = valorMarcado
+                                  ? "bg-red-50/60"
+                                  : seEstaEditando
+                                    ? "bg-blue-50/50"
+                                    : coincideValorDirecto
+                                      ? "bg-amber-50/70"
+                                      : "";
 
                                 return (
                                   <div key={valor.id}>
                                     <div
-                                      className={`grid grid-cols-12 gap-3 items-center px-2 py-3 border-b border-gray-100 rounded-xl ${coincideValorDirecto ? "bg-amber-50/70" : ""} ${seEstaEditando ? "bg-blue-50/50" : ""}`}
+                                      className={`grid grid-cols-12 gap-3 items-center px-2 py-3 border-b border-gray-100 rounded-xl ${fondoFila}`}
                                     >
-                                      <div className="col-span-1 text-center text-xs text-gray-500 font-mono">#{valor.id}</div>
-                                      <div className="col-span-3 font-medium text-gray-800">{valor.valor}</div>
+                                      <label className="col-span-1 flex cursor-pointer items-center justify-center gap-2 text-xs text-gray-500 font-mono">
+                                        <Casilla
+                                          checked={valorMarcado}
+                                          onChange={() => setValoresSeleccionados((prev) => alternarEnLista(prev, valor.id))}
+                                          title={`Seleccionar ${valor.valor}`}
+                                        />
+                                        #{valor.id}
+                                      </label>
+                                      <div className="col-span-3">
+                                        <div className="font-medium text-gray-800">{valor.valor}</div>
+                                        <div className="text-xs text-gray-400">
+                                          {usos > 0 ? `En ${usos} ${usos === 1 ? "variante" : "variantes"}` : "Sin uso en variantes"}
+                                        </div>
+                                      </div>
                                       <div className="col-span-2 flex items-center gap-2">
                                         {valor.colorHex ? (
                                           <>

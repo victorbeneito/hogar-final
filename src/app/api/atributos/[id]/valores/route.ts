@@ -38,3 +38,34 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
   }
 }
+
+// Borrado masivo: { ids: number[] }. Solo borra los que pertenecen a este atributo.
+export async function DELETE(req: NextRequest, { params }: RouteParams) {
+  if (!canEdit(req)) {
+    return NextResponse.json({ ok: false, error: "No tienes permiso" }, { status: 403 });
+  }
+  try {
+    const { id: idString } = await params;
+    const atributoId = Number(idString);
+    if (!Number.isInteger(atributoId)) {
+      return NextResponse.json({ ok: false, error: "ID inválido" }, { status: 400 });
+    }
+
+    const body = await req.json().catch(() => ({}));
+    const ids: number[] = Array.isArray(body.ids)
+      ? Array.from(new Set<number>(body.ids.map(Number).filter(Number.isInteger)))
+      : [];
+
+    if (ids.length === 0) {
+      return NextResponse.json({ ok: false, error: "No hay valores seleccionados" }, { status: 400 });
+    }
+
+    const { count } = await prisma.atributovalor.deleteMany({
+      where: { atributoId, id: { in: ids } },
+    });
+
+    return NextResponse.json({ ok: true, eliminados: count });
+  } catch (error: any) {
+    return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+  }
+}
