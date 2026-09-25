@@ -51,7 +51,9 @@ function BotonesPaypal({
   }
 
   return (
-    <div className="w-full">
+    // `isolate`: encierra el z-index 100/200 que el SDK pone a sus iframes, para que
+    // los botones no se pinten por encima de modales (ver PaypalExpressButton).
+    <div className="isolate w-full">
       <PayPalButtons
         createOrder={async () => {
           try {

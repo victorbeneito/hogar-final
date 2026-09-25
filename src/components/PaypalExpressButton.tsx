@@ -86,8 +86,11 @@ function BotonExpress({ items, disabled, onBeforePay }: PaypalExpressButtonProps
     ...extra,
   });
 
+  // `isolate`: el SDK de PayPal pone z-index 100/200 a sus iframes. Sin un contexto
+  // de apilamiento propio, los botones se pintan por encima de cualquier modal de la
+  // página (p. ej. el visor de imagen ampliada de la ficha, que va con z-50).
   return (
-    <div className={disabled || procesando ? "pointer-events-none opacity-50" : ""}>
+    <div className={`isolate ${disabled || procesando ? "pointer-events-none opacity-50" : ""}`}>
       <PayPalButtons
         style={{ layout: "vertical", color: "gold", shape: "rect", label: "checkout", height: 44 }}
         disabled={disabled || procesando}
