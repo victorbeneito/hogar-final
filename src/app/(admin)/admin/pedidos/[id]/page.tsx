@@ -4,6 +4,7 @@ import * as React from "react";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { calculateShippingResult, normalizeShippingConfig, type ShippingConfig } from "@/lib/transportes";
 
 type Address = {
   nombre: string;
@@ -252,6 +253,9 @@ export default function PedidoDetallePage({ params }: { params: Promise<{ id: st
   const [fechaEnvio, setFechaEnvio] = useState("");
   const [fechaEntrega, setFechaEntrega] = useState("");
   const [envioCoste, setEnvioCoste] = useState(0);
+  const [envioMetodo, setEnvioMetodo] = useState("");
+  const [configTransportes, setConfigTransportes] = useState<ShippingConfig | null>(null);
+  const [avisoEnvio, setAvisoEnvio] = useState("");
   const [facturacion, setFacturacion] = useState<Address>(emptyAddress());
   const [entrega, setEntrega] = useState<Address>(emptyAddress());
   const [productos, setProductos] = useState<OrderProduct[]>([]);
@@ -297,6 +301,7 @@ export default function PedidoDetallePage({ params }: { params: Promise<{ id: st
           .filter((c: any) => c.active)
           .map((c: any) => ({ id: c.id, name: c.name, trackingUrl: c.trackingUrl || "" }));
         setTransportistasConfig(carriers);
+        if (transportesData.config) setConfigTransportes(normalizeShippingConfig(transportesData.config));
 
         const current: Pedido = data.pedido;
         setPedido(current);
@@ -318,6 +323,7 @@ export default function PedidoDetallePage({ params }: { params: Promise<{ id: st
         setFechaEnvio(current.fechaEnvio ? current.fechaEnvio.slice(0, 16) : "");
         setFechaEntrega(current.fechaEntrega ? current.fechaEntrega.slice(0, 16) : "");
         setEnvioCoste(Number(current.envioCoste || 0));
+        setEnvioMetodo(current.envioMetodo || "pickup");
         setFacturacion(mapAddress(current.direccionFacturacion, current.direccionEntrega));
         setEntrega(mapAddress(current.direccionEntrega));
         setProductos(current.productos || []);
@@ -535,7 +541,7 @@ export default function PedidoDetallePage({ params }: { params: Promise<{ id: st
           descuento: pedido.descuento,
           totalFinal: totals.total,
           pagoRecargo: pedido.pagoRecargo,
-          envioMetodo: pedido.envioMetodo,
+          envioMetodo,
           envioCoste,
           nombre: entrega.nombre,
           apellidos: entrega.apellidos,
@@ -582,9 +588,11 @@ export default function PedidoDetallePage({ params }: { params: Promise<{ id: st
       setEntrega(data.pedido.direccionEntrega || entrega);
       setFacturacion(data.pedido.direccionFacturacion || facturacion);
       setEnvioCoste(Number(data.pedido.envioCoste ?? envioCoste));
-      setTransportistaNombre(data.pedido.transportistaNombre || transportistaNombre);
+      setEnvioMetodo(data.pedido.envioMetodo || envioMetodo);
+      setAvisoEnvio("");
+      setTransportistaNombre(data.pedido.transportistaNombre ?? transportistaNombre);
       setNumeroSeguimiento(data.pedido.numeroSeguimiento || numeroSeguimiento);
-      setTrackingUrl(data.pedido.trackingUrl || trackingUrl);
+      setTrackingUrl(data.pedido.trackingUrl ?? trackingUrl);
       setEstadoHistorial(data.pedido.estadoHistorial || []);
       alert("Pedido actualizado correctamente");
       router.refresh();
@@ -612,6 +620,52 @@ export default function PedidoDetallePage({ params }: { params: Promise<{ id: st
       alert(error.message || "Error al guardar el mensaje");
     }
   };
+
+  /**
+   * Cambia entre recogida y un transportista. Con transportista, propone el
+   * coste de la tarifa de su zona para la dirección de entrega (se puede
+   * corregir a mano). El cambio se aplica al pulsar "Guardar".
+   */
+  const cambiarMetodoEnvio = (valor: string) => {
+    setAvisoEnvio("");
+
+    if (valor === "pickup") {
+      setEnvioMetodo("pickup");
+      setTransportistaNombre("");
+      setTrackingUrl("");
+      setEnvioCoste(0);
+      return;
+    }
+
+    const carrier = transportistasConfig.find((c) => c.id === valor);
+    if (!carrier) return;
+
+    setEnvioMetodo("delivery");
+    setTransportistaNombre(carrier.name);
+    setTrackingUrl(carrier.trackingUrl);
+
+    const opcion = configTransportes
+      ? calculateShippingResult(configTransportes, totals.subtotal, {
+          pais: entrega.pais,
+          provincia: entrega.provincia,
+          codigoPostal: entrega.codigoPostal,
+          ciudad: entrega.ciudad,
+        }).options.find((o) => o.carrierId === carrier.id)
+      : null;
+
+    if (opcion) {
+      setEnvioCoste(opcion.coste);
+    } else {
+      setAvisoEnvio(`${carrier.name} no tiene tarifa para esta dirección de entrega: revisa el coste de envío a mano.`);
+    }
+  };
+
+  const metodoEnvioSeleccionado =
+    envioMetodo === "pickup"
+      ? "pickup"
+      : transportistasConfig.find((c) => c.name === transportistaNombre)?.id ?? "";
+
+  const metodoEnvioSinGuardar = pedido ? envioMetodo !== pedido.envioMetodo : false;
 
   const actualizarTransporte = async () => {
     if (!pedido) return;
@@ -896,7 +950,32 @@ export default function PedidoDetallePage({ params }: { params: Promise<{ id: st
 
             {/* Transporte */}
             <Card title="Transporte">
-              {pedido.envioMetodo === "pickup" ? (
+              <div className="mb-4 space-y-2">
+                <label className="block text-xs font-semibold text-gray-500">Método de envío</label>
+                <select
+                  value={metodoEnvioSeleccionado}
+                  onChange={(e) => cambiarMetodoEnvio(e.target.value)}
+                  className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#6BAEC9]"
+                >
+                  {metodoEnvioSeleccionado === "" && (
+                    <option value="" disabled>
+                      {transportistaNombre || "Envío a domicilio"}
+                    </option>
+                  )}
+                  <option value="pickup">Recogida en tienda</option>
+                  {transportistasConfig.map((c) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+                {avisoEnvio && <p className="text-xs text-amber-700">{avisoEnvio}</p>}
+                {metodoEnvioSinGuardar && (
+                  <p className="text-xs text-amber-700">
+                    Método de envío cambiado: pulsa «Guardar» para aplicarlo y recalcular el total del pedido.
+                  </p>
+                )}
+              </div>
+
+              {envioMetodo === "pickup" ? (
                 /* ── Recogida en tienda ── */
                 <div className="space-y-4">
                   <div className="flex items-center gap-3 rounded-lg bg-blue-50 px-4 py-3">
@@ -925,7 +1004,7 @@ export default function PedidoDetallePage({ params }: { params: Promise<{ id: st
                     </div>
                     <button
                       onClick={actualizarTransporte}
-                      disabled={savingTransporte}
+                      disabled={savingTransporte || metodoEnvioSinGuardar}
                       className="rounded-lg bg-[#6BAEC9] px-4 py-2 text-sm font-semibold text-white hover:bg-[#5FA0B3] disabled:opacity-60 whitespace-nowrap"
                     >
                       {savingTransporte ? "Registrando..." : fechaEntrega ? "Actualizar entrega" : "Registrar entrega"}
@@ -969,29 +1048,6 @@ export default function PedidoDetallePage({ params }: { params: Promise<{ id: st
                     </div>
                   </div>
 
-                  {/* Cambiar transportista si hay varios configurados */}
-                  {transportistasConfig.length > 1 && (
-                    <div>
-                      <label className="block text-xs font-semibold text-gray-500 mb-1">Cambiar transportista</label>
-                      <select
-                        className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#6BAEC9]"
-                        defaultValue=""
-                        onChange={(e) => {
-                          const carrier = transportistasConfig.find((c) => c.id === e.target.value);
-                          if (carrier) {
-                            setTransportistaNombre(carrier.name);
-                            setTrackingUrl(carrier.trackingUrl);
-                          }
-                        }}
-                      >
-                        <option value="" disabled>Seleccionar transportista...</option>
-                        {transportistasConfig.map((c) => (
-                          <option key={c.id} value={c.id}>{c.name}</option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
-
                   {/* Número de seguimiento + botón Actualizar */}
                   <div className="flex gap-3 items-end border-t border-gray-100 pt-4">
                     <div className="flex-1">
@@ -1004,7 +1060,7 @@ export default function PedidoDetallePage({ params }: { params: Promise<{ id: st
                     </div>
                     <button
                       onClick={actualizarTransporte}
-                      disabled={savingTransporte}
+                      disabled={savingTransporte || metodoEnvioSinGuardar}
                       className="rounded-lg bg-[#6BAEC9] px-4 py-2 text-sm font-semibold text-white hover:bg-[#5FA0B3] disabled:opacity-60 whitespace-nowrap"
                     >
                       {savingTransporte ? "Actualizando..." : "Actualizar envío"}

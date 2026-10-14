@@ -7,6 +7,8 @@ export type ShippingZoneConfig = {
   name: string;
   price: number;
   active: boolean;
+  /** Si el umbral de envío gratis del transportista se aplica en esta zona. */
+  freeShipping: boolean;
   note: string;
   order: number;
   countries: string[];
@@ -121,6 +123,90 @@ const SPANISH_PENINSULA_PROVINCES = [
 const BALEARIC_PROVINCES = ["islas baleares", "illes balears", "baleares"];
 const CANARY_PROVINCES = ["las palmas", "santa cruz de tenerife", "canarias", "islas canarias"];
 
+const SPAIN_ALIASES = ["espana", "spain", "es", "espanya"];
+
+/**
+ * Provincia según los dos primeros dígitos del código postal español. Es el
+ * dato fiable: la provincia del formulario es texto libre y llega como
+ * "Ibiza", "Eivissa", "Mallorca", "Balears"... que no casan con ninguna zona.
+ */
+const PROVINCES_BY_POSTAL_PREFIX: Record<string, string[]> = {
+  "01": ["alava", "araba"],
+  "02": ["albacete"],
+  "03": ["alicante"],
+  "04": ["almeria"],
+  "05": ["avila"],
+  "06": ["badajoz"],
+  "07": BALEARIC_PROVINCES,
+  "08": ["barcelona"],
+  "09": ["burgos"],
+  "10": ["caceres"],
+  "11": ["cadiz"],
+  "12": ["castellon"],
+  "13": ["ciudad real"],
+  "14": ["cordoba"],
+  "15": ["a coruna"],
+  "16": ["cuenca"],
+  "17": ["girona"],
+  "18": ["granada"],
+  "19": ["guadalajara"],
+  "20": ["gipuzkoa", "guipuzcoa"],
+  "21": ["huelva"],
+  "22": ["huesca"],
+  "23": ["jaen"],
+  "24": ["leon"],
+  "25": ["lleida"],
+  "26": ["la rioja"],
+  "27": ["lugo"],
+  "28": ["madrid"],
+  "29": ["malaga"],
+  "30": ["murcia"],
+  "31": ["navarra"],
+  "32": ["ourense"],
+  "33": ["asturias"],
+  "34": ["palencia"],
+  "35": ["las palmas", "canarias", "islas canarias"],
+  "36": ["pontevedra"],
+  "37": ["salamanca"],
+  "38": ["santa cruz de tenerife", "canarias", "islas canarias"],
+  "39": ["cantabria"],
+  "40": ["segovia"],
+  "41": ["sevilla"],
+  "42": ["soria"],
+  "43": ["tarragona"],
+  "44": ["teruel"],
+  "45": ["toledo"],
+  "46": ["valencia"],
+  "47": ["valladolid"],
+  "48": ["bizkaia", "vizcaya"],
+  "49": ["zamora"],
+  "50": ["zaragoza"],
+  "51": ["ceuta"],
+  "52": ["melilla"],
+};
+
+/** Variantes habituales de provincia escritas a mano, para cuando no hay CP válido. */
+const PROVINCE_ALIASES: Record<string, string> = {
+  balears: "baleares",
+  "islas balears": "baleares",
+  mallorca: "baleares",
+  "palma de mallorca": "baleares",
+  menorca: "baleares",
+  ibiza: "baleares",
+  eivissa: "baleares",
+  formentera: "baleares",
+  "la coruna": "a coruna",
+  coruna: "a coruna",
+  gerona: "girona",
+  lerida: "lleida",
+  orense: "ourense",
+  alacant: "alicante",
+  castello: "castellon",
+  "castellon de la plana": "castellon",
+  tenerife: "santa cruz de tenerife",
+  "gran canaria": "las palmas",
+};
+
 function normalizeText(value: string | null | undefined) {
   return String(value ?? "")
     .trim()
@@ -157,6 +243,7 @@ export function createDefaultShippingZones(): ShippingZoneConfig[] {
       name: "Península",
       price: 5.74,
       active: true,
+      freeShipping: true,
       note: "España peninsular",
       order: 1,
       countries: ["España"],
@@ -165,8 +252,9 @@ export function createDefaultShippingZones(): ShippingZoneConfig[] {
     {
       id: "baleares",
       name: "Baleares",
-      price: 12.36,
+      price: 12.95,
       active: true,
+      freeShipping: false,
       note: "Islas Baleares",
       order: 2,
       countries: ["España"],
@@ -177,6 +265,7 @@ export function createDefaultShippingZones(): ShippingZoneConfig[] {
       name: "Canarias",
       price: 0,
       active: false,
+      freeShipping: false,
       note: "No realizamos envíos a Canarias",
       order: 3,
       countries: ["España"],
@@ -187,6 +276,7 @@ export function createDefaultShippingZones(): ShippingZoneConfig[] {
       name: "Portugal",
       price: 12.36,
       active: true,
+      freeShipping: false,
       note: "Solo Portugal",
       order: 4,
       countries: ["Portugal"],
@@ -197,6 +287,7 @@ export function createDefaultShippingZones(): ShippingZoneConfig[] {
       name: "Italia",
       price: 16.95,
       active: true,
+      freeShipping: false,
       note: "Solo Italia",
       order: 5,
       countries: ["Italia"],
@@ -252,6 +343,11 @@ export function normalizeShippingZones(rawZones: any[]): ShippingZoneConfig[] {
       name: zone.name ?? defaultZones[index]?.name ?? `Zona ${index + 1}`,
       price: Number(zone.price ?? defaultZones[index]?.price ?? 0),
       active: zone.active !== undefined ? Boolean(zone.active) : (defaultZones[index]?.active ?? true),
+      // Las configuraciones guardadas antes de existir este campo no lo traen:
+      // se toma el de la zona por defecto con el mismo id (sólo Península es gratis).
+      freeShipping: zone.freeShipping !== undefined
+        ? Boolean(zone.freeShipping)
+        : (defaultZones.find((item) => item.id === zone.id)?.freeShipping ?? false),
       note: zone.note ?? defaultZones[index]?.note ?? "",
       order: Number(zone.order ?? index + 1),
       countries: normalizeList(zone.countries ?? defaultZones[index]?.countries ?? []),
@@ -346,7 +442,7 @@ function getCarrierOption(
 
   if (!carrier.active || !zone || !zone.active) return null;
 
-  const freeApplied = carrier.freeShippingEnabled
+  const freeApplied = carrier.freeShippingEnabled && zone.freeShipping
     ? shouldApplyFreeShipping(carrier.freeShippingMode, subtotal, carrier.freeShippingAmount)
     : false;
 
@@ -365,17 +461,39 @@ function getCarrierOption(
   };
 }
 
-function zoneMatchesAddress(zone: ShippingZoneConfig, address: ShippingAddress) {
-  const country = normalizeText(address.pais || "España");
+function normalizeCountry(value: string | null | undefined) {
+  const country = normalizeText(value || "España");
+  return SPAIN_ALIASES.includes(country) ? "espana" : country;
+}
+
+/**
+ * Nombres con los que buscar la provincia en las zonas. En España manda el
+ * código postal; el texto escrito sólo se usa si el CP no es válido.
+ */
+function addressProvinceCandidates(address: ShippingAddress, country: string): string[] {
+  if (country === "espana") {
+    const postalCode = String(address.codigoPostal ?? "").replace(/\s+/g, "");
+    if (/^\d{5}$/.test(postalCode)) {
+      const fromPostalCode = PROVINCES_BY_POSTAL_PREFIX[postalCode.slice(0, 2)];
+      if (fromPostalCode) return fromPostalCode;
+    }
+  }
+
   const province = normalizeText(address.provincia);
+  return [PROVINCE_ALIASES[province] ?? province];
+}
+
+function zoneMatchesAddress(zone: ShippingZoneConfig, address: ShippingAddress) {
+  const country = normalizeCountry(address.pais);
+  const provinces = addressProvinceCandidates(address, country);
 
   const countryMatches = zone.countries.length === 0
     ? true
-    : zone.countries.some((candidate) => normalizeText(candidate) === country);
+    : zone.countries.some((candidate) => normalizeCountry(candidate) === country);
 
   const provinceMatches = zone.provinces.length === 0
     ? true
-    : zone.provinces.some((candidate) => normalizeText(candidate) === province);
+    : zone.provinces.some((candidate) => provinces.includes(normalizeText(candidate)));
 
   return countryMatches && provinceMatches;
 }

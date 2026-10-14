@@ -399,6 +399,7 @@ export default function AdminTransportesPage() {
                         <th className="px-4 py-3 text-left">Zona</th>
                         <th className="px-4 py-3 text-left">Cobertura</th>
                         <th className="px-4 py-3 text-left">Activa</th>
+                        <th className="px-4 py-3 text-left" title="Si el umbral de envío gratis de este transportista se aplica en esta zona">Envío gratis</th>
                         <th className="px-4 py-3 text-left">Importe</th>
                         <th className="px-4 py-3 text-left">Notas</th>
                       </tr>
@@ -418,6 +419,14 @@ export default function AdminTransportesPage() {
                               type="checkbox"
                               checked={zone.active}
                               onChange={(e) => updateCarrierZone(carrier.id, zone.id, { active: e.target.checked })}
+                              className="h-4 w-4 rounded border-gray-300 text-[#6BAEC9] focus:ring-[#6BAEC9]"
+                            />
+                          </td>
+                          <td className="px-4 py-3">
+                            <input
+                              type="checkbox"
+                              checked={zone.freeShipping}
+                              onChange={(e) => updateCarrierZone(carrier.id, zone.id, { freeShipping: e.target.checked })}
                               className="h-4 w-4 rounded border-gray-300 text-[#6BAEC9] focus:ring-[#6BAEC9]"
                             />
                           </td>

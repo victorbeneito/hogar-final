@@ -646,7 +646,7 @@ export default function ProductDetail({
                     Envío gratuito
                   </p>
                   <p className="text-xs text-gray-600 dark:text-gray-300">
-                    Este producto ya supera los {envioGratisDesde!.toFixed(2).replace(".", ",")} € — no pagas gastos de envío
+                    Este producto ya supera los {envioGratisDesde!.toFixed(2).replace(".", ",")} € — no pagas gastos de envío en la península
                   </p>
                 </div>
               </div>
