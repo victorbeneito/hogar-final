@@ -10,6 +10,7 @@ import { calcularTotalesPedido, ErrorCalculoPedido, type TotalesPedido } from "@
 import { getBaseUrl } from "@/lib/urls";
 import { idsProductosSinControlDeStock } from "@/lib/stock";
 import { cargarEstadosPedido, indexarEstados, resolverEstadoVisible } from "@/lib/estadoPedido";
+import { construirFiltroPedidos } from "@/lib/filtroPedidos";
 
 async function getEstadoInicialPorMetodo(metodoPago: string, tx: any): Promise<{ nombre: string; color: string; clave: string }> {
   const metodo = (metodoPago || "").toLowerCase().trim();
@@ -93,23 +94,14 @@ export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const clienteId = searchParams.get("clienteId");
-    const id = searchParams.get("id");
-    const origen = searchParams.get("origen")?.trim();
-    const referencia = searchParams.get("referencia")?.trim();
-    const cliente = searchParams.get("cliente")?.trim();
-    const estado = searchParams.get("estado")?.trim();
-    const estadoPago = searchParams.get("estadoPago")?.trim();
-    const fechaDesde = searchParams.get("fechaDesde");
-    const fechaHasta = searchParams.get("fechaHasta");
     const sortBy = searchParams.get("sortBy") || "fechaPedido";
     const sortDir = searchParams.get("sortDir") === "asc" ? "asc" : "desc";
     const page  = Math.max(1, parseInt(searchParams.get("page")  || "1"));
     const limit = Math.min(200, Math.max(1, parseInt(searchParams.get("limit") || "50")));
-    const prestashopImportMarker = "[Importado de Prestashop]";
 
     console.log(`🔍 [GET Pedidos] Buscando para ClienteID: ${clienteId || "TODOS"}`);
 
-    const whereClause: any = {};
+    const whereClause: any = construirFiltroPedidos(searchParams);
     if (clienteSesion) {
       // El cliente del token manda sobre el de la URL: si no, bastaría cambiar el número para
       // ver los pedidos de otro. Las claves de primer nivel de Prisma se combinan con AND, así
@@ -117,53 +109,6 @@ export async function GET(req: NextRequest) {
       whereClause.clienteId = clienteSesion.clienteId;
     } else if (clienteId && !Number.isNaN(parseInt(clienteId, 10))) {
       whereClause.clienteId = parseInt(clienteId, 10);
-    }
-    if (id && !Number.isNaN(parseInt(id, 10))) {
-      whereClause.id = parseInt(id, 10);
-    }
-    if (estado) whereClause.estado = estado;
-    if (estadoPago) whereClause.estadoPago = estadoPago;
-    if (cliente) {
-      whereClause.OR = [
-        { nombre: { contains: cliente } },
-        { apellidos: { contains: cliente } },
-        { email: { contains: cliente } },
-        { numeroPedido: { contains: cliente } },
-        { transportistaNombre: { contains: cliente } },
-      ];
-    }
-    if (referencia) {
-      whereClause.AND = [
-        ...(whereClause.AND || []),
-        {
-          OR: [
-            { numeroPedido: { contains: referencia } },
-            { nombre: { contains: referencia } },
-            { email: { contains: referencia } },
-            { transportistaNombre: { contains: referencia } },
-          ],
-        },
-      ];
-    }
-    if (fechaDesde || fechaHasta) {
-      whereClause.fechaPedido = {};
-      if (fechaDesde) whereClause.fechaPedido.gte = new Date(fechaDesde);
-      if (fechaHasta) whereClause.fechaPedido.lte = new Date(fechaHasta);
-    }
-
-    const appendAndFilter = (condition: any) => {
-      whereClause.AND = [...(whereClause.AND || []), condition];
-    };
-
-    if (origen === "prestashop") {
-      appendAndFilter({ notas: { contains: prestashopImportMarker } });
-    } else if (origen === "actuales") {
-      appendAndFilter({
-        OR: [
-          { notas: null },
-          { NOT: { notas: { contains: prestashopImportMarker } } },
-        ],
-      });
     }
 
     const orderMap: Record<string, any> = {

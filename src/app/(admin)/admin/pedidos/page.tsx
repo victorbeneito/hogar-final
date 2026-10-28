@@ -298,6 +298,37 @@ export default function AdminPedidos() {
     URL.revokeObjectURL(url);
   };
 
+  // Una fila por producto, con medida y SKU (declaración de envases de Ecoembes).
+  // Usa los filtros de pantalla pero exporta todas las páginas.
+  const [exportandoLineas, setExportandoLineas] = useState(false);
+  const handleExportLineas = async () => {
+    setExportandoLineas(true);
+    try {
+      const params = new URLSearchParams();
+      Object.entries(filters).forEach(([key, value]) => {
+        if (value) params.set(key, value);
+      });
+      const res = await fetch(`/api/admin/pedidos/lineas?${params.toString()}`, { cache: "no-store" });
+      if (!res.ok) {
+        alert("No se pudo generar la exportación");
+        return;
+      }
+      const blob = await res.blob();
+      const nombre = res.headers.get("Content-Disposition")?.match(/filename="(.+)"/)?.[1]
+        ?? `pedidos-productos-${new Date().toISOString().slice(0, 10)}.csv`;
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = nombre;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } finally {
+      setExportandoLineas(false);
+    }
+  };
+
   const handleDelete = async (id: number) => {
     if (!confirm("¿Seguro que deseas eliminar este pedido?")) return;
     const result = await secureFetch(`/api/pedidos/${id}`, { method: "DELETE" });
@@ -400,6 +431,14 @@ export default function AdminPedidos() {
               className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-gray-700 hover:bg-gray-50"
             >
               Exportar
+            </button>
+            <button
+              onClick={handleExportLineas}
+              disabled={exportandoLineas}
+              title="Una fila por producto con medida, SKU, cantidad, precio y envío. Exporta todos los pedidos del filtro, no sólo esta página."
+              className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+            >
+              {exportandoLineas ? "Generando..." : "Exportar con productos"}
             </button>
             <button
               onClick={handleRefresh}
