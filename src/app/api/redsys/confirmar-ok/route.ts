@@ -3,6 +3,7 @@ import { buildPedidoUrl } from "@/lib/pedidoUrl";
 import { prisma } from "@/lib/prisma";
 import { sendTemplateEmail, sendRawEmail, buildAdminOrderEmail, loadEmailSettings } from "@/lib/emailService";
 import { getBaseUrl } from "@/lib/urls";
+import { recalcularUsoCuponDePedido } from "@/lib/cuponUso";
 
 export const dynamic = "force-dynamic";
 
@@ -38,6 +39,11 @@ export async function POST(req: NextRequest) {
       data: { estadoPago: "PAGADO", pagoMetodo: "tarjeta", estado: "Pago Aceptado", updatedAt: new Date() },
       include: { pedidoproducto: true },
     });
+
+    // Este fallback no pasa por aplicarEfectosCambioEstado: el uso del cupón se cuenta aquí
+    await recalcularUsoCuponDePedido(id).catch((err: any) =>
+      console.error("[CUPON] Error recalculando usos del cupón:", err?.message),
+    );
 
     const appUrl = getBaseUrl();
 

@@ -4,6 +4,7 @@ import { sendReviOrder, REVI_SYNC_CUTOFF_DATE } from "./reviService";
 import { createFactura, getInvoiceSettings } from "./invoiceGenerator";
 import { renderFacturaPdfDePedido } from "./facturaPdf";
 import { getBaseUrl } from "./urls";
+import { recalcularUsoCuponDePedido } from "./cuponUso";
 import {
   cargarEstadoPedido,
   resolverPlantillaEmail,
@@ -167,6 +168,13 @@ export async function aplicarEfectosCambioEstado({
   if (estado) {
     await aplicarBanderasDeEstado(pedidoId, estado, pedidoAnterior, ahora);
   }
+
+  // ── Usos del cupón ────────────────────────────────────────────────────────
+  // Después de las banderas: "Establecer como pagado" es lo que hace contar el
+  // uso, y una cancelación lo devuelve. Un fallo aquí no debe tumbar el cambio.
+  await recalcularUsoCuponDePedido(pedidoId).catch((err) =>
+    console.error("[CUPON] Error recalculando usos del cupón:", err?.message),
+  );
 
   // ── Factura ───────────────────────────────────────────────────────────────
   // Antes esto colgaba de un `if (email)`: un pedido sin correo no se facturaba.

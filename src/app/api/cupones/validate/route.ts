@@ -48,7 +48,7 @@ export async function POST(req: Request) {
         const userId = parseInt(decoded.id);
 
         // Buscamos si este usuario ya lo ha usado
-        const usoCliente = await prisma.cuponUso.findUnique({
+        const usoCliente = await prisma.cupon_uso.findUnique({
   where: {
     // 👇 Prisma requiere el nombre de la clave compuesta
     cuponId_clienteId: {

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
 import { clearCart } from "@/lib/cartService";
 import { clearGuestCheckout } from "@/lib/guestCheckout";
+import { limpiarCuponCheckout } from "@/lib/checkoutCupon";
 import { DEFAULT_PAYMENT_CONFIG, normalizePaymentConfig, inferContrareembolsoBase, type PaymentCheckoutConfig } from "@/lib/paymentSettings";
 
 export default function ContrareembolsoPage() {
@@ -96,7 +97,7 @@ export default function ContrareembolsoPage() {
       sessionStorage.removeItem("checkout_pedido_pending");
       clearCart();
       clearGuestCheckout();
-      localStorage.removeItem("checkout_descuento");
+      limpiarCuponCheckout();
       localStorage.removeItem("checkout_envio");
       window.dispatchEvent(new Event("storage"));
       router.push(`/checkout/confirmacion?pedido=${newPedidoId}`);

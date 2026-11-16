@@ -548,6 +548,18 @@ export async function POST(req: Request) {
         console.warn("⚠️ Ajustes en el recálculo del pedido:", totales.avisos.join(" | "));
       }
 
+      // Si el cliente vio un descuento y el servidor no lo acepta, no creamos el
+      // pedido: cobrarle el total completo sin avisar es justo lo que no debe pasar
+      const cuponPedido = String(body.cuponCodigo || body.cupon?.codigo || "").trim();
+      if (cuponPedido && !totales.cupon) {
+        const motivo =
+          totales.avisos.find((a) => a.startsWith("Cupón")) ?? `Cupón ${cuponPedido.toUpperCase()} no aplicado.`;
+        return NextResponse.json(
+          { error: `${motivo} Vuelve al resumen del pedido para revisarlo.`, cuponRechazado: true },
+          { status: 400 }
+        );
+      }
+
       const totalCliente = parseFloat(body.totalFinal || 0);
       if (Math.abs(totalCliente - totales.totalFinal) > 0.01) {
         console.warn(

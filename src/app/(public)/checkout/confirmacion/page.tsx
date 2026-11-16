@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { clearCart } from "@/lib/cartService";
 import { clearGuestCheckout } from "@/lib/guestCheckout";
+import { limpiarCuponCheckout } from "@/lib/checkoutCupon";
 import { compraFinalizada } from "@/lib/analytics";
 
 export default function ConfirmacionPage() {
@@ -24,7 +25,8 @@ export default function ConfirmacionPage() {
       if (typeof window !== "undefined") {
          clearCart();
          clearGuestCheckout();
-         localStorage.removeItem("checkout_envio"); 
+         localStorage.removeItem("checkout_envio");
+         limpiarCuponCheckout();
          // Lanzamos evento para actualizar el contador del header a 0
          window.dispatchEvent(new Event("storage"));
       }

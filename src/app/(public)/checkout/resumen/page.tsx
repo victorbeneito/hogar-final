@@ -6,6 +6,7 @@ import { getCart, CartItem } from "@/lib/cartService";
 import { useCheckoutIdentidad } from "@/hooks/useCheckoutIdentidad";
 import { toast } from "react-hot-toast";
 import Link from "next/link";
+import { guardarCuponCheckout, leerCuponCheckout, limpiarCuponCheckout } from "@/lib/checkoutCupon";
 
 export default function ResumenPage() {
   const router = useRouter();
@@ -59,6 +60,14 @@ export default function ResumenPage() {
       );
       setSubtotal(sub);
 
+      // Recuperar el cupón si ya se aplicó antes (p. ej. al volver desde el pago)
+      const cuponGuardado = leerCuponCheckout();
+      if (cuponGuardado) {
+        setCodigo(cuponGuardado.codigo);
+        setDescuento(cuponGuardado.descuento);
+        validarCupon(cuponGuardado.codigo, sub, true);
+      }
+
       // Cargar Envío
       const envioGuardado = localStorage.getItem("checkout_envio");
       if (envioGuardado) {
@@ -82,51 +91,55 @@ export default function ResumenPage() {
       }
 
     }
-  }, [modo, loading, router]);
+  }, [modo, loading, router]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // La dirección de entrega la resuelve useCheckoutIdentidad (cuenta o invitado)
   const direccionEntrega = direccionEnvio;
 
   // 2. Lógica de Cupón
-  const aplicarCupon = async () => {
-    if (!codigo.trim()) return;
+  // `silencioso` se usa al restaurar un cupón ya aplicado: se revalida contra el
+  // subtotal actual (el carrito pudo cambiar) sin volver a mostrar el aviso.
+  const validarCupon = async (codigoCupon: string, subtotalActual: number, silencioso = false) => {
+    if (!codigoCupon.trim()) return;
     if (aplicandoRef.current) return;
     aplicandoRef.current = true;
     try {
-      // Usamos tu endpoint de validación
       const res = await fetch("/api/cupones/validate", {
         method: "POST",
-        headers: { 
+        headers: {
             "Content-Type": "application/json",
-            ...(token && { Authorization: `Bearer ${token}` }) 
+            ...(token && { Authorization: `Bearer ${token}` })
         },
-        body: JSON.stringify({ codigo, subtotal }),
+        body: JSON.stringify({ codigo: codigoCupon, subtotal: subtotalActual }),
       });
       const data = await res.json();
 
       if (data.valid) {
         const montoDescuento = Number(data.descuentoCalculado);
         setDescuento(montoDescuento);
-        
-        // PERSISTENCIA: Guardamos el descuento para que la página de pago lo vea
-        localStorage.setItem("checkout_descuento", montoDescuento.toString());
-        
-        toast.success(`Cupón aplicado: -${montoDescuento.toFixed(2)}€`);
+
+        // Guardamos el código además del importe: el servidor recalcula el
+        // descuento a partir del código al crear el pedido
+        guardarCuponCheckout({ codigo: data.codigo ?? codigoCupon.trim().toUpperCase(), descuento: montoDescuento });
+
+        if (!silencioso) toast.success(`Cupón aplicado: -${montoDescuento.toFixed(2)}€`);
       } else {
         setDescuento(0);
         // Limpiamos si el cupón deja de ser válido
-        localStorage.removeItem("checkout_descuento");
+        limpiarCuponCheckout();
         toast.error(data.error || "Cupón no válido");
       }
 
-      
+
     } catch (error) {
       console.error(error);
-      toast.error("Error al verificar el cupón");
+      if (!silencioso) toast.error("Error al verificar el cupón");
     } finally {
       aplicandoRef.current = false;
     }
   };
+
+  const aplicarCupon = () => validarCupon(codigo, subtotal);
 
   // Cálculos Finales
   const costeEnvio = shippingData?.coste || 0;

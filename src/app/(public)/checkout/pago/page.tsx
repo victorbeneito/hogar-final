@@ -8,6 +8,7 @@ import { clearGuestCheckout } from "@/lib/guestCheckout";
 import { toast } from "react-hot-toast";
 import { DEFAULT_PAYMENT_CONFIG, normalizePaymentConfig, type PaymentCheckoutConfig, calculateContrareembolso } from "@/lib/paymentSettings";
 import { elegirPago, itemsDesdeCarrito } from "@/lib/analytics";
+import { leerCuponCheckout, limpiarCuponCheckout } from "@/lib/checkoutCupon";
 
 import PasarelaRedsys from "@/components/PasarelaRedsys"; 
 import PasarelaPaypal from "@/components/PasarelaPaypal"; 
@@ -33,6 +34,7 @@ export default function PagoPage() {
         comentarios?: string | null;
     } | null>(null);
   const [descuento, setDescuento] = useState(0);
+  const [cuponCodigo, setCuponCodigo] = useState<string | null>(null);
   const [paymentConfig, setPaymentConfig] = useState<PaymentCheckoutConfig>(DEFAULT_PAYMENT_CONFIG);
   
   // Popups
@@ -82,10 +84,11 @@ export default function PagoPage() {
                         });
         }
 
-        // 2. Recuperar descuento del cupón <--- NUEVO
-        const descuentoData = localStorage.getItem("checkout_descuento");
-        const montoDescuento = descuentoData ? parseFloat(descuentoData) : 0;
+        // 2. Recuperar el cupón aplicado en el resumen
+        const cupon = leerCuponCheckout();
+        const montoDescuento = cupon?.descuento ?? 0;
         setDescuento(montoDescuento);
+        setCuponCodigo(cupon?.codigo ?? null);
 
         fetch("/api/formas-pago/configuracion", { cache: "no-store" })
           .then((res) => res.json())
@@ -142,6 +145,8 @@ export default function PagoPage() {
         totalFinal: parseFloat(calcularTotalMostrado()), // Usamos el total final calculado
         subtotal: total - costeEnvio,
         descuentoAplicado: descuento,
+        // El servidor ignora `descuentoAplicado` y recalcula el descuento con el código
+        cuponCodigo,
         notas: shippingData?.comentarios || localStorage.getItem("checkout_comentarios") || "",
 
         cliente: {
@@ -257,7 +262,7 @@ export default function PagoPage() {
     setShowPaypal(false);
     clearCart(); // Limpiamos carrito al confirmar pago exitoso
     clearGuestCheckout(); // Los datos de invitado no sobreviven al pedido
-    localStorage.removeItem("checkout_descuento");
+    limpiarCuponCheckout();
     window.dispatchEvent(new Event("storage"));
     router.push(`/checkout/confirmacion?pedido=${pedidoTempId}`);
 
